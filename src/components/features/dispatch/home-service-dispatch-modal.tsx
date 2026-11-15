@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   getDriverRecommendationsAction,
   getTherapistRecommendationsAction,
@@ -501,22 +502,30 @@ export function HomeServiceDispatchModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-2xl">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!isPending) onOpenChange(nextOpen);
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[90dvh] w-full max-w-5xl sm:max-w-5xl flex-col gap-0 overflow-hidden rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-0 shadow-2xl"
+      >
         {/* Header */}
         <div className="shrink-0 flex items-start justify-between gap-4 border-b border-[var(--cs-border)] px-6 py-5">
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold text-[var(--cs-text)]">
+              <DialogTitle className="text-xl font-bold text-[var(--cs-text)]">
                 Home Service Booking
-              </h2>
+              </DialogTitle>
               <Badge className="border-green-200 bg-green-50 text-green-700">
                 Home Service
               </Badge>
             </div>
-            <p className="mt-1 text-sm text-[var(--cs-text-muted)]">
+            <DialogDescription className="mt-1 text-sm text-[var(--cs-text-muted)]">
               Assign the driver and therapist, and review the customer route. Assigned drivers can start travel from their workspace.
-            </p>
+            </DialogDescription>
           </div>
 
           <button
@@ -703,8 +712,8 @@ export function HomeServiceDispatchModal({
             </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

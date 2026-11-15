@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { sendStaffConfigurationPromptAction } from "@/app/(dashboard)/crm/attendance/actions";
+import { CrmAlertCard, CrmStatCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
+import { CrmPageHeader } from "@/components/features/crm/shared/crm-page-header";
 import { AttendanceIssueModalRouter } from "@/components/features/attendance/review/attendance-issue-modal-router";
 import { RecoveryLinkDialog } from "@/components/features/attendance/devices/recovery-link-dialog";
 import { OperationsGuidanceModal } from "@/components/features/operations-center/operations-guidance-modal";
@@ -121,8 +123,8 @@ export function OperationsCenterView({
   const selectedAttendanceItem =
     selectedIssue?.area === "attendance"
       ? (attendanceReviewItems.find(
-          (item) => "attendance:" + item.exception.id === selectedIssue.id
-        ) ?? null)
+        (item) => "attendance:" + item.exception.id === selectedIssue.id
+      ) ?? null)
       : null;
 
   // Search and Filtering
@@ -235,74 +237,63 @@ export function OperationsCenterView({
   const recoveryEntry =
     selectedRecoveryStaffId && attendanceData
       ? (attendanceData.deviceRegistry.entries.find(
-          (entry) => entry.staffId === selectedRecoveryStaffId
-        ) ?? null)
+        (entry) => entry.staffId === selectedRecoveryStaffId
+      ) ?? null)
       : null;
 
   return (
     <section className="space-y-5" aria-label="Operations Center">
-      {/* Workspace Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5">
-        <div>
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
-            {branchName} · Operational Command & Diagnostics
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--cs-text)]">
-            Operations Center
-          </h1>
-          <p className="mt-1 max-w-3xl text-sm text-[var(--cs-text-secondary)]">
-            Detect, diagnose, and resolve branch operational problems using authoritative CradleHub
-            workflows.
-          </p>
-          <p className="mt-2 text-xs text-[var(--cs-text-muted)]">
-            Authoritative check: {checkedAt} · Refresh to rerun diagnostics
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {configurationAvailable &&
-          issues.some((issue) => issue.resolutionKind === "provider_assignment") ? (
+      <CrmPageHeader
+        eyebrow={`${branchName} · Operational Command & Diagnostics`}
+        title="Operations Center"
+        description={`Detect, diagnose, and resolve branch operational problems using authoritative CradleHub workflows. Checked: ${checkedAt}`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {configurationAvailable &&
+              issues.some((issue) => issue.resolutionKind === "provider_assignment") ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-9 text-xs font-semibold"
+                onClick={() => {
+                  setSelectedServiceIssue(null);
+                  setIsProviderModalOpen(true);
+                }}
+              >
+                Assign Providers
+              </Button>
+            ) : null}
+            {issues.some((issue) => issue.id === "configuration:no-schedule") ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-9 text-xs font-semibold"
+                onClick={() => setScheduleSetupOpen(true)}
+              >
+                Set Up Schedules
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
-              className="min-h-10 text-xs font-semibold"
+              className="min-h-9 text-xs font-semibold"
               onClick={() => {
-                setSelectedServiceIssue(null);
-                setIsProviderModalOpen(true);
+                setDuplicateStaffId(null);
+                setIsDuplicateModalOpen(true);
               }}
             >
-              Assign Providers
+              <Users size={14} className="mr-1.5" aria-hidden />
+              Compare Staff Profiles
             </Button>
-          ) : null}
-          {issues.some((issue) => issue.id === "configuration:no-schedule") ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-10 text-xs font-semibold"
-              onClick={() => setScheduleSetupOpen(true)}
+            <Link
+              href="/crm/operations-center"
+              className="inline-flex min-h-9 items-center rounded-lg border border-[var(--cs-border-soft)] bg-white px-3 text-xs font-semibold text-[var(--cs-text)] shadow-xs transition hover:bg-[#FAF8F5]"
             >
-              Set Up Schedules
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-10 text-xs font-semibold"
-            onClick={() => {
-              setDuplicateStaffId(null);
-              setIsDuplicateModalOpen(true);
-            }}
-          >
-            <Users size={14} className="mr-1.5" aria-hidden />
-            Compare Staff Profiles
-          </Button>
-          <Link
-            href="/crm/operations-center"
-            className="inline-flex min-h-10 items-center rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-sm font-semibold hover:bg-[var(--cs-surface-warm)]"
-          >
-            Refresh checks
-          </Link>
-        </div>
-      </div>
+              Refresh checks
+            </Link>
+          </div>
+        }
+      />
 
       {/* 6 Authoritative Diagnostic Summary Cards */}
       <div
@@ -452,9 +443,9 @@ export function OperationsCenterView({
           </select>
 
           {severityFilter !== "all" ||
-          categoryFilter !== "all" ||
-          resolutionFilter !== "all" ||
-          normalizedSearch ? (
+            categoryFilter !== "all" ||
+            resolutionFilter !== "all" ||
+            normalizedSearch ? (
             <button
               type="button"
               onClick={() => {
@@ -519,80 +510,87 @@ export function OperationsCenterView({
             )}
           </div>
         ) : (
-          <div className="space-y-2.5">
-            {visibleIssues.map((issue) => (
-              <article
-                key={issue.id}
-                className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 transition hover:border-[var(--cs-sand)]"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={
-                        "rounded-md border px-2 py-0.5 text-[11px] font-semibold capitalize " +
-                        priorityClasses[issue.severity]
-                      }
-                    >
-                      {issue.severity}
-                    </span>
-                    <span className="text-xs font-semibold text-[var(--cs-text-muted)]">
-                      {areaLabels[issue.area]}
-                    </span>
-                    <span
-                      className={
-                        "rounded-md border px-2 py-0.5 text-[11px] font-medium " +
-                        stateLabels[issue.resolutionState].badge
-                      }
-                    >
-                      {stateLabels[issue.resolutionState].label}
-                    </span>
-                  </div>
-                  {issue.code ? (
-                    <code className="rounded bg-[var(--cs-surface-warm)] px-2 py-0.5 font-mono text-[11px] text-[var(--cs-text-secondary)]">
-                      {issue.code}
-                    </code>
-                  ) : null}
-                </div>
+          <div className="space-y-3">
+            {visibleIssues.map((issue) => {
+              const issueTone: CrmCardTone =
+                issue.severity === "critical"
+                  ? "danger"
+                  : issue.severity === "warning"
+                    ? "warning"
+                    : "info";
 
-                <h3 className="mt-2 text-sm font-bold text-stone-900">{issue.title}</h3>
-                <p className="mt-1 text-xs text-[var(--cs-text-secondary)] leading-5">
-                  {issue.description}
-                </p>
-                <p className="mt-2 rounded-md bg-[var(--cs-surface-warm)] p-2 text-xs text-stone-700">
-                  <strong className="text-stone-900">Recommended correction: </strong>
-                  {issue.guidance}
-                </p>
-
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--cs-border-soft)] pt-2.5">
-                  <span className="text-[11px] text-[var(--cs-text-muted)]">
-                    {issue.scanIdSuffix
-                      ? "Receipt suffix: " + issue.scanIdSuffix
-                      : issue.detectedAt
-                        ? "Detected: " + issue.detectedAt
-                        : "Authoritative branch check"}
-                  </span>
-
-                  <div className="flex items-center gap-2">
-                    {issue.actionHref && (
-                      <Link
-                        href={issue.actionHref}
-                        className="text-xs text-[var(--cs-text-muted)] underline hover:text-stone-800"
+              return (
+                <CrmAlertCard
+                  key={issue.id}
+                  tone={issueTone}
+                  icon={<AlertTriangle className="size-4" />}
+                  title={issue.title}
+                  badge={
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={
+                          "rounded-md border px-2 py-0.5 text-[11px] font-semibold capitalize " +
+                          priorityClasses[issue.severity]
+                        }
                       >
-                        External view
-                      </Link>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleResolveIssue(issue)}
-                      className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[var(--cs-sidebar-active)] px-3 text-xs font-semibold text-white hover:opacity-95"
-                      aria-label={"Resolve: " + issue.title}
-                    >
-                      {issue.actionLabel || "Resolve"} <ArrowUpRight size={13} aria-hidden />
-                    </button>
-                  </div>
-                </div>
-              </article>
-            ))}
+                        {issue.severity}
+                      </span>
+                      <span className="text-xs font-semibold text-[var(--cs-text-muted)]">
+                        {areaLabels[issue.area]}
+                      </span>
+                      <span
+                        className={
+                          "rounded-md border px-2 py-0.5 text-[11px] font-medium " +
+                          stateLabels[issue.resolutionState].badge
+                        }
+                      >
+                        {stateLabels[issue.resolutionState].label}
+                      </span>
+                      {issue.code ? (
+                        <code className="rounded bg-white/80 px-2 py-0.5 font-mono text-[11px] text-[var(--cs-text-secondary)]">
+                          {issue.code}
+                        </code>
+                      ) : null}
+                    </div>
+                  }
+                  description={issue.description}
+                  meta={
+                    <span>
+                      {issue.scanIdSuffix
+                        ? "Receipt suffix: " + issue.scanIdSuffix
+                        : issue.detectedAt
+                          ? "Detected: " + issue.detectedAt
+                          : "Authoritative branch check"}
+                    </span>
+                  }
+                  actions={
+                    <div className="flex items-center gap-2">
+                      {issue.actionHref && (
+                        <Link
+                          href={issue.actionHref}
+                          className="text-xs font-medium text-[var(--cs-text-muted)] underline hover:text-stone-800"
+                        >
+                          External view
+                        </Link>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleResolveIssue(issue)}
+                        className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#1F4E33] px-3 text-xs font-semibold text-white transition hover:bg-[#163B26]"
+                        aria-label={"Resolve: " + issue.title}
+                      >
+                        {issue.actionLabel || "Resolve"} <ArrowUpRight size={13} aria-hidden />
+                      </button>
+                    </div>
+                  }
+                >
+                  <p className="rounded-xl border border-[var(--cs-border-soft)] bg-white/80 p-2.5 text-xs text-stone-700">
+                    <strong className="text-stone-900">Recommended correction: </strong>
+                    {issue.guidance}
+                  </p>
+                </CrmAlertCard>
+              );
+            })}
 
             {filteredIssues.length > visibleIssues.length ? (
               <p className="text-center text-xs text-[var(--cs-text-muted)]">
@@ -804,20 +802,23 @@ function Summary({
   icon: typeof ShieldCheck;
   variant?: "normal" | "warning" | "critical";
 }) {
-  const variantStyles = {
-    normal: "border-[var(--cs-border)] bg-[var(--cs-surface)] text-stone-900",
-    warning: "border-amber-200 bg-amber-50/50 text-amber-950",
-    critical: "border-red-200 bg-red-50/50 text-red-950",
-  };
+  const tone: CrmCardTone =
+    variant === "critical"
+      ? "danger"
+      : variant === "warning"
+        ? "warning"
+        : label === "Branch Health"
+          ? "success"
+          : "neutral";
 
   return (
-    <div className={`rounded-xl border p-4 ${variantStyles[variant]}`}>
-      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--cs-text-muted)]">
-        <Icon size={16} aria-hidden />
-        {label}
-      </div>
-      <p className="mt-2 text-lg font-bold tracking-tight">{value}</p>
-    </div>
+    <CrmStatCard
+      compact
+      title={label}
+      value={value}
+      tone={tone}
+      icon={<Icon className="size-4" aria-hidden="true" />}
+    />
   );
 }
 

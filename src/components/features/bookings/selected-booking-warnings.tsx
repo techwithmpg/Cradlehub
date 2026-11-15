@@ -15,7 +15,7 @@ import { isPaymentOverdue } from "@/lib/crm/cradle-flow";
 import { isHomeServiceBooking } from "@/lib/bookings/bookings-workspace-filters";
 
 const reviewButtonClass =
-  "inline-flex h-8 items-center justify-center rounded-lg px-3 text-xs font-semibold text-emerald-900 hover:bg-white";
+  "inline-flex h-8 items-center justify-center rounded-lg border border-[#EFE1BE] bg-white px-3 text-xs font-semibold text-[#1F4E33] transition hover:bg-[#EEF7F1]";
 
 function WarningStrip({
   title,
@@ -29,11 +29,13 @@ function WarningStrip({
   onAction: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 last:border-b-0">
-      <AlertTriangle className="size-5 shrink-0 text-amber-700" />
+    <div className="flex items-center gap-3 border-b border-[#EFE1BE] bg-[#FDF8EC] px-4 py-3 last:border-b-0">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white/90 text-[#A16207] ring-1 ring-[#EFE1BE]">
+        <AlertTriangle className="size-4" />
+      </span>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-bold text-amber-900">{title}</p>
-        <p className="mt-0.5 truncate text-xs text-amber-900/75">{detail}</p>
+        <p className="text-xs font-bold text-[var(--cs-text)]">{title}</p>
+        <p className="mt-0.5 truncate text-xs text-[var(--cs-text-secondary)]">{detail}</p>
       </div>
       <button type="button" onClick={onAction} className={reviewButtonClass}>
         {actionLabel}

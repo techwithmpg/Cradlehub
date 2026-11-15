@@ -11,6 +11,11 @@ import {
   UsersRound,
 } from "lucide-react";
 import {
+  CrmSectionCard,
+  CrmStatCard,
+  type CrmCardTone,
+} from "@/components/features/crm/shared/crm-cards";
+import {
   getStaffStatus,
   type StaffMember,
 } from "@/components/features/staff/staff-management-utils";
@@ -67,41 +72,41 @@ export function CrmStaffStatusTab({ allStaff, pendingStaff }: Props) {
     };
   }, [allStaff, pendingStaff]);
 
-  const statusCards = [
+  const statusCards: Array<{
+    label: string;
+    value: number;
+    icon: typeof UsersRound;
+    tone: CrmCardTone;
+  }> = [
     {
       label: "Total Staff",
       value: stats.total,
       icon: UsersRound,
-      color: "var(--cs-text)",
-      bg: "var(--cs-sand-mist)",
+      tone: "neutral",
     },
     {
       label: "Active",
       value: stats.activeCount,
       icon: UserCheck,
-      color: "var(--cs-success-text)",
-      bg: "var(--cs-success-bg)",
+      tone: "success",
     },
     {
       label: "Awaiting Approval",
       value: stats.awaitingCount,
       icon: Clock3,
-      color: "var(--cs-warning-text)",
-      bg: "var(--cs-warning-bg)",
+      tone: "warning",
     },
     {
       label: "Invites Sent",
       value: stats.invitedCount,
       icon: Send,
-      color: "var(--cs-info-text)",
-      bg: "var(--cs-info-bg)",
+      tone: "info",
     },
     {
       label: "Inactive",
       value: stats.inactiveCount,
       icon: UserRoundX,
-      color: "var(--cs-text-muted)",
-      bg: "var(--cs-neutral-bg)",
+      tone: "neutral",
     },
   ];
 
@@ -109,36 +114,24 @@ export function CrmStaffStatusTab({ allStaff, pendingStaff }: Props) {
     <div className="space-y-5">
       {/* Status KPIs */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {statusCards.map((card) => (
-          <div
-            key={card.label}
-            className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="m-0 text-xs font-medium text-[var(--cs-text-muted)]">{card.label}</p>
-                <p className="mt-2 text-3xl font-semibold leading-none" style={{ color: card.color }}>
-                  {card.value}
-                </p>
-              </div>
-              <div
-                className="flex size-8 items-center justify-center rounded-lg"
-                style={{ background: card.bg, color: card.color }}
-              >
-                <card.icon className="size-4" />
-              </div>
-            </div>
-          </div>
-        ))}
+        {statusCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <CrmStatCard
+              key={card.label}
+              compact
+              title={card.label}
+              value={card.value}
+              tone={card.tone}
+              icon={<Icon className="size-4" aria-hidden="true" />}
+            />
+          );
+        })}
       </div>
 
       {/* Breakdown grid */}
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Role distribution */}
-        <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-[var(--cs-shadow-xs)]">
-          <h3 className="m-0 mb-4 text-sm font-semibold text-[var(--cs-text)]">
-            Workspace Access Distribution
-          </h3>
+        <CrmSectionCard title="Workspace Access Distribution">
           {stats.roleCounts.length === 0 ? (
             <p className="m-0 text-sm text-[var(--cs-text-muted)]">No staff data.</p>
           ) : (
@@ -162,13 +155,9 @@ export function CrmStaffStatusTab({ allStaff, pendingStaff }: Props) {
               ))}
             </div>
           )}
-        </div>
+        </CrmSectionCard>
 
-        {/* Staff type distribution */}
-        <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-[var(--cs-shadow-xs)]">
-          <h3 className="m-0 mb-4 text-sm font-semibold text-[var(--cs-text)]">
-            Staff Type Distribution
-          </h3>
+        <CrmSectionCard title="Staff Type Distribution">
           {stats.typeCounts.length === 0 ? (
             <p className="m-0 text-sm text-[var(--cs-text-muted)]">No staff type data.</p>
           ) : (
@@ -192,32 +181,23 @@ export function CrmStaffStatusTab({ allStaff, pendingStaff }: Props) {
               ))}
             </div>
           )}
-        </div>
+        </CrmSectionCard>
       </div>
 
       {/* Head count + branches summary */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex items-center gap-4 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)]">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
-            <ShieldCheck className="size-5" />
-          </div>
-          <div>
-            <p className="m-0 text-xs font-medium text-[var(--cs-text-muted)]">Head / Supervisors</p>
-            <p className="m-0 text-2xl font-semibold text-[var(--cs-text)]">{stats.headCount}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)]">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
-            <Building2 className="size-5" />
-          </div>
-          <div>
-            <p className="m-0 text-xs font-medium text-[var(--cs-text-muted)]">Branch Coverage</p>
-            <p className="m-0 text-2xl font-semibold text-[var(--cs-text)]">
-              {new Set(allStaff.map((s) => s.branch_id).filter(Boolean)).size} branch(es)
-            </p>
-          </div>
-        </div>
+        <CrmStatCard
+          title="Head / Supervisors"
+          value={stats.headCount}
+          tone="info"
+          icon={<ShieldCheck className="size-4.5" aria-hidden="true" />}
+        />
+        <CrmStatCard
+          title="Branch Coverage"
+          value={`${new Set(allStaff.map((s) => s.branch_id).filter(Boolean)).size} branch(es)`}
+          tone="success"
+          icon={<Building2 className="size-4.5" aria-hidden="true" />}
+        />
       </div>
     </div>
   );

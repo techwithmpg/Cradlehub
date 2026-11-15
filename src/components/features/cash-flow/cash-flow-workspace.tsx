@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, Banknote, ArrowLeftRight, Plus, FileText, CheckCircle2 } from "lucide-react";
+import { CrmModuleTabs } from "@/components/features/crm/shared/crm-module-tabs";
+import { CrmPageHeader } from "@/components/features/crm/shared/crm-page-header";
 import type { CashFlowWorkspaceData, CashSessionSummary } from "@/lib/cash-flow/cash-flow-types";
 import { TodayTab } from "./today-tab";
 import { CashFlowTodayOperations } from "./cash-flow-today-operations";
@@ -50,9 +52,9 @@ export function CashFlowWorkspace({
     : null;
   const routeTab: CashFlowTab | null =
     routeTabValue === "today" ||
-    routeTabValue === "ledger" ||
-    routeTabValue === "day-close" ||
-    routeTabValue === "history"
+      routeTabValue === "ledger" ||
+      routeTabValue === "day-close" ||
+      routeTabValue === "history"
       ? routeTabValue
       : null;
 
@@ -85,11 +87,11 @@ export function CashFlowWorkspace({
   const activeSession = initialData.cashSessions?.activeSessions?.[0] ?? null;
   const reviewSession = handoverSessionId
     ? (initialData.cashSessions?.activeSessions?.find(
-        (session) =>
-          session.id === handoverSessionId &&
-          session.branchId === initialData.branchId &&
-          (session.currentCustodianId || session.openedBy) !== incomingStaffId
-      ) ?? null)
+      (session) =>
+        session.id === handoverSessionId &&
+        session.branchId === initialData.branchId &&
+        (session.currentCustodianId || session.openedBy) !== incomingStaffId
+    ) ?? null)
     : null;
   const incomingStaff = initialData.staffOptions?.find((member) => member.id === incomingStaffId);
 
@@ -208,100 +210,91 @@ export function CashFlowWorkspace({
 
   return (
     <div className="min-h-full bg-[#F5F2EE] p-4 sm:p-6 lg:p-7 space-y-5">
-      {/* ── Page Header ────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="text-[11px] font-bold tracking-wider text-[#A67B5B] uppercase">
-            {initialData.branchName} · {initialData.businessDate}
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1E1916] mt-0.5">
-            Cash Flow
-          </h1>
-          <p className="text-xs text-[#6B5D52] mt-0.5">
-            Financial activity and daily reconciliation
-          </p>
-        </div>
-
-        {/* Right-side Action Buttons */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {!(syncCrmRouteState && activeTab === "today") && (
-            <>
-          {activeSession ? (
-            <>
+      <CrmPageHeader
+        eyebrow={`${initialData.branchName} · ${initialData.businessDate}`}
+        title="Cash Flow"
+        description="Financial activity and daily reconciliation"
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            {!(syncCrmRouteState && activeTab === "today") && (
+              <>
+                {activeSession ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSession(activeSession);
+                        setIsHandoverModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 shadow-2xs transition hover:bg-blue-100"
+                      title="Hand over drawer custody to next CSR"
+                    >
+                      <ArrowLeftRight className="h-3.5 w-3.5" />
+                      <span>Hand Over</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSession(activeSession);
+                        setIsCloseDrawerModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#1F4E33] bg-[#1F4E33] px-3.5 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-[#163B26]"
+                      title="Reconcile and close cash drawer session"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Day Close</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsOpenDrawerModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-1.5 text-xs font-semibold text-amber-900 shadow-2xs transition hover:bg-amber-100"
+                  >
+                    <Banknote className="h-3.5 w-3.5" />
+                    <span>Open Cash Drawer</span>
+                  </button>
+                )}
+              </>
+            )}
+            {!(syncCrmRouteState && activeTab === "today" && activeSession) && (
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedSession(activeSession);
-                  setIsHandoverModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 shadow-2xs transition hover:bg-blue-100"
-                title="Hand over drawer custody to next CSR"
+                onClick={openCashOperations}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#D8CDBF] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#493F37] shadow-2xs transition hover:border-[#BFAF9E] hover:bg-[#FAF8F5]"
+                title="Record cash corrections or transfers between configured financial accounts"
               >
-                <ArrowLeftRight className="h-3.5 w-3.5" />
-                <span>Hand Over</span>
+                <ArrowLeftRight className="h-3.5 w-3.5 text-[#6B5D52]" />
+                <span>Cash Operations</span>
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedSession(activeSession);
-                  setIsCloseDrawerModalOpen(true);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700 bg-[#163E32] px-3.5 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-[#1B4D3E]"
-                title="Reconcile and close cash drawer session"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Day Close</span>
-              </button>
-            </>
-          ) : (
+            )}
             <button
-              type="button"
-              onClick={() => setIsOpenDrawerModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-1.5 text-xs font-semibold text-amber-900 shadow-2xs transition hover:bg-amber-100"
+              onClick={() => openRecordPayment()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-[#CFE5D6] bg-[#EEF7F1] hover:bg-[#E1F1E6] text-xs font-semibold text-[#1F4E33] rounded-lg shadow-2xs transition"
             >
-              <Banknote className="h-3.5 w-3.5" />
-              <span>Open Cash Drawer</span>
+              <Plus className="w-3.5 h-3.5 text-[#1F4E33]" />
+              <span>Record Payment</span>
             </button>
-          )}
-            </>
-          )}
-          {!(syncCrmRouteState && activeTab === "today" && activeSession) && (
-          <button
-            type="button"
-            onClick={openCashOperations}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[#D8CDBF] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#493F37] shadow-2xs transition hover:border-[#BFAF9E] hover:bg-[#FAF8F5]"
-            title="Record cash corrections or transfers between configured financial accounts"
-          >
-            <ArrowLeftRight className="h-3.5 w-3.5 text-[#6B5D52]" />
-            <span>Cash Operations</span>
-          </button>
-          )}
-          <button
-            onClick={() => openRecordPayment()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-[#1B4D3E] bg-[#EEF8F2] hover:bg-[#E3F2E9] text-xs font-semibold text-[#163E32] rounded-lg shadow-2xs transition"
-          >
-            <Plus className="w-3.5 h-3.5 text-[#163E32]" />
-            <span>Record Payment</span>
-          </button>
 
-          <button
-            onClick={() => openRecordExpense()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-xs font-semibold text-amber-900 rounded-lg shadow-2xs transition"
-          >
-            <FileText className="w-3.5 h-3.5 text-amber-800" />
-            <span>Record Expense</span>
-          </button>
+            <button
+              onClick={() => openRecordExpense()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-xs font-semibold text-amber-900 rounded-lg shadow-2xs transition"
+            >
+              <FileText className="w-3.5 h-3.5 text-amber-800" />
+              <span>Record Expense</span>
+            </button>
 
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#163E32] hover:bg-[#1B4D3E] text-white text-xs font-semibold rounded-lg shadow-2xs transition disabled:opacity-75"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
-      </div>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1F4E33] hover:bg-[#163B26] text-white text-xs font-semibold rounded-lg shadow-2xs transition disabled:opacity-75"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
+        }
+      />
 
       {/* ── Cash Drawer Operational Status Banner ──────────────────── */}
       {activeSession ? (
@@ -464,25 +457,12 @@ export function CashFlowWorkspace({
           </button>
         </section>
       ) : null}
-      {/* ── Tab Navigation Bar ──────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-[#EAE4DC] p-1 flex gap-1 w-fit shadow-2xs">
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => handleTabChange(tab.key)}
-              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all relative ${
-                isActive
-                  ? "text-[#163E32] bg-[#FAF8F5] after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:bg-[#163E32]"
-                  : "text-[#6B5D52] hover:text-[#1E1916] hover:bg-[#FAF8F5]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <CrmModuleTabs
+        tabs={tabs}
+        activeKey={activeTab}
+        onChange={handleTabChange}
+        ariaLabel="Cash flow sections"
+      />
 
       {activeTab === "today" && !syncCrmRouteState && (
         <div>

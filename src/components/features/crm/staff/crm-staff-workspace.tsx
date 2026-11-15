@@ -2,7 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
+import { CrmModuleTabs } from "@/components/features/crm/shared/crm-module-tabs";
+import { CrmTabPanel } from "@/components/features/crm/shared/crm-workspace-primitives";
 import {
   getStaffStatus,
   type StaffMember,
@@ -312,30 +313,16 @@ export function CrmStaffWorkspace({
     }
   }, []);
 
-  const activeTabIndex = tabs.findIndex(
-    (tab) => tab.key === activeTab
-  );
-
-  const handleTabKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      const lastIndex = tabs.length - 1;
-      let nextIndex = activeTabIndex;
-
-      if (event.key === "ArrowRight")
-        nextIndex =
-          activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
-      else if (event.key === "ArrowLeft")
-        nextIndex =
-          activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
-      else if (event.key === "Home") nextIndex = 0;
-      else if (event.key === "End") nextIndex = lastIndex;
-      else return;
-
-      event.preventDefault();
-      const nextTab = tabs[nextIndex];
-      if (nextTab) handleTabChange(nextTab.key);
-    },
-    [activeTabIndex, handleTabChange, tabs]
+  const moduleTabs = useMemo(
+    () =>
+      tabs.map((tab) => ({
+        key: tab.key,
+        label: tab.label,
+        count: tab.count,
+        id: `staff-tab-${tab.key}`,
+        controls: `staff-panel-${tab.key}`,
+      })),
+    [tabs]
   );
 
   return (
@@ -359,48 +346,14 @@ export function CrmStaffWorkspace({
         </div>
       ) : null}
 
-      <div
-        role="tablist"
-        aria-label="Staff sections"
-        onKeyDown={handleTabKeyDown}
-        className="flex gap-0 overflow-x-auto border-b border-[var(--cs-border-soft)]"
-      >
-        {tabs.map((tab) => {
-          const active = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              id={`staff-tab-${tab.key}`}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-controls={`staff-panel-${tab.key}`}
-              tabIndex={active ? 0 : -1}
-              onClick={() => handleTabChange(tab.key)}
-              className={`relative inline-flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)] ${
-                active
-                  ? "text-[var(--cs-text)] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-[2px] after:rounded-full after:bg-[var(--cs-sand)]"
-                  : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text-secondary)]"
-              }`}
-            >
-              {tab.label}
-              {tab.count !== undefined ? (
-                <span
-                  className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${
-                    active
-                      ? "bg-[var(--cs-sand-mist)] text-[var(--cs-sand)]"
-                      : "bg-[var(--cs-border)] text-[var(--cs-text-muted)]"
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
+      <CrmModuleTabs
+        tabs={moduleTabs}
+        activeKey={activeTab}
+        onChange={handleTabChange}
+        ariaLabel="Staff sections"
+      />
 
-      <AttendanceTabPanel
+      <CrmTabPanel
         id="staff-panel-applications"
         labelledBy="staff-tab-applications"
         active={activeTab === "applications"}
@@ -413,9 +366,9 @@ export function CrmStaffWorkspace({
           canReviewOnboarding={canonicalData.canReviewOnboarding}
           onRequestResolved={handleOnboardingResolved}
         />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel
+      <CrmTabPanel
         id="staff-panel-branch-corrections"
         labelledBy="staff-tab-branch-corrections"
         active={activeTab === "branch-corrections"}
@@ -424,9 +377,9 @@ export function CrmStaffWorkspace({
           requests={workspaceBranchCorrectionRequests}
           onResolved={handleBranchIssueResolved}
         />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel
+      <CrmTabPanel
         id="staff-panel-management"
         labelledBy="staff-tab-management"
         active={activeTab === "management"}
@@ -445,9 +398,9 @@ export function CrmStaffWorkspace({
           onStaffChanged={handleStaffChanged}
           onStaffMutationCommitted={invalidateCanonicalStaff}
         />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel
+      <CrmTabPanel
         id="staff-panel-assignments"
         labelledBy="staff-tab-assignments"
         active={activeTab === "assignments"}
@@ -462,9 +415,9 @@ export function CrmStaffWorkspace({
           }
           onStaffServicesSaved={handleStaffServicesSaved}
         />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel
+      <CrmTabPanel
         id="staff-panel-status"
         labelledBy="staff-tab-status"
         active={activeTab === "status"}
@@ -473,7 +426,7 @@ export function CrmStaffWorkspace({
           allStaff={workspaceAllStaff}
           pendingStaff={workspacePendingStaff}
         />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
     </div>
   );
 }

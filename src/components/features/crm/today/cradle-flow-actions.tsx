@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { ArrowLeftRight, Banknote, Plus, ReceiptText, RotateCcw } from "lucide-react";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
+import { CrmActionCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
 import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
 import type { CradleFlowBooking } from "@/lib/crm/cradle-flow";
 
@@ -11,7 +12,7 @@ type ActionCardProps = {
   description: string;
   shortcut: string;
   icon: React.ReactNode;
-  primary?: boolean;
+  tone: CrmCardTone;
   onClick: () => void;
 };
 
@@ -20,56 +21,23 @@ function ActionCard({
   description,
   shortcut,
   icon,
-  primary = false,
+  tone,
   onClick,
 }: ActionCardProps) {
   return (
-    <button
-      type="button"
+    <CrmActionCard
+      title={title}
+      description={description}
+      icon={icon}
+      tone={tone}
       onClick={onClick}
-      className={
-        primary
-          ? "group flex min-h-20 items-center gap-3 rounded-xl border border-emerald-800/20 bg-[linear-gradient(135deg,#0f4c35,#1f6649)] px-3 text-left text-white shadow-[var(--cs-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--cs-shadow-md)]"
-          : "group flex min-h-20 items-center gap-3 rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 text-left shadow-[var(--cs-shadow-xs)] transition hover:-translate-y-0.5 hover:border-[var(--cs-border-strong)] hover:shadow-[var(--cs-shadow-sm)]"
+      className="min-h-20"
+      trailing={
+        <kbd className="rounded-md border border-black/10 bg-white/90 px-1.5 py-0.5 text-[10px] font-bold text-[var(--cs-text-secondary)] shadow-2xs">
+          {shortcut}
+        </kbd>
       }
-    >
-      <span
-        className={
-          primary
-            ? "grid size-11 shrink-0 place-items-center rounded-full bg-white/15 text-white"
-            : "grid size-11 shrink-0 place-items-center rounded-full bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]"
-        }
-      >
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span
-          className={
-            primary
-              ? "block text-xs font-extrabold tracking-wide text-white"
-              : "block text-xs font-extrabold tracking-wide text-[var(--cs-text)]"
-          }
-        >
-          {title}
-        </span>
-        <span
-          className={
-            primary
-              ? "mt-0.5 block text-[11px] text-white/75"
-              : "mt-0.5 block text-[11px] text-[var(--cs-text-muted)]"
-          }
-        >
-          {description}
-        </span>
-      </span>
-      <kbd
-        className={
-          primary ? "text-[10px] text-white/65" : "text-[10px] text-[var(--cs-text-muted)]"
-        }
-      >
-        {shortcut}
-      </kbd>
-    </button>
+    />
   );
 }
 
@@ -102,13 +70,13 @@ export function CradleFlowActions({
   }, [onOpenFinancialEntry, openBookingModal]);
 
   return (
-    <section className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="Primary front desk actions">
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Primary front desk actions">
       <ActionCard
         title="NEW BOOKING"
         description="Create a booking, walk-in or Home Service"
         shortcut="F1"
         icon={<Plus className="size-5" />}
-        primary
+        tone="success"
         onClick={() => openBookingModal({ mode: "walkin" })}
       />
       <ActionCard
@@ -116,6 +84,7 @@ export function CradleFlowActions({
         description="Collect payments and settle visits"
         shortcut="F2"
         icon={<Banknote className="size-5" />}
+        tone="info"
         onClick={() => onOpenFinancialEntry("customer_payment")}
       />
       <ActionCard
@@ -123,6 +92,7 @@ export function CradleFlowActions({
         description="Log operational expenses"
         shortcut="F3"
         icon={<ReceiptText className="size-5" />}
+        tone="warning"
         onClick={() => onOpenFinancialEntry("expense")}
       />
       <ActionCard
@@ -130,6 +100,7 @@ export function CradleFlowActions({
         description="Adjust cash or transfer funds"
         shortcut="F4"
         icon={<ArrowLeftRight className="size-5" />}
+        tone="neutral"
         onClick={() => onOpenFinancialEntry("other_entry")}
       />
       {pendingBooking ? (

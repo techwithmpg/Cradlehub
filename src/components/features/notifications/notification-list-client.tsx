@@ -32,16 +32,7 @@ export function NotificationListClient({
 
   if (!items.length) {
     return (
-      <div
-        style={{
-          padding: "32px 16px",
-          textAlign: "center",
-          color: "var(--cs-text-muted)",
-          fontSize: 12,
-          borderRadius: "var(--cs-r-sm)",
-          border: "1px solid var(--cs-border-soft)",
-        }}
-      >
+      <div className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-4 py-8 text-center text-xs text-[var(--cs-text-muted)]">
         No active notifications.
       </div>
     );
@@ -50,11 +41,11 @@ export function NotificationListClient({
   const { actionRequired, unread, earlier, resolved } = groupNotifications(items);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+    <div className="flex flex-col gap-5">
       <NotificationSection
         title="Action Required"
         items={actionRequired}
-        color="var(--cs-sand)"
+        color="var(--cs-warning)"
         count={actionRequired.length}
         onMarkRead={markRead}
         onDismiss={remove}
@@ -62,7 +53,7 @@ export function NotificationListClient({
       <NotificationSection
         title="Updates"
         items={unread}
-        color="var(--cs-sand)"
+        color="#1F4E33"
         count={unread.length}
         onMarkRead={markRead}
         onDismiss={remove}

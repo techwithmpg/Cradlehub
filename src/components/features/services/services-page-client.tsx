@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
+import { Plus } from "lucide-react";
+import { CrmPageHeader } from "@/components/features/crm/shared/crm-page-header";
 import { Button } from "@/components/ui/button";
 import { ServicesToolbar, type ServiceFilter, type ServiceSort } from "./services-toolbar";
 import { ServiceCategorySection } from "./service-category-section";
@@ -55,11 +56,21 @@ export function ServicesPageClient({
   const activeCount = services.filter((service) => service.is_active).length;
 
   return (
-    <div>
-      <PageHeader
+    <div className="space-y-4">
+      <CrmPageHeader
+        eyebrow="Service Catalog"
         title="Services"
         description={`${services.length} services across ${categories.length} categories · ${activeCount} active · ${services.length - activeCount} inactive`}
-        action={<Button size="sm" onClick={() => setEditing("new")} style={{ backgroundColor: "var(--cs-sand)", color: "#fff", border: "none" }}>+ New Service</Button>}
+        actions={
+          <Button
+            size="sm"
+            onClick={() => setEditing("new")}
+            className="bg-[#1F4E33] text-white hover:bg-[#163B26]"
+          >
+            <Plus size={15} />
+            New Service
+          </Button>
+        }
       />
       <ServicesToolbar
         search={search} onSearchChange={setSearch}

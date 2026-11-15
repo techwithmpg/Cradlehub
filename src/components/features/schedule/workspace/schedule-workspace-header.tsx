@@ -2,6 +2,7 @@
 
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
+import { CrmPageHeader } from "@/components/features/crm/shared/crm-page-header";
 import { addDaysToYmd, BRANCH_TIMEZONE, formatBranchYmd, getBranchTime } from "@/lib/engine/slot-time";
 import { isToday as isScheduleToday } from "@/lib/utils/schedule-timeline";
 
@@ -31,169 +32,55 @@ export function ScheduleWorkspaceHeader({
   }
 
   return (
-    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "0.2rem" }}>
-          <h1
-            style={{
-              fontSize: "1.25rem",
-              fontWeight: 700,
-              color: "var(--cs-text)",
-              margin: 0,
-              lineHeight: 1.25,
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            Schedule
-          </h1>
-          <span
-            style={{
-              fontSize: "0.6875rem",
-              fontWeight: 600,
-              padding: "2px 8px",
-              borderRadius: "var(--cs-r-pill)",
-              background: "var(--cs-sand-mist)",
-              color: "var(--cs-sand)",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-            }}
-          >
-            CRM
-          </span>
+    <CrmPageHeader
+      eyebrow={branchName}
+      title="Schedule"
+      description="Manage staff availability, bookings, and resources for today."
+      className="mb-5"
+      actions={
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
+          <div className="inline-flex min-w-0 flex-1 items-center justify-between gap-1 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-2.5 py-1.5 sm:flex-none">
+            <button
+              type="button"
+              onClick={() => shiftDate(-1)}
+              aria-label="Previous day"
+              className="inline-flex size-6 items-center justify-center rounded-md text-[var(--cs-text-muted)] transition hover:bg-[#F5F2EE] hover:text-[var(--cs-text)]"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="inline-flex min-w-0 items-center justify-center gap-1.5 text-[13px] font-semibold text-[var(--cs-text)]">
+              <CalendarDays size={14} className="shrink-0 text-[#A67B5B]" />
+              <span className="truncate">{dateLabel}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => shiftDate(1)}
+              aria-label="Next day"
+              className="inline-flex size-6 items-center justify-center rounded-md text-[var(--cs-text-muted)] transition hover:bg-[#F5F2EE] hover:text-[var(--cs-text)]"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {!isToday && (
+            <button
+              type="button"
+              onClick={() => onDateChange(getBranchTime(now, BRANCH_TIMEZONE).ymd)}
+              className="rounded-lg border border-[var(--cs-border-soft)] bg-white px-3 py-2 text-xs font-semibold text-[var(--cs-text-secondary)] transition hover:bg-[#F5F2EE]"
+            >
+              Today
+            </button>
+          )}
+
+          <OpenAdministrativeBookingButton
+            mode="standard_future"
+            date={date}
+            label="+ New Booking"
+            showIcon={false}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#1F4E33] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#163B26]"
+          />
         </div>
-        <p
-          style={{
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-muted)",
-            margin: 0,
-            lineHeight: 1.5,
-          }}
-        >
-          Manage staff availability, bookings, and resources for today.
-        </p>
-        <p
-          style={{
-            fontSize: "0.75rem",
-            color: "var(--cs-text-subtle)",
-            margin: "0.125rem 0 0",
-          }}
-        >
-          {branchName}
-        </p>
-      </div>
-
-      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:shrink-0">
-        {/* Date navigator */}
-        <div
-          className="min-w-0 flex-1 sm:flex-none"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "6px 10px",
-            borderRadius: "var(--cs-r-md)",
-            background: "var(--cs-surface)",
-            border: "1px solid var(--cs-border-soft)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => shiftDate(-1)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 24,
-              height: 24,
-              borderRadius: "var(--cs-r-sm)",
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              color: "var(--cs-text-muted)",
-            }}
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <span
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              color: "var(--cs-text)",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              minWidth: 0,
-              justifyContent: "center",
-            }}
-          >
-            <CalendarDays size={14} style={{ color: "var(--cs-sand)" }} />
-            {dateLabel}
-          </span>
-          <button
-            type="button"
-            onClick={() => shiftDate(1)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 24,
-              height: 24,
-              borderRadius: "var(--cs-r-sm)",
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              color: "var(--cs-text-muted)",
-            }}
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
-
-        {!isToday && (
-          <button
-            type="button"
-            onClick={() => onDateChange(getBranchTime(now, BRANCH_TIMEZONE).ymd)}
-            style={{
-              padding: "6px 12px",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              borderRadius: "var(--cs-r-md)",
-              border: "1px solid var(--cs-border-soft)",
-              background: "var(--cs-surface-warm)",
-              color: "var(--cs-text-secondary)",
-              cursor: "pointer",
-            }}
-          >
-            Today
-          </button>
-        )}
-
-        <OpenAdministrativeBookingButton
-          mode="standard_future"
-          date={date}
-          label="+ New Booking"
-          showIcon={false}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 16px",
-            borderRadius: "var(--cs-r-md)",
-            backgroundColor: "var(--cs-sand)",
-            color: "#fff",
-            fontSize: "0.8125rem",
-            fontWeight: 600,
-            textDecoration: "none",
-            transition: "opacity 150ms ease",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.opacity = "0.9";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.opacity = "1";
-          }}
-        />
-      </div>
-    </div>
+      }
+    />
   );
 }

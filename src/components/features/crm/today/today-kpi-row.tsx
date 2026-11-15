@@ -1,6 +1,7 @@
 "use client";
 
-import { StatCard } from "@/components/features/dashboard/stat-card";
+import { Activity, AlertCircle, CalendarCheck, CheckCircle2 } from "lucide-react";
+import { CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 
 type Props = {
   activeToday: number;
@@ -11,34 +12,38 @@ type Props = {
 
 export function TodayKpiRow({ activeToday, inProgress, completed, unpaid }: Props) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-        gap: "0.625rem",
-        marginBottom: "1.5rem",
-      }}
-    >
-      <StatCard
-        label="Active Today"
+    <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <CrmStatCard
+        title="Active Today"
         value={activeToday}
-        accent
-        accentColor="var(--cs-sand)"
+        subtitle="Scheduled today"
+        icon={<CalendarCheck className="size-4" />}
+        tone="neutral"
+        compact
       />
-      <StatCard
-        label="In Progress"
+      <CrmStatCard
+        title="In Progress"
         value={inProgress}
-        accentColor="var(--cs-info)"
+        subtitle="Currently running"
+        icon={<Activity className="size-4" />}
+        tone="info"
+        compact
       />
-      <StatCard
-        label="Completed"
+      <CrmStatCard
+        title="Completed"
         value={completed}
-        accentColor="var(--cs-success)"
+        subtitle="Finished today"
+        icon={<CheckCircle2 className="size-4" />}
+        tone="success"
+        compact
       />
-      <StatCard
-        label="Unpaid / Outstanding"
+      <CrmStatCard
+        title="Unpaid / Outstanding"
         value={unpaid}
-        accentColor="var(--cs-error)"
+        subtitle="Needs settlement"
+        icon={<AlertCircle className="size-4" />}
+        tone={unpaid > 0 ? "danger" : "neutral"}
+        compact
       />
     </div>
   );

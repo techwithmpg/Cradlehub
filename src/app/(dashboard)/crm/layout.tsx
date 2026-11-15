@@ -58,7 +58,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    <>
+    <div className="cs-crm-workspace">
       {branchId ? <CrmBookingsRealtimeBridge branchId={branchId} /> : null}
       {branchId && frontDesk.role === "crm" && process.env.CRADLEHUB_PENDING_BOOKING_ALERTS_ENABLED === "true" ? (
         <CrmPendingBookingAlert branchId={branchId} userId={frontDesk.userId} />
@@ -86,7 +86,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       ) : (
         workspaceContent
       )}
-    </>
+    </div>
   );
 }
 

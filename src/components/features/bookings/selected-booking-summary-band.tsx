@@ -29,8 +29,10 @@ function SummaryCell({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-col items-center px-3 py-4 text-center [&:not(:last-child)]:border-r [&:not(:last-child)]:border-[var(--cs-border-soft)]">
-      <span className="text-[var(--cs-sand-dark)]">{icon}</span>
+    <div className="flex min-w-0 flex-col items-center px-3 py-4 text-center [&:not(:last-child)]:border-b [&:not(:last-child)]:border-[var(--cs-border-soft)] sm:[&:not(:last-child)]:border-b-0 sm:[&:not(:last-child)]:border-r">
+      <span className="flex size-9 items-center justify-center rounded-xl bg-[#EEF7F1] text-[#1F4E33] ring-1 ring-[#CFE5D6]">
+        {icon}
+      </span>
       <span className="mt-2 text-[10px] font-bold uppercase tracking-[0.09em] text-[var(--cs-text-muted)]">
         {label}
       </span>
@@ -46,7 +48,7 @@ function SummaryCell({
   );
 }
 const actionClass =
-  "inline-flex h-8 items-center justify-center rounded-lg border border-[var(--cs-border)] bg-white px-3 text-xs font-semibold text-[var(--cs-text)] hover:bg-[var(--cs-surface-warm)]";
+  "inline-flex h-8 items-center justify-center rounded-lg border border-[var(--cs-border-soft)] bg-[#FAF8F5] px-3 text-xs font-semibold text-[#1F4E33] transition hover:border-[#CFE5D6] hover:bg-[#EEF7F1]";
 
 export function SelectedBookingSummaryBand({
   booking,
@@ -69,7 +71,7 @@ export function SelectedBookingSummaryBand({
   const duration = getBookingDurationMinutes(booking);
 
   return (
-    <section className="mx-5 grid grid-cols-4 overflow-visible rounded-xl border border-[var(--cs-border-soft)] bg-white">
+    <section className="mx-5 grid grid-cols-2 overflow-hidden rounded-2xl border border-[var(--cs-border-soft)] bg-white shadow-2xs sm:grid-cols-4">
       <SummaryCell
         icon={<UserRound className="size-5" />}
         label="Staff"

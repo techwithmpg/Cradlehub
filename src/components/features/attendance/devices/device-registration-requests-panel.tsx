@@ -5,7 +5,7 @@ import { Check, ShieldCheck, Smartphone, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CrmSectionCard } from "@/components/features/crm/shared/crm-cards";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -72,22 +72,21 @@ export function DeviceRegistrationRequestsPanel({ registry }: { registry: Attend
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ShieldCheck className="size-5 text-primary" /> Staff phone registration requests
-            </CardTitle>
-            <CardDescription>Review staff-submitted phones before they can become attendance devices.</CardDescription>
-          </div>
-          <Badge variant={pendingRequests.length > 0 ? "default" : "secondary"}>{pendingRequests.length} pending</Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {requests.length === 0 ? (
-          <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">No staff phone requests yet.</p>
-        ) : (
+    <CrmSectionCard
+      title="Staff phone registration requests"
+      description="Review staff-submitted phones before they can become attendance devices."
+      icon={<ShieldCheck className="size-4.5" aria-hidden="true" />}
+      badge={
+        <Badge variant={pendingRequests.length > 0 ? "default" : "secondary"}>
+          {pendingRequests.length} pending
+        </Badge>
+      }
+    >
+      {requests.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-[var(--cs-border)] bg-[#FAF8F5] p-5 text-sm text-[var(--cs-text-muted)]">
+          No staff phone requests yet.
+        </p>
+      ) : (
           <div className="grid gap-4 lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.2fr)]">
             <div className="space-y-2" aria-label="Staff phone requests">
               {requests.map((request) => (
@@ -159,7 +158,6 @@ export function DeviceRegistrationRequestsPanel({ registry }: { registry: Attend
             ) : null}
           </div>
         )}
-      </CardContent>
-    </Card>
+    </CrmSectionCard>
   );
 }

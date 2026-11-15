@@ -46,7 +46,7 @@ import {
 } from "@/components/features/bookings/quick-booking-service-selector";
 import { InlineServiceDurationButtons } from "@/components/features/bookings/inline-service-duration-dropdown";
 import type { ServiceLineQuote } from "@/lib/services/service-line-quote";
-import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
+import { WorkspaceNotice } from "@/components/features/crm/shared/crm-workspace-primitives";
 import type { BranchBookingRules } from "@/lib/validations/booking-rules";
 import type { BookingOrderAttendeeInput } from "@/lib/bookings/booking-order-contract";
 import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-service";

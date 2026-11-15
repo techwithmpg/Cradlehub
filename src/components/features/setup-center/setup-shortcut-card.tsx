@@ -1,4 +1,6 @@
-import Link from "next/link";
+import type { ReactNode } from "react";
+import { ArrowRight, Settings2 } from "lucide-react";
+import { CrmActionCard } from "@/components/features/crm/shared/crm-cards";
 
 export function SetupShortcutCard({
   icon,
@@ -6,30 +8,22 @@ export function SetupShortcutCard({
   description,
   href,
 }: {
-  icon: string;
+  icon: ReactNode;
   label: string;
   description: string;
   href: string;
 }) {
+  const resolvedIcon = typeof icon === "string" ? <Settings2 className="size-4" /> : icon;
+
   return (
-    <Link
+    <CrmActionCard
+      title={label}
+      description={description}
+      icon={resolvedIcon}
       href={href}
-      className="group flex items-start gap-3 rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--cs-sand)] hover:shadow-md"
-    >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--cs-surface-warm)] text-lg transition-colors group-hover:bg-[var(--cs-sand-mist)]">
-        {icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-[var(--cs-text)]">{label}</span>
-          <span className="ml-auto text-sm text-[var(--cs-text-muted)] transition-colors group-hover:text-[var(--cs-sand)]">
-            ›
-          </span>
-        </div>
-        <p className="mt-0.5 text-xs leading-relaxed text-[var(--cs-text-muted)]">
-          {description}
-        </p>
-      </div>
-    </Link>
+      trailing={
+        <ArrowRight className="size-4 text-[var(--cs-text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-[#1F4E33]" />
+      }
+    />
   );
 }

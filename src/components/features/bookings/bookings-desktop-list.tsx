@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CrmPagination } from "@/components/features/crm/shared/crm-pagination";
 import { BookingListRow, BookingOrderListRow } from "./booking-list-row";
 import type { CrmBookingGroup } from "@/lib/bookings/crm-booking-groups";
 import { SheetBookingReferenceRow } from "./sheet-booking-reference-row";
@@ -12,14 +12,6 @@ import {
   sortBookingsRecentFirst,
   sortSheetReferencesRecentFirst,
 } from "@/lib/bookings/booking-recency";
-
-const ROW_OPTIONS = [8, 10, 20] as const;
-
-function pageButtons(totalPages: number, currentPage: number): number[] {
-  if (totalPages <= 5) return Array.from({ length: totalPages }, (_, index) => index);
-  const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
-  return Array.from({ length: 5 }, (_, index) => start + index);
-}
 
 function updatePageQuery(pageIndex: number) {
   const params = new URLSearchParams(window.location.search);
@@ -182,67 +174,20 @@ export function BookingsDesktopList({
         </table>
       </div>
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cs-border-soft)] bg-white px-4 py-3">
-        <span className="text-xs text-[var(--cs-text-muted)]">
-          Showing {startIndex + 1} to {endIndex} of {rows.length} records (
-          {displayGroups?.length ?? bookings.length} CradleHub, {sheetReferences.length} Master
-          Sheet)
-        </span>
-        <nav className="flex items-center gap-2" aria-label="Booking pagination">
-          <button
-            type="button"
-            aria-label="Previous page"
-            disabled={safePageIndex === 0}
-            onClick={() => goToPage(safePageIndex - 1)}
-            className="flex size-8 items-center justify-center rounded-lg border border-[var(--cs-border)] bg-white disabled:opacity-40"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          {pageButtons(totalPages, safePageIndex).map((index) => (
-            <button
-              key={index}
-              type="button"
-              aria-current={index === safePageIndex ? "page" : undefined}
-              onClick={() => goToPage(index)}
-              className={cn(
-                "flex size-8 items-center justify-center rounded-lg border text-xs font-semibold",
-                index === safePageIndex
-                  ? "border-emerald-900 bg-emerald-900 text-white"
-                  : "border-[var(--cs-border)] bg-white text-[var(--cs-text)]"
-              )}
-            >
-              {index + 1}
-            </button>
-          ))}
-          <button
-            type="button"
-            aria-label="Next page"
-            disabled={safePageIndex >= totalPages - 1}
-            onClick={() => goToPage(safePageIndex + 1)}
-            className="flex size-8 items-center justify-center rounded-lg border border-[var(--cs-border)] bg-white disabled:opacity-40"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </nav>
-        <label className="inline-flex items-center gap-2 text-xs text-[var(--cs-text-muted)]">
-          Rows per page
-          <select
-            value={rowsPerPage}
-            onChange={(event) => {
-              setRowsPerPage(Number(event.target.value));
-              setPageIndex(0);
-              updatePageQuery(0);
-            }}
-            className="h-8 rounded-lg border border-[var(--cs-border)] bg-white px-2 text-[var(--cs-text)]"
-          >
-            {ROW_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-      </footer>
+      <CrmPagination
+        page={safePageIndex + 1}
+        pageSize={rowsPerPage}
+        totalItems={rows.length}
+        itemLabel="records"
+        summaryText={`Showing ${rows.length === 0 ? 0 : startIndex + 1} – ${endIndex} of ${rows.length} records (${displayGroups?.length ?? bookings.length} CradleHub, ${sheetReferences.length} Master Sheet)`}
+        onPageChange={(nextPage) => goToPage(nextPage - 1)}
+        onPageSizeChange={(nextSize) => {
+          setRowsPerPage(nextSize);
+          setPageIndex(0);
+          updatePageQuery(0);
+        }}
+        pageSizeOptions={[8, 10, 20]}
+      />
     </div>
   );
 }

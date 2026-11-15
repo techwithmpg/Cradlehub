@@ -174,7 +174,7 @@ describe("PERF-8 retained CRM Cash Flow route state", () => {
     expect(screen.queryByText("Entry mode: expense")).toBeNull();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Today" })
+      screen.getByRole("tab", { name: "Today" })
     );
 
     await waitFor(() =>

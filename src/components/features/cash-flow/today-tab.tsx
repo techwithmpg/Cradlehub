@@ -6,9 +6,12 @@ import {
   CreditCard,
   CalendarCheck,
   Clock,
+  List,
+  MinusCircle,
   MoreHorizontal,
   ChevronDown,
 } from 'lucide-react';
+import { CrmActionCard } from '@/components/features/crm/shared/crm-cards';
 import { CashFlowKpiCard } from './cash-flow-kpi-card';
 import type {
   TodayKpiSummary,
@@ -272,60 +275,31 @@ export function TodayTab({
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-              <button
-                type="button"
+              <CrmActionCard
+                compact
+                tone="success"
+                title="Record payment"
+                description="Customer or booking payment"
+                icon={<Banknote className="size-4" aria-hidden="true" />}
                 onClick={() => onRecordPaymentClick()}
-                className="rounded-xl border border-[#BFDCCE] bg-[#F1F9F4] p-3 text-left transition hover:border-[#8FC5A8] hover:bg-[#EAF6EE]"
-              >
-                <div className="mb-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                  <span className="text-base">₱</span>
-                </div>
-
-                <span className="block text-xs font-semibold text-[#163E32]">
-                  Record payment
-                </span>
-
-                <span className="mt-1 block text-[10px] leading-4 text-[#6B5D52]">
-                  Customer or booking payment
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onRecordExpenseClick?.()}
+              />
+              <CrmActionCard
+                compact
+                tone="warning"
+                title="Record expense"
+                description="Fuel, laundry, supplies and more"
+                icon={<MinusCircle className="size-4" aria-hidden="true" />}
                 disabled={!onRecordExpenseClick}
-                className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-left transition hover:border-amber-300 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <div className="mb-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-                  <span className="text-sm font-bold">−</span>
-                </div>
-
-                <span className="block text-xs font-semibold text-amber-900">
-                  Record expense
-                </span>
-
-                <span className="mt-1 block text-[10px] leading-4 text-[#6B5D52]">
-                  Fuel, laundry, supplies and more
-                </span>
-              </button>
-
-              <button
-                type="button"
+                onClick={() => onRecordExpenseClick?.()}
+              />
+              <CrmActionCard
+                compact
+                tone="neutral"
+                title="View ledger"
+                description="Review all money movements"
+                icon={<List className="size-4" aria-hidden="true" />}
                 onClick={onNavigateToLedger}
-                className="rounded-xl border border-[#DED7CF] bg-[#FAF8F5] p-3 text-left transition hover:border-[#C8BBB0] hover:bg-white"
-              >
-                <div className="mb-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-[#EEE9E3] text-[#6B5D52]">
-                  <span className="text-sm">≡</span>
-                </div>
-
-                <span className="block text-xs font-semibold text-[#1E1916]">
-                  View ledger
-                </span>
-
-                <span className="mt-1 block text-[10px] leading-4 text-[#6B5D52]">
-                  Review all money movements
-                </span>
-              </button>
+              />
             </div>
           </div>
         </div>

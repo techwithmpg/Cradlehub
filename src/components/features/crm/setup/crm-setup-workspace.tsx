@@ -20,7 +20,7 @@
 
 import { useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { AttendanceTabPanel } from "@/components/features/attendance/attendance-ui";
+import { CrmTabPanel } from "@/components/features/crm/shared/crm-workspace-primitives";
 import { CrmServicesWorkspace } from "@/components/features/crm/services/crm-services-workspace";
 import { SpacesRulesWorkspace } from "@/components/features/spaces-rules/spaces-rules-workspace";
 import { CrmStaffReadinessPanel } from "./crm-staff-readiness-panel";
@@ -143,10 +143,10 @@ export function CrmSetupWorkspace({
                 tabIndex={active ? 0 : -1}
                 onClick={() => handleTabChange(tab.key)}
                 className={[
-                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
+                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F4E33]",
                   active
-                    ? "bg-[var(--cs-success-bg)] text-[var(--cs-success-text)]"
-                    : "text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]",
+                    ? "border border-[#CFE5D6] bg-[#EEF7F1] font-semibold text-[#1F4E33]"
+                    : "border border-transparent text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]",
                 ].join(" ")}
               >
                 {tab.label}
@@ -171,45 +171,45 @@ export function CrmSetupWorkspace({
       <span className="sr-only" id="setup-tab-staff_readiness">Staff readiness</span>
       <span className="sr-only" id="setup-tab-public_readiness">Public booking readiness</span>
 
-      <AttendanceTabPanel id="setup-panel-health" labelledBy="setup-tab-health" active={activeTab === "health"}>
+      <CrmTabPanel id="setup-panel-health" labelledBy="setup-tab-health" active={activeTab === "health"}>
         {healthSlot}
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel id="setup-panel-services" labelledBy="setup-tab-services" active={activeTab === "services"}>
+      <CrmTabPanel id="setup-panel-services" labelledBy="setup-tab-services" active={activeTab === "services"}>
         <CrmServicesWorkspace {...servicesData} initialTab="services" compactNavigation />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel id="setup-panel-providers" labelledBy="setup-tab-providers" active={activeTab === "providers"}>
+      <CrmTabPanel id="setup-panel-providers" labelledBy="setup-tab-providers" active={activeTab === "providers"}>
         <CrmServicesWorkspace {...servicesData} initialTab="providers" compactNavigation />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel id="setup-panel-spaces" labelledBy="setup-tab-spaces" active={activeTab === "spaces"}>
+      <CrmTabPanel id="setup-panel-spaces" labelledBy="setup-tab-spaces" active={activeTab === "spaces"}>
         <SpacesRulesWorkspace {...spacesData} initialTab="spaces" />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel
+      <CrmTabPanel
         id="setup-panel-booking_rules"
         labelledBy="setup-tab-booking_rules"
         active={activeTab === "booking_rules"}
       >
         <SpacesRulesWorkspace {...spacesData} initialTab="rules" />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel
+      <CrmTabPanel
         id="setup-panel-staff_readiness"
         labelledBy="setup-tab-staff_readiness"
         active={activeTab === "staff_readiness"}
       >
         <CrmStaffReadinessPanel data={health} />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
 
-      <AttendanceTabPanel
+      <CrmTabPanel
         id="setup-panel-public_readiness"
         labelledBy="setup-tab-public_readiness"
         active={activeTab === "public_readiness"}
       >
         <CrmServicesWorkspace {...servicesData} initialTab="readiness_issues" compactNavigation />
-      </AttendanceTabPanel>
+      </CrmTabPanel>
     </div>
   );
 }

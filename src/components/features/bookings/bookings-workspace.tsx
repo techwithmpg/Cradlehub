@@ -36,10 +36,10 @@ import type { DailyCashSummaryData } from "@/components/features/dashboard/daily
 import type { WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import {
-  AttendanceTabPanel,
   ContextChip,
+  CrmTabPanel,
   ToolbarShell,
-} from "@/components/features/attendance/attendance-ui";
+} from "@/components/features/crm/shared/crm-workspace-primitives";
 import {
   isBookingClosedForCrm,
   isCrmPendingBookingStatus,
@@ -281,7 +281,7 @@ function WorkflowTabBar({
               "inline-flex h-10 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               isActive
-                ? "border-[var(--cs-crm-text)] text-[var(--cs-crm-text)]"
+                ? "border-[#1F4E33] text-[#1F4E33]"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
@@ -290,7 +290,9 @@ function WorkflowTabBar({
             <span
               className={cn(
                 "inline-flex min-w-5 justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
-                isActive ? "bg-muted text-foreground" : "bg-muted/70 text-muted-foreground"
+                isActive
+                  ? "border border-[#CFE5D6] bg-[#EEF7F1] text-[#1F4E33]"
+                  : "bg-muted/70 text-muted-foreground"
               )}
             >
               {tab.count}
@@ -371,8 +373,8 @@ export function BookingsWorkspace({
       initialQuickFilter === "upcoming"
         ? applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter)
         : sortBookingsRecentFirst(
-            applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter)
-          ),
+          applySecondaryFilters(tabBookings, statusFilter, typeFilter, branchFilter)
+        ),
     [branchFilter, statusFilter, tabBookings, typeFilter, initialQuickFilter]
   );
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
@@ -489,7 +491,12 @@ export function BookingsWorkspace({
               {isRefreshing ? "Refreshing..." : "Refresh"}
             </Button>
             {isCrm && referenceSource !== "master_sheet" ? (
-              <OpenAdministrativeBookingButton mode="standard_future" date={date} size="lg">
+              <OpenAdministrativeBookingButton
+                mode="standard_future"
+                date={date}
+                size="lg"
+                className="bg-[#1F4E33] text-white hover:bg-[#163B26]"
+              >
                 <Plus data-icon="inline-start" />
                 New Booking
               </OpenAdministrativeBookingButton>
@@ -717,28 +724,28 @@ export function BookingsWorkspace({
 
       {referenceSource !== "master_sheet"
         ? WORKFLOW_TABS.map((tab) => (
-            <AttendanceTabPanel
-              key={tab.key}
-              id={bookingTabPanelId(tab.key)}
-              labelledBy={bookingTabId(tab.key)}
-              active={activeTab === tab.key}
-            >
-              {activeTab === tab.key ? (
-                <BookingsTable
-                  bookings={visibleBookings}
-                  allBookings={bookings}
-                  viewerRole={viewerRole}
-                  dispatchHref={dispatchHref}
-                  search={search}
-                  statusAction={statusAction}
-                  paymentAction={paymentAction}
-                  initialSelectedId={initialSelectedId}
-                  confirmPaymentAction={confirmPaymentAction}
-                  onBookingsChanged={onBookingsChanged}
-                />
-              ) : null}
-            </AttendanceTabPanel>
-          ))
+          <CrmTabPanel
+            key={tab.key}
+            id={bookingTabPanelId(tab.key)}
+            labelledBy={bookingTabId(tab.key)}
+            active={activeTab === tab.key}
+          >
+            {activeTab === tab.key ? (
+              <BookingsTable
+                bookings={visibleBookings}
+                allBookings={bookings}
+                viewerRole={viewerRole}
+                dispatchHref={dispatchHref}
+                search={search}
+                statusAction={statusAction}
+                paymentAction={paymentAction}
+                initialSelectedId={initialSelectedId}
+                confirmPaymentAction={confirmPaymentAction}
+                onBookingsChanged={onBookingsChanged}
+              />
+            ) : null}
+          </CrmTabPanel>
+        ))
         : null}
 
       {isCrm && referenceSource !== "cradlehub" ? (

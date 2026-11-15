@@ -716,6 +716,7 @@ export async function getAttendanceWorkspaceData(params: {
     staffResult,
     resourcesResult,
     deviceRegistry,
+    resolvedTodayResult,
   ] = await Promise.all([
     admin
       .from("qr_points")
@@ -830,6 +831,14 @@ export async function getAttendanceWorkspaceData(params: {
       branchName: params.branchName,
       canSwitchBranch: params.canSwitchBranch ?? false,
     }),
+    admin
+      .from("attendance_exceptions")
+      .select("id", { count: "exact", head: true })
+      .eq("branch_id", params.branchId)
+      .eq("is_test", false)
+      .eq("status", "resolved")
+      .gte("resolved_at", currentBusinessDayStart)
+      .lt("resolved_at", currentBusinessDayEnd),
   ]);
 
   if (qrPointsResult.error)
@@ -933,6 +942,7 @@ export async function getAttendanceWorkspaceData(params: {
       checkedInNow: records.filter((record) => record.status === "checked_in").length,
       recordsToday: records.filter((record) => record.shift_date === today).length,
       openExceptions: exceptions.filter((exception) => exception.status === "open").length,
+      resolvedToday: resolvedTodayResult.count ?? 0,
       activeSessions,
       activeDevices: devices.filter((device) => device.status === "active").length,
     },

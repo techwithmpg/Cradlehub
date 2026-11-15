@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Bell, RefreshCw } from "lucide-react";
 import { AttendanceScanFeedRow } from "@/components/features/attendance/attendance-scan-feed-row";
 import { useAttendanceScanFeed } from "@/components/features/attendance/use-attendance-scan-feed";
 import type { AttendanceRealtimeStatus } from "@/components/features/attendance/use-attendance-scan-realtime";
+import { CrmSectionCard } from "@/components/features/crm/shared/crm-cards";
 import {
   buildAttendanceViewAllHref,
   formatAttendanceFeedDateLabel,
@@ -56,6 +57,8 @@ const statusPresentation: Record<AttendanceRealtimeStatus, { label: string; clas
   },
 };
 
+const EMPTY_SUBSCRIBE = () => () => {};
+
 export function AttendanceScanFeedPanel({
   workspace,
   selectedDate,
@@ -79,46 +82,58 @@ export function AttendanceScanFeedPanel({
     selectedDate,
     branchId: resolvedBranchId,
   });
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => { setHydrated(true); }, []);
+  const hydrated = useSyncExternalStore(
+    EMPTY_SUBSCRIBE,
+    () => true,
+    () => false
+  );
   const effectiveStatus: AttendanceRealtimeStatus = hydrated ? realtimeStatus : "offline";
   const connection = statusPresentation[effectiveStatus];
 
   return (
-    <section
-      className={cn(
-        "rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-sm",
-        className
-      )}
-      aria-label="Recent attendance scans"
-    >
-      <header className="flex items-start justify-between gap-3 border-b border-[var(--cs-border-soft)] px-4 py-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Bell className="size-4 text-[#9b7336]" aria-hidden="true" />
-            <h2 className="truncate text-sm font-bold text-[var(--cs-text)]">
-              Attendance Activity
-            </h2>
-            <span
-              className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", connection.className)}
-              aria-label={`Attendance feed connection: ${connection.label}`}
-            >
-              {connection.label}
-            </span>
-          </div>
-          <p className="mt-1 truncate text-xs text-[var(--cs-text-muted)]">
-            {resolvedBranchName ?? "All branches"} - {dateLabel}
-          </p>
-        </div>
+    <CrmSectionCard
+      ariaLabel="Recent attendance scans"
+      className={className}
+      compact
+      noPadding
+      title="Attendance Activity"
+      description={`${resolvedBranchName ?? "All branches"} - ${dateLabel}`}
+      icon={<Bell className="size-4" aria-hidden="true" />}
+      badge={
+        <span
+          className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", connection.className)}
+          aria-label={`Attendance feed connection: ${connection.label}`}
+        >
+          {connection.label}
+        </span>
+      }
+      actions={
         <Link
           href={viewAllHref}
           prefetch={false}
-          className="shrink-0 text-xs font-bold text-[#7c5727] hover:text-[#0b3b27]"
+          className="shrink-0 text-xs font-bold text-[#1F4E33] hover:underline"
         >
           View all
         </Link>
-      </header>
-
+      }
+      footer={
+        <div className="flex items-center justify-between gap-3 text-xs text-[var(--cs-text-muted)]">
+          <span>
+            {feed.lastHourCount.toLocaleString("en-PH")} {feed.lastHourCount === 1 ? "scan" : "scans"}{" "}
+            in the last hour
+          </span>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="inline-flex items-center gap-1 font-semibold hover:text-[#1F4E33]"
+            aria-label="Refresh Attendance activity"
+          >
+            <RefreshCw className={cn("size-3", isValidating && "animate-spin")} aria-hidden="true" />
+            {isValidating ? "Refreshing" : "Refresh"}
+          </button>
+        </div>
+      }
+    >
       {displayError && feed.items.length === 0 ? (
         <div className="grid gap-3 px-4 py-4 text-sm text-[var(--cs-text-muted)]">
           <p>{REFRESH_ERROR}</p>
@@ -148,23 +163,7 @@ export function AttendanceScanFeedPanel({
           ))}
         </div>
       )}
-
-      <footer className="flex items-center justify-between gap-3 border-t border-[var(--cs-border-soft)] px-4 py-2 text-xs text-[var(--cs-text-muted)]">
-        <span>
-          {feed.lastHourCount.toLocaleString("en-PH")} {feed.lastHourCount === 1 ? "scan" : "scans"}{" "}
-          in the last hour
-        </span>
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="inline-flex items-center gap-1 font-semibold hover:text-[var(--cs-text)]"
-          aria-label="Refresh Attendance activity"
-        >
-          <RefreshCw className={cn("size-3", isValidating && "animate-spin")} aria-hidden="true" />
-          {isValidating ? "Refreshing" : "Refresh"}
-        </button>
-      </footer>
-    </section>
+    </CrmSectionCard>
   );
 }
 

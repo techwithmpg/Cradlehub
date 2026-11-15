@@ -1246,3 +1246,89 @@ export async function sendStaffConfigurationPromptAction(input: {
     };
   }
 }
+
+/**
+ * Safely marks selected open review items as reviewed/acknowledged without clearing
+ * or closing unresolved attendance records that still require an explicit fix.
+ */
+export async function bulkAcknowledgeAttendanceExceptionsAction(input: {
+  exceptionIds: string[];
+}): Promise<{ ok: boolean; reviewedCount: number; message: string }> {
+  const context = await getContextOrResult("exceptions");
+  if ("result" in context) {
+    return { ok: false, reviewedCount: 0, message: context.result.message };
+  }
+  const uniqueIds = Array.from(new Set(input.exceptionIds.map((id) => id.trim()).filter(Boolean)));
+  if (uniqueIds.length === 0) {
+    return { ok: false, reviewedCount: 0, message: "Select at least one issue to acknowledge." };
+  }
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+  const { data, error } = await admin
+    .from("attendance_exceptions")
+    .update({
+      reviewed_at: now,
+      reviewed_by: context.ctx.actorStaffId,
+      resolution_status: "reviewed",
+    })
+    .eq("branch_id", context.ctx.branchId)
+    .eq("status", "open")
+    .in("id", uniqueIds)
+    .select("id");
+
+  if (error) {
+    return { ok: false, reviewedCount: 0, message: "Could not mark selected issues as reviewed." };
+  }
+  const reviewedCount = data?.length ?? 0;
+  revalidateAttendanceSurfaces();
+  return {
+    ok: true,
+    reviewedCount,
+    message:
+      reviewedCount > 0
+        ? `Acknowledged ${reviewedCount} item${reviewedCount === 1 ? "" : "s"} as reviewed (kept open until resolved).`
+        : "Selected items have already been resolved.",
+  };
+}
+
+/**
+ * Loads the target attendance check-in context (including prior-day open shifts when
+ * the initial CRM workspace payload is scoped to today) for the Correct Attendance modal.
+ */
+export async function loadOpenCheckinContextAction(input: {
+  staffId: string;
+  checkinId?: string | null;
+}): Promise<{
+  ok: boolean;
+  checkin?: {
+    id: string;
+    shift_date: string;
+    checked_in_at: string;
+    checked_out_at: string | null;
+    scheduled_start_at: string | null;
+    scheduled_end_at: string | null;
+    status: string;
+    attendance_status: string;
+  } | null;
+}> {
+  const context = await getContextOrResult("exceptions");
+  if ("result" in context) return { ok: false, checkin: null };
+  const admin = createAdminClient();
+  let query = admin
+    .from("staff_shift_checkins")
+    .select(
+      "id, shift_date, checked_in_at, checked_out_at, scheduled_start_at, scheduled_end_at, status, attendance_status"
+    )
+    .eq("branch_id", context.ctx.branchId)
+    .eq("is_test", false);
+
+  if (input.checkinId) {
+    query = query.eq("id", input.checkinId);
+  } else {
+    query = query.eq("staff_id", input.staffId).is("checked_out_at", null).order("checked_in_at", { ascending: false }).limit(1);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error || !data) return { ok: true, checkin: null };
+  return { ok: true, checkin: data };
+}

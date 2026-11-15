@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
+import { CrmPageHeader } from "@/components/features/crm/shared/crm-page-header";
+import { CrmPagination } from "@/components/features/crm/shared/crm-pagination";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { CrmMotionSection } from "@/components/features/crm/premium/crm-motion-section";
 import { CustomerSegmentTabs } from "./customer-segment-tabs";
@@ -23,7 +24,7 @@ import {
   type CrmCustomersWorkspaceRequest,
 } from "./customer-workspace-data";
 import { useLiveCrmCustomersData } from "./use-live-crm-customers-data";
-import { ChevronLeft, ChevronRight, UserSearch } from "lucide-react";
+import { UserSearch } from "lucide-react";
 
 interface CustomersWorkspaceProps {
   initialData: CrmCustomersWorkspaceData;
@@ -35,9 +36,9 @@ function dataMatchesRequest(
 ): data is CrmCustomersWorkspaceData {
   return Boolean(
     data &&
-      data.tab === request.tab &&
-      data.page === request.page &&
-      (data.search ?? "") === (request.search ?? "")
+    data.tab === request.tab &&
+    data.page === request.page &&
+    (data.search ?? "") === (request.search ?? "")
   );
 }
 
@@ -126,14 +127,15 @@ export function CustomersWorkspace({ initialData }: CustomersWorkspaceProps) {
   }
 
   return (
-    <div>
-      <PageHeader
+    <div className="space-y-4">
+      <CrmPageHeader
+        eyebrow="Guest Directory"
         title="Customers"
         description="Search, view, and manage guest records."
-        action={
+        actions={
           <OpenAdministrativeBookingButton
             mode="standard_future"
-            className="cs-btn cs-btn-primary inline-flex items-center gap-1.5"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#1F4E33] px-3.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#163B26]"
           >
             <UserSearch size={14} />
             New Booking
@@ -205,30 +207,17 @@ export function CustomersWorkspace({ initialData }: CustomersWorkspaceProps) {
               )}
 
               {data.tab !== "followup" && data.totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-center gap-2">
-                  {data.page > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handlePage(data.page - 1)}
-                      className="cs-btn cs-btn-secondary cs-btn-sm inline-flex items-center gap-1"
-                    >
-                      <ChevronLeft size={14} />
-                      Prev
-                    </button>
-                  )}
-                  <span className="px-2 text-xs text-[var(--cs-text-muted)]">
-                    Page {data.page} of {data.totalPages}
-                  </span>
-                  {data.page < data.totalPages && (
-                    <button
-                      type="button"
-                      onClick={() => handlePage(data.page + 1)}
-                      className="cs-btn cs-btn-secondary cs-btn-sm inline-flex items-center gap-1"
-                    >
-                      Next
-                      <ChevronRight size={14} />
-                    </button>
-                  )}
+                <div className="mt-4 overflow-hidden rounded-xl border border-[var(--cs-border-soft)]">
+                  <CrmPagination
+                    page={data.page}
+                    pageSize={25}
+                    totalItems={data.totalPages * 25}
+                    totalPagesOverride={data.totalPages}
+                    summaryText={`Page ${data.page} of ${data.totalPages}`}
+                    itemLabel="customers"
+                    onPageChange={handlePage}
+                    showPageSizeSelector={false}
+                  />
                 </div>
               )}
             </>

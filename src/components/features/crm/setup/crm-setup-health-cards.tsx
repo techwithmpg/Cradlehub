@@ -1,82 +1,31 @@
+import type { ReactNode } from "react";
+import {
+  Building2,
+  CalendarClock,
+  Car,
+  ClipboardList,
+  Sparkles,
+  Users,
+} from "lucide-react";
+import { CrmStatCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
 import type { CrmSetupHealthData } from "@/lib/queries/crm-setup";
 
 type CardStatus = "ready" | "warning" | "error" | "info";
 
 type HealthCard = {
-  icon: string;
+  icon: ReactNode;
   label: string;
   value: string;
   sub: string;
   status: CardStatus;
 };
 
-function statusColor(s: CardStatus): string {
-  if (s === "ready")   return "var(--cs-success)";
-  if (s === "error")   return "var(--cs-error, #c0392b)";
-  if (s === "warning") return "var(--cs-warning, #e67e22)";
-  return "var(--cs-text-muted)";
-}
-
-function StatusDot({ status }: { status: CardStatus }) {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        width: 8,
-        height: 8,
-        borderRadius: "50%",
-        backgroundColor: statusColor(status),
-        flexShrink: 0,
-      }}
-    />
-  );
-}
-
-function HealthCardView({ card }: { card: HealthCard }) {
-  return (
-    <div
-      className="cs-card"
-      style={{
-        padding: "0.875rem 1rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: 5,
-        borderLeft: `3px solid ${statusColor(card.status)}`,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 16 }}>{card.icon}</span>
-        <span
-          style={{
-            fontSize: "0.6875rem",
-            fontWeight: 600,
-            color: "var(--cs-text-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            flex: 1,
-          }}
-        >
-          {card.label}
-        </span>
-        <StatusDot status={card.status} />
-      </div>
-      <div
-        style={{
-          fontSize: "1.25rem",
-          fontWeight: 700,
-          color: statusColor(card.status),
-          lineHeight: 1,
-          fontFamily: "var(--font-display)",
-        }}
-      >
-        {card.value}
-      </div>
-      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", lineHeight: 1.4 }}>
-        {card.sub}
-      </div>
-    </div>
-  );
-}
+const STATUS_TO_TONE: Record<CardStatus, CrmCardTone> = {
+  ready: "success",
+  warning: "warning",
+  error: "danger",
+  info: "info",
+};
 
 function buildCards(d: CrmSetupHealthData): HealthCard[] {
   const staffStatus: CardStatus =
@@ -105,62 +54,62 @@ function buildCards(d: CrmSetupHealthData): HealthCard[] {
 
   return [
     {
-      icon: "👥",
+      icon: <Users className="size-4" />,
       label: "Staff Schedules",
       value: `${d.serviceStaffWithSchedule}/${d.serviceStaffTotal}`,
       sub: d.serviceStaffTotal === 0
-        ? "no service staff at branch"
+        ? "No service staff at branch"
         : d.serviceStaffWithSchedule === d.serviceStaffTotal
-        ? "all service staff have schedules"
+        ? "All service staff have schedules"
         : `${d.serviceStaffTotal - d.serviceStaffWithSchedule} need schedules`,
       status: staffStatus,
     },
     {
-      icon: "✨",
+      icon: <Sparkles className="size-4" />,
       label: "Service Coverage",
       value: `${d.servicesWithStaff}/${d.activeServicesTotal}`,
       sub: d.activeServicesTotal === 0
-        ? "no active services"
+        ? "No active services"
         : d.servicesWithStaff === d.activeServicesTotal
-        ? "all services have providers"
+        ? "All services have providers"
         : `${d.activeServicesTotal - d.servicesWithStaff} need providers`,
       status: servicesStatus,
     },
     {
-      icon: "🏠",
+      icon: <Building2 className="size-4" />,
       label: "Rooms & Resources",
       value: String(d.activeResourcesTotal),
       sub: d.activeResourcesTotal === 0
-        ? "none configured"
+        ? "None configured"
         : d.activeResourcesTotal === 1
         ? "1 active resource"
         : `${d.activeResourcesTotal} active resources`,
       status: resourcesStatus,
     },
     {
-      icon: "📋",
+      icon: <ClipboardList className="size-4" />,
       label: "Booking Rules",
       value: d.hasCustomRules ? "Custom" : "Defaults",
       sub: d.hasCustomRules
-        ? "custom rules are saved"
-        : "using system defaults — optional review",
+        ? "Custom rules are saved"
+        : "Using system defaults — optional review",
       status: rulesStatus,
     },
     {
-      icon: "🚗",
+      icon: <Car className="size-4" />,
       label: "Home Service",
       value: d.homeServiceEnabled ? "Enabled" : "Disabled",
       sub: d.homeServiceEnabled
         ? `${d.driversTotal} driver${d.driversTotal !== 1 ? "s" : ""} on file`
-        : "not accepting home-service bookings",
+        : "Not accepting home-service bookings",
       status: homeServiceStatus,
     },
     {
-      icon: "📅",
+      icon: <CalendarClock className="size-4" />,
       label: "Today's Assignments",
       value: String(d.unassignedTodayCount),
       sub: d.unassignedTodayCount === 0
-        ? "all confirmed bookings assigned"
+        ? "All confirmed bookings assigned"
         : `${d.unassignedTodayCount} need a therapist assigned`,
       status: unassignedStatus,
     },
@@ -170,15 +119,17 @@ function buildCards(d: CrmSetupHealthData): HealthCard[] {
 export function CrmSetupHealthCards({ data }: { data: CrmSetupHealthData }) {
   const cards = buildCards(data);
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-        gap: "0.625rem",
-      }}
-    >
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       {cards.map((card) => (
-        <HealthCardView key={card.label} card={card} />
+        <CrmStatCard
+          key={card.label}
+          title={card.label}
+          value={card.value}
+          subtitle={card.sub}
+          icon={card.icon}
+          tone={STATUS_TO_TONE[card.status]}
+          compact
+        />
       ))}
     </div>
   );

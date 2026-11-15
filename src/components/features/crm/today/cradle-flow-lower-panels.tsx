@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, Banknote, Bell, Clock3 } from "lucide-react";
+import { CrmSectionCard } from "@/components/features/crm/shared/crm-cards";
 import type { AttendanceScanFeedData } from "@/lib/attendance/types";
 import type { CrmTodayPayment } from "@/lib/queries/crm-today";
 import { formatCradleFlowMoney } from "@/lib/crm/cradle-flow";
@@ -31,22 +32,18 @@ export function CradleFlowRecentActivity({
     })),
   ];
   return (
-    <section className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)] sm:p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-extrabold">Recent Activity</h2>
-          <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
-            Operational events from today.
-          </p>
-        </div>
-        <Bell className="size-4 text-[var(--cs-sand-dark)]" />
-      </div>
+    <CrmSectionCard
+      title="Recent Activity"
+      description="Operational events from today."
+      icon={<Bell className="size-4" />}
+      compact
+    >
       {items.length ? (
-        <div className="mt-3 grid gap-1">
+        <div className="grid gap-1">
           {items.map((item) => (
             <div
               key={`${item.kind}-${item.id}`}
-              className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-2 text-xs hover:bg-[var(--cs-surface-warm)]"
+              className="grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 py-2 text-xs transition hover:bg-[#FAF8F5]"
             >
               <span className="flex items-center gap-1 text-[var(--cs-text-muted)]">
                 <Clock3 className="size-3" />
@@ -56,18 +53,18 @@ export function CradleFlowRecentActivity({
                 <strong className="block truncate text-[var(--cs-text)]">{item.title}</strong>
                 <span className="block truncate text-[var(--cs-text-muted)]">{item.detail}</span>
               </span>
-              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
+              <span className="rounded-full bg-[#EEF7F1] px-2.5 py-0.5 text-[10px] font-bold text-[#1F4E33] ring-1 ring-[#CFE5D6]">
                 {item.kind}
               </span>
             </div>
           ))}
         </div>
       ) : (
-        <p className="mt-4 text-sm text-[var(--cs-text-muted)]">
+        <p className="text-sm text-[var(--cs-text-muted)]">
           Activity will appear as the day gets moving.
         </p>
       )}
-    </section>
+    </CrmSectionCard>
   );
 }
 
@@ -85,18 +82,24 @@ export function CradleFlowMoneySummary({
   onShowReadyToPay: () => void;
 }) {
   return (
-    <section className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-3 shadow-[var(--cs-shadow-xs)]">
-      <div className="flex items-start justify-between gap-2 border-b border-[var(--cs-border-soft)] pb-2.5">
-        <h2 className="inline-flex items-center gap-1.5 text-sm font-extrabold text-[var(--cs-text)]">
-          <Banknote className="size-4 text-emerald-700" aria-hidden="true" /> Today’s Money
-        </h2>
+    <CrmSectionCard
+      title="Today’s Money"
+      icon={<Banknote className="size-4" aria-hidden="true" />}
+      compact
+      actions={
         <Link
           href="/crm/cash-flow"
-          className="inline-flex shrink-0 items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline"
+          className="inline-flex shrink-0 items-center gap-1 text-[11px] font-bold text-[#1F4E33] hover:underline"
         >
           View in Cash Flow <ArrowRight className="size-3" aria-hidden="true" />
         </Link>
-      </div>
+      }
+      footer={
+        <p className="text-[11px] text-[var(--cs-text-muted)]">
+          Booking collections for this branch and date.
+        </p>
+      }
+    >
       <dl className="divide-y divide-[var(--cs-border-soft)]">
         {[
           ["Collected", collectedOverride],
@@ -105,7 +108,7 @@ export function CradleFlowMoneySummary({
         ].map(([label, value]) => (
           <div
             key={String(label)}
-            className="flex items-center justify-between gap-2 py-2 text-[11px]"
+            className="flex items-center justify-between gap-2 py-2 text-xs"
           >
             <dt className="text-[var(--cs-text-secondary)]">{label}</dt>
             <dd className="font-extrabold tabular-nums text-[var(--cs-text)]">
@@ -117,7 +120,7 @@ export function CradleFlowMoneySummary({
       <button
         type="button"
         onClick={onShowReadyToPay}
-        className="mt-1 flex w-full items-center justify-between rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] px-2.5 py-2 text-[11px] font-bold text-[var(--cs-text-secondary)] hover:bg-[var(--cs-sand-mist)]"
+        className="mt-2 flex w-full items-center justify-between rounded-xl border border-[var(--cs-border-soft)] bg-[#FAF8F5] px-3 py-2 text-xs font-bold text-[#1F4E33] transition hover:border-[#CFE5D6] hover:bg-[#EEF7F1]"
       >
         <span>
           {readyToPayCount} {readyToPayCount === 1 ? "visit" : "visits"} ready for payment
@@ -127,13 +130,10 @@ export function CradleFlowMoneySummary({
       <button
         type="button"
         onClick={onViewTotals}
-        className="mt-2 text-[11px] font-semibold text-[var(--cs-text-muted)] hover:text-[var(--cs-text)] hover:underline"
+        className="mt-2.5 text-xs font-semibold text-[var(--cs-text-muted)] hover:text-[#1F4E33] hover:underline"
       >
         View booking collection totals
       </button>
-      <p className="mt-1 text-[10px] text-[var(--cs-text-muted)]">
-        Booking collections for this branch and date.
-      </p>
-    </section>
+    </CrmSectionCard>
   );
 }

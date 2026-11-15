@@ -582,13 +582,13 @@ describe("CF5 Cash Flow UI Foundation", () => {
   it("9b. Tab clicks show all loaded views without router navigation or refresh", () => {
     render(<CashFlowWorkspace initialData={mockWorkspaceData} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Ledger" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Ledger" }));
     expect(screen.getByText("NET FLOW")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Day Close" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Day Close" }));
     expect(screen.getByText(/Auto-generated Day Summary · 2026-09-28/i)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
     expect(screen.getByText("No historical day close records")).toBeTruthy();
 
     expect(mockPush).not.toHaveBeenCalled();

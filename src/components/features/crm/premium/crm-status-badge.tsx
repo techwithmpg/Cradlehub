@@ -8,6 +8,7 @@ export type CrmStatusVariant =
   | "vip"
   | "pending"
   | "confirmed"
+  | "in_progress"
   | "completed"
   | "cancelled"
   | "no_show"
@@ -38,23 +39,24 @@ type VariantConfig = {
 };
 
 const VARIANT_CONFIG: Record<CrmStatusVariant, VariantConfig> = {
-  active:    { label: "Active",    bgClass: "bg-[var(--cs-success-bg)]",  textClass: "text-[var(--cs-success-text)]",  dotClass: "bg-[var(--cs-success)]",  pulse: true },
-  repeat:    { label: "Repeat",    bgClass: "bg-[var(--cs-sand-mist)]",   textClass: "text-[var(--cs-sand)]",          dotClass: "bg-[var(--cs-sand)]" },
-  lapsed:    { label: "Lapsed",    bgClass: "bg-[var(--cs-warning-bg)]",  textClass: "text-[var(--cs-warning-text)]",  dotClass: "bg-[var(--cs-warning)]" },
-  new:       { label: "New",       bgClass: "bg-[var(--cs-success-bg)]",  textClass: "text-[var(--cs-success-text)]",  dotClass: "bg-[var(--cs-success)]" },
-  vip:       { label: "VIP",       bgClass: "bg-[var(--cs-sand-mist)]",   textClass: "text-[var(--cs-sand-dark)]",     dotClass: "bg-[var(--cs-sand-dark)]" },
-  pending:   { label: "Pending",   bgClass: "bg-[var(--cs-info-bg)]",     textClass: "text-[var(--cs-info-text)]",     dotClass: "bg-[var(--cs-info)]" },
-  confirmed: { label: "Confirmed", bgClass: "bg-[var(--cs-success-bg)]",  textClass: "text-[var(--cs-success-text)]",  dotClass: "bg-[var(--cs-success)]" },
-  completed: { label: "Completed", bgClass: "bg-[var(--cs-success-bg)]",  textClass: "text-[var(--cs-success-text)]",  dotClass: "bg-[var(--cs-success)]" },
-  cancelled: { label: "Cancelled", bgClass: "bg-[var(--cs-error-bg)]",    textClass: "text-[var(--cs-error-text)]",    dotClass: "bg-[var(--cs-error)]" },
-  no_show:   { label: "No Show",   bgClass: "bg-[var(--cs-error-bg)]",    textClass: "text-[var(--cs-error-text)]",    dotClass: "bg-[var(--cs-error)]" },
-  available: { label: "Available", bgClass: "bg-[var(--cs-success-bg)]",  textClass: "text-[var(--cs-success-text)]",  dotClass: "bg-[var(--cs-success)]", pulse: true },
-  busy:      { label: "Busy",      bgClass: "bg-[var(--cs-warning-bg)]",  textClass: "text-[var(--cs-warning-text)]",  dotClass: "bg-[var(--cs-warning)]" },
-  offline:   { label: "Offline",   bgClass: "bg-[var(--cs-neutral-bg)]",  textClass: "text-[var(--cs-neutral-text)]",  dotClass: "bg-[var(--cs-neutral)]" },
-  warning:   { label: "Warning",   bgClass: "bg-[var(--cs-warning-bg)]",  textClass: "text-[var(--cs-warning-text)]",  dotClass: "bg-[var(--cs-warning)]" },
-  info:      { label: "Info",      bgClass: "bg-[var(--cs-info-bg)]",     textClass: "text-[var(--cs-info-text)]",     dotClass: "bg-[var(--cs-info)]" },
-  neutral:   { label: "Neutral",   bgClass: "bg-[var(--cs-neutral-bg)]",  textClass: "text-[var(--cs-neutral-text)]",  dotClass: "bg-[var(--cs-neutral)]" },
-  gold:      { label: "Gold",      bgClass: "bg-[var(--cs-sand-mist)]",   textClass: "text-[var(--cs-sand)]",          dotClass: "bg-[var(--cs-sand)]" },
+  active: { label: "Active", bgClass: "bg-[var(--cs-success-bg)]", textClass: "text-[var(--cs-success-text)]", dotClass: "bg-[var(--cs-success)]", pulse: true },
+  repeat: { label: "Repeat", bgClass: "bg-[var(--cs-sand-mist)]", textClass: "text-[var(--cs-sand)]", dotClass: "bg-[var(--cs-sand)]" },
+  lapsed: { label: "Lapsed", bgClass: "bg-[var(--cs-warning-bg)]", textClass: "text-[var(--cs-warning-text)]", dotClass: "bg-[var(--cs-warning)]" },
+  new: { label: "New", bgClass: "bg-[var(--cs-success-bg)]", textClass: "text-[var(--cs-success-text)]", dotClass: "bg-[var(--cs-success)]" },
+  vip: { label: "VIP", bgClass: "bg-[var(--cs-sand-mist)]", textClass: "text-[var(--cs-sand-dark)]", dotClass: "bg-[var(--cs-sand-dark)]" },
+  pending: { label: "Pending", bgClass: "bg-[var(--cs-warning-bg)]", textClass: "text-[var(--cs-warning-text)]", dotClass: "bg-[var(--cs-warning)]" },
+  confirmed: { label: "Confirmed", bgClass: "bg-[var(--cs-success-bg)]", textClass: "text-[var(--cs-success-text)]", dotClass: "bg-[var(--cs-success)]" },
+  in_progress: { label: "In Progress", bgClass: "bg-[var(--cs-info-bg)]", textClass: "text-[var(--cs-info-text)]", dotClass: "bg-[var(--cs-info)]", pulse: true },
+  completed: { label: "Completed", bgClass: "bg-[var(--cs-success-bg)]", textClass: "text-[var(--cs-success-text)]", dotClass: "bg-[var(--cs-success)]" },
+  cancelled: { label: "Cancelled", bgClass: "bg-[var(--cs-error-bg)]", textClass: "text-[var(--cs-error-text)]", dotClass: "bg-[var(--cs-error)]" },
+  no_show: { label: "No Show", bgClass: "bg-[var(--cs-error-bg)]", textClass: "text-[var(--cs-error-text)]", dotClass: "bg-[var(--cs-error)]" },
+  available: { label: "Available", bgClass: "bg-[var(--cs-success-bg)]", textClass: "text-[var(--cs-success-text)]", dotClass: "bg-[var(--cs-success)]", pulse: true },
+  busy: { label: "Busy", bgClass: "bg-[var(--cs-warning-bg)]", textClass: "text-[var(--cs-warning-text)]", dotClass: "bg-[var(--cs-warning)]" },
+  offline: { label: "Offline", bgClass: "bg-[var(--cs-neutral-bg)]", textClass: "text-[var(--cs-neutral-text)]", dotClass: "bg-[var(--cs-neutral)]" },
+  warning: { label: "Warning", bgClass: "bg-[var(--cs-warning-bg)]", textClass: "text-[var(--cs-warning-text)]", dotClass: "bg-[var(--cs-warning)]" },
+  info: { label: "Info", bgClass: "bg-[var(--cs-info-bg)]", textClass: "text-[var(--cs-info-text)]", dotClass: "bg-[var(--cs-info)]" },
+  neutral: { label: "Neutral", bgClass: "bg-[var(--cs-neutral-bg)]", textClass: "text-[var(--cs-neutral-text)]", dotClass: "bg-[var(--cs-neutral)]" },
+  gold: { label: "Gold", bgClass: "bg-[var(--cs-sand-mist)]", textClass: "text-[var(--cs-sand)]", dotClass: "bg-[var(--cs-sand)]" },
 };
 
 /**

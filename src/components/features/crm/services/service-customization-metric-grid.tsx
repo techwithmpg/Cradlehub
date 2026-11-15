@@ -1,4 +1,5 @@
 import { CheckCircle2, CircleAlert, Sparkles, TriangleAlert, UsersRound } from "lucide-react";
+import { CrmStatCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
 import type { CustomizationRow } from "./customization-rows";
 
 export function ServiceCustomizationMetricGrid({ rows }: { rows: CustomizationRow[] }) {
@@ -8,66 +9,58 @@ export function ServiceCustomizationMetricGrid({ rows }: { rows: CustomizationRo
   const lowCoverage = rows.filter((r) => r.isActive && r.providerCount === 1).length;
   const needsSetup = rows.filter((r) => r.isActive && r.readinessIssues.length > 0).length;
 
-  const cards = [
+  const cards: Array<{
+    label: string;
+    value: number;
+    icon: typeof Sparkles;
+    tone: CrmCardTone;
+  }> = [
     {
       label: "Total Services",
       value: total,
       icon: Sparkles,
-      color: "var(--cs-text)",
-      bg: "var(--cs-sand-mist)",
+      tone: "neutral",
     },
     {
       label: "Basic Setup Complete",
       value: basicSetupComplete,
       icon: CheckCircle2,
-      color: "#5A8A6A",
-      bg: "rgba(90,138,106,0.12)",
+      tone: "success",
     },
     {
       label: "Needs Provider",
       value: needsProvider,
       icon: TriangleAlert,
-      color: "var(--cs-warning-text)",
-      bg: "var(--cs-warning-bg)",
+      tone: needsProvider > 0 ? "danger" : "neutral",
     },
     {
       label: "Low Coverage",
       value: lowCoverage,
       icon: UsersRound,
-      color: "var(--cs-warning-text)",
-      bg: "var(--cs-warning-bg)",
+      tone: lowCoverage > 0 ? "warning" : "neutral",
     },
     {
       label: "Setup Issues",
       value: needsSetup,
       icon: CircleAlert,
-      color: needsSetup > 0 ? "var(--cs-warning-text)" : "var(--cs-text-muted)",
-      bg: needsSetup > 0 ? "var(--cs-warning-bg)" : "var(--cs-surface-warm)",
+      tone: needsSetup > 0 ? "warning" : "neutral",
     },
   ];
 
   return (
-    <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" aria-label="Service metrics">
-      {cards.map(({ label, value, icon: Icon, color, bg }) => (
-        <div
+    <section
+      className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+      aria-label="Service metrics"
+    >
+      {cards.map(({ label, value, icon: Icon, tone }) => (
+        <CrmStatCard
           key={label}
-          className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)]"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="m-0 text-xs font-medium text-[var(--cs-text-muted)]">{label}</p>
-              <p className="mt-2 text-3xl font-semibold leading-none" style={{ color }}>
-                {value}
-              </p>
-            </div>
-            <div
-              className="flex size-8 items-center justify-center rounded-lg"
-              style={{ background: bg, color }}
-            >
-              <Icon className="size-4" aria-hidden="true" />
-            </div>
-          </div>
-        </div>
+          compact
+          title={label}
+          value={value}
+          tone={tone}
+          icon={<Icon className="size-4" aria-hidden="true" />}
+        />
       ))}
     </section>
   );

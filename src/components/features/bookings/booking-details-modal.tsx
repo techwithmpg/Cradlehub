@@ -82,7 +82,7 @@ export function BookingDetailsModal({
         data-testid="booking-details-modal"
         className="flex max-h-[92dvh] w-[min(96vw,1100px)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[1100px]"
       >
-        <DialogHeader className="shrink-0 border-b border-neutral-200 px-5 py-4 pr-14">
+        <DialogHeader className="shrink-0 border-b border-[var(--cs-border-soft)] bg-white px-5 py-4 pr-14">
           <DialogTitle className="text-lg font-bold text-neutral-950">{isGroup ? "Group Booking Details" : "Booking Details"}</DialogTitle>
           <DialogDescription className="text-xs">
             {group?.orderNumber ? `Order ${group.orderNumber} · ` : ""}
@@ -108,9 +108,9 @@ export function BookingDetailsModal({
                 reviewRequired={payment?.isPaymentReview}
               /></div>}
             </section> : null}
-            {group.lines.length > 1 ? <section aria-label="Booking sessions" className="border-b border-neutral-200 px-5 py-4">
+            {group.lines.length > 1 ? <section aria-label="Booking sessions" className="border-b border-[var(--cs-border-soft)] px-5 py-4">
               <h3 className="mb-2 text-sm font-bold">{isGroup ? "Guest sessions" : "Service sessions"}</h3>
-              <div className="overflow-x-auto rounded-lg border border-neutral-200">
+              <div className="overflow-x-auto rounded-lg border border-[var(--cs-border-soft)]">
                 <table className="w-full min-w-[680px] text-left text-xs">
                   <thead className="bg-neutral-100"><tr><th scope="col" className="px-3 py-2">Guest</th><th scope="col" className="px-3 py-2">Scheduled time</th><th scope="col" className="px-3 py-2">Service</th><th scope="col" className="px-3 py-2">Therapist</th><th scope="col" className="px-3 py-2">Room</th><th scope="col" className="px-3 py-2">Status</th></tr></thead>
                   <tbody>{group.lines.map((item) => {
@@ -164,13 +164,13 @@ export function BookingDetailsModal({
                 })}
               </ol>
             </section>}
-            <section aria-label="Selected service actions" className="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-5 py-3">
+            <section aria-label="Selected service actions" className="flex flex-wrap items-center gap-2 border-b border-[var(--cs-border-soft)] px-5 py-3">
               <strong className="mr-auto text-sm">{recipient}</strong>
-              {customerProfileId && <Link href={`/crm/${customerProfileId}`} className="min-h-9 rounded-lg border border-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50">Customer Profile</Link>}
-              {progress === "upcoming" && <button type="button" onClick={() => onArrive(line)} className="min-h-9 rounded-lg border border-emerald-700 px-3 text-xs font-semibold text-emerald-800">Mark Arrived</button>}
+              {customerProfileId && <Link href={`/crm/${customerProfileId}`} className="min-h-9 rounded-lg border border-[var(--cs-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--cs-text)] hover:bg-[#FAF8F5]">Customer Profile</Link>}
+              {progress === "upcoming" && <button type="button" onClick={() => onArrive(line)} className="min-h-9 rounded-lg border border-[#1F4E33] px-3 text-xs font-semibold text-[#1F4E33] hover:bg-[#EEF7F1]">Mark Arrived</button>}
               {(progress === "upcoming" || progress === "checked_in" || progress === "in_service") &&
                 <button type="button" disabled={actionBusy} onClick={() => void runLifecycleAction()}
-                  className="min-h-9 rounded-lg bg-emerald-800 px-3 text-xs font-semibold text-white disabled:opacity-50">
+                  className="min-h-9 rounded-lg bg-[#1F4E33] px-3 text-xs font-semibold text-white transition hover:bg-[#163B26] disabled:opacity-50">
                   {actionBusy ? "Working…" : progress === "in_service" ? "Complete Service" : "Start Service"}
                 </button>}
               {!isGroup && paymentAction && <PaymentActionMenu

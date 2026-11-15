@@ -91,6 +91,10 @@
   --cs-csr-staff-bg:       #FAF7F0;
   --cs-csr-staff-text:     #5A4A2A;
   --cs-crm-accent:         #5A8A6A;
+  --cs-crm-primary:        #1F4E33;
+  --cs-crm-primary-hover:  #163B26;
+  --cs-crm-primary-soft:   #EEF7F1;
+  --cs-crm-primary-border: #CFE5D6;
   --cs-crm-bg:             #EEF8F2;
   --cs-crm-text:           #2A5A3A;
   --cs-staff-accent:       #8A6A5A;
@@ -378,6 +382,22 @@ a:focus-visible,
 .cs-btn-sm { padding: 5px 10px; font-size: 11.5px; }
 .cs-btn-lg { padding: 10px 20px; font-size: 13.5px; }
 .cs-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── CRM Forest Green Workspace Scope ────────────────────── */
+.cs-crm-workspace {
+  --primary:            #1F4E33;
+  --primary-foreground: #FFFFFF;
+  --ring:               #1F4E33;
+}
+.cs-crm-workspace .cs-btn-primary {
+  background: var(--cs-crm-primary);
+  color: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(31, 78, 51, 0.22);
+}
+.cs-crm-workspace .cs-btn-primary:hover {
+  background: var(--cs-crm-primary-hover);
+  box-shadow: 0 2px 6px rgba(31, 78, 51, 0.28);
+}
 
 /* ============================================================
    SPA PUBLIC DESIGN SYSTEM

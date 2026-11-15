@@ -6,7 +6,8 @@
  */
 
 import Link from "next/link";
-import { Wrench } from "lucide-react";
+import { ArrowRight, Wrench } from "lucide-react";
+import { CrmSectionCard } from "@/components/features/crm/shared/crm-cards";
 
 const RELATED_TOOLS = [
   { label: "Daily Operations Center", href: "/crm/today" },
@@ -19,39 +20,23 @@ const RELATED_TOOLS = [
 
 export function DispatchRelatedTools() {
   return (
-    <div className="cs-card p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <Wrench
-          className="h-4 w-4 shrink-0"
-          style={{ color: "var(--cs-text-muted)" }}
-        />
-        <h3
-          style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--cs-text)" }}
-        >
-          Related Tools
-        </h3>
-      </div>
+    <CrmSectionCard
+      title="Related Tools"
+      description="Shortcuts across daily operations and setup."
+      icon={<Wrench className="size-4" />}
+    >
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {RELATED_TOOLS.map((tool) => (
           <Link
             key={tool.href}
             href={tool.href}
-            style={{
-              display: "block",
-              padding: "0.5rem 0.75rem",
-              border: "1px solid var(--cs-border-soft)",
-              borderRadius: "var(--cs-r-sm)",
-              fontSize: "0.8125rem",
-              color: "var(--cs-text-secondary)",
-              textDecoration: "none",
-              transition: "border-color 0.15s, color 0.15s",
-            }}
-            className="hover:border-[var(--cs-border)] hover:text-[var(--cs-text)]"
+            className="flex items-center justify-between gap-2 rounded-xl border border-[var(--cs-border-soft)] bg-white px-3 py-2 text-[0.8125rem] font-medium text-[var(--cs-text-secondary)] transition hover:border-[#CFE5D6] hover:bg-[#FAF8F5] hover:text-[var(--cs-text)]"
           >
-            {tool.label} →
+            <span className="truncate">{tool.label}</span>
+            <ArrowRight className="size-3.5 shrink-0 text-[var(--cs-text-muted)]" />
           </Link>
         ))}
       </div>
-    </div>
+    </CrmSectionCard>
   );
 }

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { CheckCircle2, Loader2, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { closeCashSessionAction } from "@/lib/cash-flow/cash-flow-actions";
 import type { CashSessionSummary } from "@/lib/cash-flow/cash-flow-types";
 
@@ -75,20 +76,15 @@ export function CloseDrawerModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-[1px]"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !isSubmitting) {
-          onOpenChange(false);
-        }
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!isSubmitting) onOpenChange(nextOpen);
       }}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="close-drawer-title"
-        className="w-full max-w-md rounded-2xl border border-[#E5DED5] bg-white shadow-2xl"
+      <DialogContent
+        showCloseButton={false}
+        className="w-full max-w-md sm:max-w-md gap-0 overflow-hidden rounded-2xl border border-[#E5DED5] bg-white p-0 shadow-2xl"
       >
         <div className="flex items-start justify-between border-b border-[#EFEAE4] px-5 py-4">
           <div className="flex items-start gap-3">
@@ -97,13 +93,13 @@ export function CloseDrawerModal({
             </div>
 
             <div>
-              <h2 id="close-drawer-title" className="text-base font-bold text-[#1E1916]">
+              <DialogTitle className="text-base font-bold text-[#1E1916]">
                 Day Close — Close cash drawer
-              </h2>
+              </DialogTitle>
 
-              <p className="mt-0.5 text-xs text-[#7B6D61]">
+              <DialogDescription className="mt-0.5 text-xs text-[#7B6D61]">
                 {session.cashDrawerName} · Reconcile physical cash and close session
-              </p>
+              </DialogDescription>
             </div>
           </div>
 
@@ -251,7 +247,7 @@ export function CloseDrawerModal({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="inline-flex min-w-[130px] items-center justify-center gap-2 rounded-lg bg-[#163E32] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#1B4D3E] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-w-[130px] items-center justify-center gap-2 rounded-lg bg-[#1F4E33] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#163B26] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
@@ -264,7 +260,7 @@ export function CloseDrawerModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

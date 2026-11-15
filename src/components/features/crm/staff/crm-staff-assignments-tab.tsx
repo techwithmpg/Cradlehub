@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Search, Settings2, Sparkles, UserCheck, Users } from "lucide-react";
+import { CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { ServiceLite } from "@/app/(dashboard)/owner/branches/[branchId]/branch-services-panel";
@@ -150,15 +151,34 @@ export function CrmStaffAssignmentsTab({
     <div className="space-y-5">
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Eligible Providers" value={stats.eligibleCount} icon={<Users className="size-4" />} />
-        <StatCard
-          label="Unassigned"
-          value={stats.unassignedCount}
-          icon={<UserCheck className="size-4" />}
-          accent={stats.unassignedCount > 0 ? "var(--cs-error)" : undefined}
+        <CrmStatCard
+          compact
+          title="Eligible Providers"
+          value={stats.eligibleCount}
+          tone="neutral"
+          icon={<Users className="size-4" aria-hidden="true" />}
         />
-        <StatCard label="Total Assignments" value={stats.totalAssignments} icon={<Sparkles className="size-4" />} />
-        <StatCard label="Avg per Staff" value={stats.avgAssignments} icon={<Sparkles className="size-4" />} />
+        <CrmStatCard
+          compact
+          title="Unassigned"
+          value={stats.unassignedCount}
+          tone={stats.unassignedCount > 0 ? "danger" : "success"}
+          icon={<UserCheck className="size-4" aria-hidden="true" />}
+        />
+        <CrmStatCard
+          compact
+          title="Total Assignments"
+          value={stats.totalAssignments}
+          tone="success"
+          icon={<Sparkles className="size-4" aria-hidden="true" />}
+        />
+        <CrmStatCard
+          compact
+          title="Avg per Staff"
+          value={stats.avgAssignments}
+          tone="info"
+          icon={<Sparkles className="size-4" aria-hidden="true" />}
+        />
       </div>
 
       {/* Search */}
@@ -259,38 +279,6 @@ export function CrmStaffAssignmentsTab({
         saving={isSaving}
         staffName={editingStaff ? getStaffAdminName(editingStaff) : undefined}
       />
-
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  icon,
-  accent,
-}: {
-  label: string;
-  value: number | string;
-  icon: React.ReactNode;
-  accent?: string;
-}) {
-  return (
-    <div className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="m-0 text-xs font-medium text-[var(--cs-text-muted)]">{label}</p>
-          <p
-            className="mt-2 text-3xl font-semibold leading-none"
-            style={{ color: accent ?? "var(--cs-text)" }}
-          >
-            {value}
-          </p>
-        </div>
-        <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
-          {icon}
-        </div>
-      </div>
     </div>
   );
 }

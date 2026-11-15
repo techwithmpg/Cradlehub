@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { AlertTriangle, CalendarCheck, ClipboardList } from "lucide-react";
+import { CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 import { CrmStatusBadge } from "@/components/features/crm/premium/crm-status-badge";
 import {
   type SheetReviewRecord,
@@ -212,19 +214,24 @@ export function MasterSheetReview({ state }: { state: SheetReviewState }) {
         every record
       </p>
       <div className="grid gap-3 sm:grid-cols-3" aria-label="Sheet record counts">
-        {[
-          ["Visits", tab.visits.length],
-          ["Staff duties", tab.duties.length],
-          ["Needs review", tab.review.length],
-        ].map(([label, count]) => (
-          <div
-            key={label}
-            className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4"
-          >
-            <p className="text-sm text-[var(--cs-text-secondary)]">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-[var(--cs-text)]">{count}</p>
-          </div>
-        ))}
+        <CrmStatCard
+          title="Visits"
+          value={tab.visits.length}
+          tone="info"
+          icon={<CalendarCheck className="size-4.5" aria-hidden="true" />}
+        />
+        <CrmStatCard
+          title="Staff duties"
+          value={tab.duties.length}
+          tone="success"
+          icon={<ClipboardList className="size-4.5" aria-hidden="true" />}
+        />
+        <CrmStatCard
+          title="Needs review"
+          value={tab.review.length}
+          tone={tab.review.length > 0 ? "warning" : "neutral"}
+          icon={<AlertTriangle className="size-4.5" aria-hidden="true" />}
+        />
       </div>
       {isEmpty ? (
         <p className="rounded-xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-6 text-sm text-[var(--cs-text-secondary)]">

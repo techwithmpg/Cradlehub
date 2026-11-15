@@ -1,4 +1,4 @@
-﻿type Segment = "new" | "repeat" | "lapsed" | "vip";
+type Segment = "new" | "repeat" | "lapsed" | "vip";
 
 const SEGMENT_STYLES: Record<
   Segment,
@@ -7,7 +7,7 @@ const SEGMENT_STYLES: Record<
   new: {
     label: "New",
     bg: "var(--cs-success-bg)",
-    color: "var(--cs-success)",
+    color: "var(--cs-success-text)",
   },
   repeat: {
     label: "Repeat",
@@ -16,13 +16,13 @@ const SEGMENT_STYLES: Record<
   },
   lapsed: {
     label: "Lapsed",
-    bg: "#FEF3C7",
-    color: "#92400E",
+    bg: "var(--cs-warning-bg)",
+    color: "var(--cs-warning-text)",
   },
   vip: {
     label: "VIP",
-    bg: "#F3E8FF",
-    color: "#7C3AED",
+    bg: "var(--cs-sand-mist)",
+    color: "var(--cs-sand-dark)",
   },
 };
 
@@ -30,19 +30,10 @@ export function CustomerSegmentBadge({ segment }: { segment: Segment }) {
   const style = SEGMENT_STYLES[segment];
   return (
     <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: "var(--cs-r-pill)",
-        fontSize: "0.6875rem",
-        fontWeight: 600,
-        backgroundColor: style.bg,
-        color: style.color,
-        whiteSpace: "nowrap",
-      }}
+      className="cs-badge inline-flex items-center whitespace-nowrap"
+      style={{ backgroundColor: style.bg, color: style.color }}
     >
       {style.label}
     </span>
   );
 }
-

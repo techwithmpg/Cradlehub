@@ -13,7 +13,12 @@ import {
   MapPin,
   Navigation,
 } from "lucide-react";
-import { AttendanceTabPanel, ContextChip } from "@/components/features/attendance/attendance-ui";
+import {
+  CrmModuleTabs,
+  type CrmModuleTabItem,
+} from "@/components/features/crm/shared/crm-module-tabs";
+import { CrmStatCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
+import { ContextChip, CrmTabPanel } from "@/components/features/crm/shared/crm-workspace-primitives";
 import type { DispatchData } from "@/lib/queries/dispatch-queries";
 import { refreshDispatchDataAction } from "@/lib/actions/dispatch-data-actions";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
@@ -24,9 +29,9 @@ import { useLiveCrmDispatchData } from "./use-live-crm-dispatch-data";
 
 type TabId = "flow" | "map";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "flow", label: "Live Operations" },
-  { id: "map", label: "Full Map" },
+const TABS: CrmModuleTabItem<TabId>[] = [
+  { key: "flow", label: "Live Operations", id: "dispatch-tab-flow", controls: "dispatch-panel-flow" },
+  { key: "map", label: "Full Map", id: "dispatch-tab-map", controls: "dispatch-panel-map" },
 ];
 
 export interface HomeServiceDispatchWorkspaceProps {
@@ -53,29 +58,15 @@ function DispatchMetric({
   value: number;
   tone?: "neutral" | "warning" | "success" | "info" | "purple" | "danger";
 }) {
-  const toneClass =
-    tone === "warning"
-      ? "text-amber-700 bg-amber-50 border-amber-100"
-      : tone === "success"
-        ? "text-emerald-700 bg-emerald-50 border-emerald-100"
-        : tone === "info"
-          ? "text-blue-700 bg-blue-50 border-blue-100"
-          : tone === "purple"
-            ? "text-purple-700 bg-purple-50 border-purple-100"
-            : tone === "danger"
-              ? "text-red-700 bg-red-50 border-red-100"
-              : "text-[var(--cs-text)] bg-[var(--cs-surface)] border-[var(--cs-border)]";
-
+  const mappedTone: CrmCardTone = tone === "purple" ? "info" : tone;
   return (
-    <div
-      className={`flex items-center justify-between rounded-2xl border px-4 py-3 shadow-sm ${toneClass}`}
-    >
-      <div className="flex items-center gap-3">
-        <div className="flex size-9 items-center justify-center rounded-xl bg-white/70">{icon}</div>
-        <span className="text-sm font-semibold">{label}</span>
-      </div>
-      <span className="text-2xl font-bold">{value}</span>
-    </div>
+    <CrmStatCard
+      title={label}
+      value={value}
+      icon={icon}
+      tone={mappedTone}
+      compact
+    />
   );
 }
 
@@ -152,7 +143,6 @@ export function HomeServiceDispatchWorkspace({
     { revalidateOnFocus: false }
   );
   const { mutate: mutateLegacyDispatch } = legacyDispatch;
-  const activeTabIndex = TABS.findIndex((tab) => tab.id === activeTab);
 
   useEffect(() => {
     const revalidate = () => {
@@ -165,23 +155,6 @@ export function HomeServiceDispatchWorkspace({
     window.addEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
     return () => window.removeEventListener(BOOKINGS_CHANGED_EVENT, revalidate);
   }, [activeTab, isCrmRetainedDispatch, mutateLegacyDispatch, mutateMap]);
-
-  function handleTabKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    const lastIndex = TABS.length - 1;
-    let nextIndex = activeTabIndex;
-
-    if (event.key === "ArrowRight")
-      nextIndex = activeTabIndex === lastIndex ? 0 : activeTabIndex + 1;
-    else if (event.key === "ArrowLeft")
-      nextIndex = activeTabIndex === 0 ? lastIndex : activeTabIndex - 1;
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = lastIndex;
-    else return;
-
-    event.preventDefault();
-    const nextTab = TABS[nextIndex];
-    if (nextTab) setActiveTab(nextTab.id);
-  }
 
   const metrics = useMemo(() => {
     const count = (status: string) =>
@@ -211,14 +184,22 @@ export function HomeServiceDispatchWorkspace({
         <Link
           href="/crm/dispatch?tab=today"
           aria-current={!upcoming ? "page" : undefined}
-          className={`rounded-lg border px-4 py-2 text-sm font-semibold ${!upcoming ? "bg-emerald-900 text-white" : "bg-white text-emerald-900"}`}
+          className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+            !upcoming
+              ? "border-[#1F4E33] bg-[#1F4E33] text-white"
+              : "border-[var(--cs-border)] bg-white text-[#1F4E33] hover:bg-[#EEF7F1]"
+          }`}
         >
           Today
         </Link>
         <Link
           href="/crm/dispatch?tab=upcoming"
           aria-current={upcoming ? "page" : undefined}
-          className={`rounded-lg border px-4 py-2 text-sm font-semibold ${upcoming ? "bg-emerald-900 text-white" : "bg-white text-emerald-900"}`}
+          className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+            upcoming
+              ? "border-[#1F4E33] bg-[#1F4E33] text-white"
+              : "border-[var(--cs-border)] bg-white text-[#1F4E33] hover:bg-[#EEF7F1]"
+          }`}
         >
           Upcoming
         </Link>
@@ -250,35 +231,12 @@ export function HomeServiceDispatchWorkspace({
         </header>
       ) : null}
 
-      <div
-        role="tablist"
-        aria-label="Home Service Operations views"
-        onKeyDown={handleTabKeyDown}
-        className="flex flex-wrap gap-2 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] p-1 shadow-sm md:w-fit"
-      >
-        {TABS.map((tab) => {
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              id={`dispatch-tab-${tab.id}`}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              aria-controls={`dispatch-panel-${tab.id}`}
-              tabIndex={active ? 0 : -1}
-              onClick={() => setActiveTab(tab.id)}
-              className={`rounded-lg px-5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                active
-                  ? "bg-green-50 text-[#155A33] shadow-sm ring-1 ring-green-100"
-                  : "text-[var(--cs-text-secondary)] hover:bg-[var(--cs-surface-warm)]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <CrmModuleTabs
+        tabs={TABS}
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        ariaLabel="Home Service Operations views"
+      />
 
       {!upcoming ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
@@ -325,7 +283,7 @@ export function HomeServiceDispatchWorkspace({
           />
         </div>
       ) : null}
-      <AttendanceTabPanel
+      <CrmTabPanel
         id="dispatch-panel-flow"
         labelledBy="dispatch-tab-flow"
         active={activeTab === "flow"}
@@ -343,15 +301,15 @@ export function HomeServiceDispatchWorkspace({
             selectedBookingId={selectedBookingId}
           />
         ) : null}
-      </AttendanceTabPanel>
-      <AttendanceTabPanel
+      </CrmTabPanel>
+      <CrmTabPanel
         id="dispatch-panel-map"
         labelledBy="dispatch-tab-map"
         active={activeTab === "map"}
       >
         {activeTab === "map" ? (
           mapData ? (
-            <DispatchLiveMapTab data={mapData} />
+            <DispatchLiveMapTab data={mapData} onRefresh={() => void mutateMap()} />
           ) : (
             <p role="status">
               {mapError
@@ -360,7 +318,7 @@ export function HomeServiceDispatchWorkspace({
             </p>
           )
         ) : null}
-      </AttendanceTabPanel>
+      </CrmTabPanel>
     </section>
   );
 }

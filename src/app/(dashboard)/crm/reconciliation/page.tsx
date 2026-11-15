@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { EmptyState, WorkspaceSection } from "@/components/features/attendance/attendance-ui";
+import { EmptyState, WorkspaceSection } from "@/components/features/crm/shared/crm-workspace-primitives";
+import { CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 import { CrmOperationalPageShell } from "@/components/features/crm/operational/crm-operational-page-shell";
 import { getDailyPaymentSummary } from "@/lib/queries/bookings";
 import { getPostedReconciliationExpected } from "@/lib/cash-flow/reconciliation-expected";
@@ -74,7 +75,7 @@ export default async function ReconciliationPage() {
                 key={rec.id}
                 className={`rounded-lg border p-3 ${
                   rec.reconciliation_date === today
-                    ? "border-[var(--cs-border)] bg-[var(--cs-sand-mist)]"
+                    ? "border-[#CFE5D6] bg-[#EEF7F1]/55"
                     : "border-[var(--cs-border)] bg-[var(--cs-surface-warm)]"
                 }`}
               >
@@ -129,25 +130,23 @@ export default async function ReconciliationPage() {
             description={`Expected collections for ${todayLabel}.`}
           >
             <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                { label: "Total Bookings", value: summary.total_count },
-                { label: "Paid",           value: summary.paid_count },
-                { label: "Unpaid",         value: summary.unpaid_count },
-                { label: "Expected",       value: `₱${summary.total_expected.toLocaleString()}` },
-                { label: "Collected",      value: `₱${summary.total_collected.toLocaleString()}` },
-                { label: "Outstanding",    value: `₱${summary.total_unpaid.toLocaleString()}` },
-              ].map((kpi) => (
-                <div
+              {(
+                [
+                  { label: "Total Bookings", value: summary.total_count, tone: "neutral" },
+                  { label: "Paid", value: summary.paid_count, tone: "success" },
+                  { label: "Unpaid", value: summary.unpaid_count, tone: summary.unpaid_count > 0 ? "danger" : "neutral" },
+                  { label: "Expected", value: `₱${summary.total_expected.toLocaleString()}`, tone: "info" },
+                  { label: "Collected", value: `₱${summary.total_collected.toLocaleString()}`, tone: "success" },
+                  { label: "Outstanding", value: `₱${summary.total_unpaid.toLocaleString()}`, tone: summary.total_unpaid > 0 ? "warning" : "neutral" },
+                ] as const
+              ).map((kpi) => (
+                <CrmStatCard
                   key={kpi.label}
-                  className="rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] p-3"
-                >
-                  <div className="mb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-[var(--cs-text-muted)]">
-                    {kpi.label}
-                  </div>
-                  <div className="text-lg font-bold text-[var(--cs-text)]">
-                    {kpi.value}
-                  </div>
-                </div>
+                  compact
+                  title={kpi.label}
+                  value={kpi.value}
+                  tone={kpi.tone}
+                />
               ))}
             </div>
           </WorkspaceSection>

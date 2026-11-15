@@ -1,12 +1,23 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/features/dashboard/page-header";
+import {
+  ArrowLeft,
+  Banknote,
+  CalendarCheck,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  Plus,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
+import { CrmSectionCard, CrmStatCard } from "@/components/features/crm/shared/crm-cards";
+import { CrmPageHeader } from "@/components/features/crm/shared/crm-page-header";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { BookingStatusBadge } from "@/components/features/dashboard/booking-status-badge";
 import { BookingTypeBadge } from "@/components/features/dashboard/booking-type-badge";
 import { CustomerNotesForm } from "@/components/features/dashboard/customer-notes-form";
 import { CustomerSegmentBadge } from "@/components/features/crm/customer-segment-badge";
-import { StatCard } from "@/components/features/dashboard/stat-card";
 import { EmptyState } from "@/components/features/dashboard/empty-state";
 import { getCustomerProfileAction } from "@/app/(dashboard)/crm/actions";
 import { getAllStaff } from "@/lib/queries/staff";
@@ -173,381 +184,235 @@ export default async function CustomerProfilePage({
   const discountHistory = await getCustomerDiscountHistoryAction(customer.id);
 
   return (
-    <div>
-      <div style={{ marginBottom: "0.75rem" }}>
+    <div className="space-y-5">
+      <div>
         <Link
           href="/crm/customers"
-          style={{
-            fontSize: "0.8125rem",
-            color: "var(--cs-text-muted)",
-            textDecoration: "none",
-          }}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--cs-text-muted)] transition hover:text-[var(--cs-text)]"
         >
-          &larr; All Customers
+          <ArrowLeft size={14} />
+          All Customers
         </Link>
       </div>
 
-      <PageHeader
+      <CrmPageHeader
+        eyebrow="Guest Profile"
         title={customer.full_name}
         description={
           [customer.phone, customer.email].filter(Boolean).join(" · ") || undefined
         }
-        icon="👤"
-        action={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {segment && <CustomerSegmentBadge segment={segment} />}
-            <OpenAdministrativeBookingButton
-              mode="standard_future"
-              customerId={customer.id}
-              label="Book again"
-              showIcon={false}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 6,
-                border: "1px solid var(--cs-border)",
-                backgroundColor: "var(--cs-sand-mist)",
-                color: "var(--cs-sand)",
-                fontSize: "0.75rem",
-                fontWeight: 500,
-                textDecoration: "none",
-              }}
-            />
-          </div>
+        badge={segment ? <CustomerSegmentBadge segment={segment} /> : undefined}
+        actions={
+          <OpenAdministrativeBookingButton
+            mode="standard_future"
+            customerId={customer.id}
+            label="Book again"
+            showIcon={false}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#1F4E33] px-3.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#163B26]"
+          />
         }
       />
 
       {discountHistory.available ? (
-        <section aria-label="Discount history" className="mb-5 rounded-xl border border-neutral-200 bg-white p-4">
-          <h2 className="text-sm font-semibold">Discount history</h2>
-          <p className="mt-1 text-xs text-neutral-600">Check identification at each visit before selecting Senior Citizen or PWD.</p>
-          {discountHistory.entries.length ? <ul className="mt-2 space-y-1 text-sm">
-            {discountHistory.entries.map((entry,index)=><li key={`${entry.transactionId}-${index}`}>
-              {entry.category === "senior" ? "Senior Citizen" : entry.category.toUpperCase()} · {formatCurrency(entry.amount)} · {formatDate(entry.appliedAt)}
-            </li>)}
-          </ul> : <p className="mt-2 text-sm text-neutral-500">No committed discounts on file.</p>}
-        </section>
+        <CrmSectionCard
+          title="Discount history"
+          description="Check identification at each visit before selecting Senior Citizen or PWD."
+          className="mb-5"
+          compact
+        >
+          {discountHistory.entries.length ? (
+            <ul className="space-y-1 text-sm text-[var(--cs-text)]">
+              {discountHistory.entries.map((entry, index) => (
+                <li key={`${entry.transactionId}-${index}`}>
+                  {entry.category === "senior" ? "Senior Citizen" : entry.category.toUpperCase()} · {formatCurrency(entry.amount)} · {formatDate(entry.appliedAt)}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-[var(--cs-text-muted)]">No committed discounts on file.</p>
+          )}
+        </CrmSectionCard>
       ) : null}
+
       {/* Stats */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-          gap: "0.625rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <StatCard label="Total Visits" value={customer.total_bookings} accent />
-        <StatCard label="Completed" value={completedBookings.length} />
-        <StatCard
-          label="Last Visit"
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <CrmStatCard
+          compact
+          title="Total Visits"
+          value={customer.total_bookings}
+          tone="success"
+          icon={<CalendarCheck className="size-4" aria-hidden="true" />}
+        />
+        <CrmStatCard
+          compact
+          title="Completed"
+          value={completedBookings.length}
+          tone="info"
+          icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
+        />
+        <CrmStatCard
+          compact
+          title="Last Visit"
           value={customer.last_booking_date ? formatDate(customer.last_booking_date) : "Never"}
+          tone="neutral"
+          icon={<Clock3 className="size-4" aria-hidden="true" />}
         />
-        <StatCard
-          label="Preferred Staff"
+        <CrmStatCard
+          compact
+          title="Preferred Staff"
           value={preferredStaffName}
+          tone="neutral"
+          icon={<UserRound className="size-4" aria-hidden="true" />}
         />
-        <StatCard
-          label="Top Service"
+        <CrmStatCard
+          compact
+          title="Top Service"
           value={topService ?? "—"}
+          tone="neutral"
+          icon={<Sparkles className="size-4" aria-hidden="true" />}
         />
-        <StatCard label="Revenue" value={formatCurrency(totalRevenue)} accent />
+        <CrmStatCard
+          compact
+          title="Revenue"
+          value={formatCurrency(totalRevenue)}
+          tone="success"
+          icon={<Banknote className="size-4" aria-hidden="true" />}
+        />
       </div>
 
       {/* Two-column: History + Sidebar */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 320px",
-          gap: "1.5rem",
-          alignItems: "start",
-        }}
-      >
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: "0.875rem",
-            }}
+          <CrmSectionCard
+            title="Booking History"
+            icon={<CalendarCheck className="size-4" aria-hidden="true" />}
+            badge={
+              <span className="rounded-full bg-[#EEF7F1] px-2.5 py-0.5 text-xs font-bold text-[#1F4E33] tabular-nums">
+                {bookings.length} total
+              </span>
+            }
+            noPadding
           >
-            <span style={{ fontSize: 16 }}>📋</span>
-            <div
-              style={{
-                fontSize: "0.9375rem",
-                fontWeight: 600,
-                color: "var(--cs-text)",
-                fontFamily: "var(--font-display)",
-              }}
-            >
-              Booking History
-            </div>
-            <span
-              style={{
-                marginLeft: "auto",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                padding: "2px 8px",
-                borderRadius: "var(--cs-r-pill)",
-                backgroundColor: "var(--cs-sand-mist)",
-                color: "var(--cs-sand)",
-              }}
-            >
-              {bookings.length} total
-            </span>
-          </div>
+            {bookings.length === 0 ? (
+              <div className="p-4">
+                <EmptyState
+                  title="No bookings yet"
+                  description="This customer has no booking history."
+                />
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--cs-border-soft)]">
+                {bookings.map((booking) => {
+                  const service = firstRelation(booking.services);
+                  const staffMember = firstRelation(booking.staff);
+                  const staffName = staffMember ? getStaffAdminName(staffMember) : "Unassigned";
+                  const branch = firstRelation(booking.branches);
+                  const pricePaid = readPricePaid(booking.metadata);
 
-          {bookings.length === 0 ? (
-            <EmptyState
-              title="No bookings yet"
-              description="This customer has no booking history."
-            />
-          ) : (
-            <div
-              style={{
-                backgroundColor: "var(--cs-surface)",
-                border: "1px solid var(--cs-border)",
-                borderRadius: 10,
-                overflow: "hidden",
-              }}
-            >
-              {bookings.map((booking, i) => {
-                const service = firstRelation(booking.services);
-                const staffMember = firstRelation(booking.staff);
-                const staffName = staffMember ? getStaffAdminName(staffMember) : "Unassigned";
-                const branch = firstRelation(booking.branches);
-                const pricePaid = readPricePaid(booking.metadata);
-
-                return (
-                  <div
-                    key={booking.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.875rem",
-                      padding: "0.75rem 1rem",
-                      borderBottom: i < bookings.length - 1 ? "1px solid var(--cs-border)" : "none",
-                    }}
-                  >
-                    <div style={{ minWidth: 90, flexShrink: 0 }}>
-                      <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--cs-text)" }}>
-                        {formatDate(booking.booking_date)}
+                  return (
+                    <div
+                      key={booking.id}
+                      className="flex flex-wrap items-center gap-3.5 px-4 py-3"
+                    >
+                      <div className="min-w-[90px] shrink-0">
+                        <div className="text-[0.8125rem] font-semibold text-[var(--cs-text)]">
+                          {formatDate(booking.booking_date)}
+                        </div>
+                        <div className="text-xs text-[var(--cs-text-muted)]">
+                          {formatTime(booking.start_time)}
+                        </div>
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                        {formatTime(booking.start_time)}
+
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-[var(--cs-text)]">
+                          {service?.name ?? "—"}
+                        </div>
+                        <div className="text-xs text-[var(--cs-text-muted)]">
+                          {staffName}
+                          {branch?.name ? <span className="ml-1.5">&middot; {branch.name}</span> : null}
+                        </div>
+                      </div>
+
+                      {pricePaid > 0 ? (
+                        <div className="shrink-0 text-sm font-semibold text-[var(--cs-text)] tabular-nums">
+                          {formatCurrency(pricePaid)}
+                        </div>
+                      ) : null}
+
+                      <div className="flex shrink-0 gap-1.5">
+                        <BookingTypeBadge type={booking.type} />
+                        <BookingStatusBadge status={booking.status} />
                       </div>
                     </div>
-
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: "0.875rem",
-                          fontWeight: 500,
-                          color: "var(--cs-text)",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {service?.name ?? "—"}
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)" }}>
-                        {staffName}
-                        {branch?.name && <span style={{ marginLeft: 6 }}>&middot; {branch.name}</span>}
-                      </div>
-                    </div>
-
-                    {pricePaid > 0 && (
-                      <div
-                        style={{
-                          fontSize: "0.875rem",
-                          fontWeight: 500,
-                          color: "var(--cs-text)",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {formatCurrency(pricePaid)}
-                      </div>
-                    )}
-
-                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      <BookingTypeBadge type={booking.type} />
-                      <BookingStatusBadge status={booking.status} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </CrmSectionCard>
         </div>
 
         {/* Sidebar */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {/* Contact */}
-          <div className="cs-card" style={{ padding: "1.25rem" }}>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                color: "var(--cs-text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginBottom: "0.75rem",
-              }}
-            >
-              Contact
-            </div>
-            {[
-              { label: "Phone", value: customer.phone },
-              { label: "Email", value: customer.email ?? "—" },
-              {
-                label: "Since",
-                value: customer.first_booking_date ? formatDate(customer.first_booking_date) : "—",
-              },
-              { label: "Prefers", value: preferredStaffName },
-            ].map((row, i, arr) => (
-              <div
-                key={row.label}
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  padding: "4px 0",
-                  borderBottom: i < arr.length - 1 ? "1px solid var(--cs-border)" : "none",
-                }}
-              >
-                <div
-                  style={{
-                    minWidth: 50,
-                    fontSize: "0.75rem",
-                    color: "var(--cs-text-muted)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {row.label}
-                </div>
-                <div style={{ fontSize: "0.8125rem", color: "var(--cs-text)" }}>{row.value}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Quick Actions */}
-          <div className="cs-card" style={{ padding: "1.25rem" }}>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                color: "var(--cs-text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginBottom: "0.75rem",
-              }}
-            >
-              Quick Actions
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+        <div className="flex flex-col gap-4">
+          <CrmSectionCard title="Contact" compact>
+            <div className="divide-y divide-[var(--cs-border-soft)]">
               {[
+                { label: "Phone", value: customer.phone },
+                { label: "Email", value: customer.email ?? "—" },
                 {
-                  icon: "➕",
-                  label: "Book again",
-                  soon: false,
-                  booking: true,
+                  label: "Since",
+                  value: customer.first_booking_date ? formatDate(customer.first_booking_date) : "—",
                 },
-                { icon: "📝", label: "Add note", soon: false, scrollTo: "notes" },
-                { icon: "✏️", label: "Edit customer", soon: true },
-              ].map((action) =>
-                action.soon ? (
-                  <div
-                    key={action.label}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "0.625rem 0.5rem",
-                      borderRadius: "var(--cs-r-sm)",
-                      color: "var(--cs-text-muted)",
-                      fontSize: "0.8125rem",
-                      opacity: 0.6,
-                      cursor: "not-allowed",
-                    }}
-                    title="Coming soon"
-                  >
-                    <span>{action.icon}</span>
-                    {action.label}
+                { label: "Prefers", value: preferredStaffName },
+              ].map((row) => (
+                <div key={row.label} className="flex gap-2 py-1.5 first:pt-0 last:pb-0">
+                  <div className="min-w-[56px] shrink-0 text-xs font-medium text-[var(--cs-text-muted)]">
+                    {row.label}
                   </div>
-                ) : action.booking ? (
-                  <OpenAdministrativeBookingButton
-                    key={action.label}
-                    mode="standard_future"
-                    customerId={customer.id}
-                    showIcon={false}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-start",
-                      gap: 8,
-                      padding: "0.625rem 0.5rem",
-                      borderRadius: "var(--cs-r-sm)",
-                      color: "var(--cs-text-secondary)",
-                      fontSize: "0.8125rem",
-                      textDecoration: "none",
-                      transition: "var(--cs-trans)",
-                    }}
-                  >
-                    <span>{action.icon}</span>
-                    {action.label}
-                  </OpenAdministrativeBookingButton>
-                ) : (
-                  <Link
-                    key={action.label}
-                    href={action.scrollTo ? `#${action.scrollTo}` : "#"}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "0.625rem 0.5rem",
-                      borderRadius: "var(--cs-r-sm)",
-                      color: "var(--cs-text-secondary)",
-                      fontSize: "0.8125rem",
-                      textDecoration: "none",
-                      transition: "var(--cs-trans)",
-                    }}
-                  >
-                    <span>{action.icon}</span>
-                    {action.label}
-                  </Link>
-                )
-              )}
+                  <div className="min-w-0 text-[0.8125rem] text-[var(--cs-text)]">{row.value}</div>
+                </div>
+              ))}
             </div>
-          </div>
+          </CrmSectionCard>
 
-          {/* Notes */}
-          <div id="notes" className="cs-card" style={{ padding: "1.25rem" }}>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                color: "var(--cs-text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginBottom: "0.75rem",
-              }}
-            >
-              CRM Notes
+          <CrmSectionCard title="Quick Actions" compact>
+            <div className="flex flex-col gap-1.5">
+              <OpenAdministrativeBookingButton
+                mode="standard_future"
+                customerId={customer.id}
+                showIcon={false}
+                className="flex w-full items-center justify-start gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-[var(--cs-text-secondary)] transition hover:bg-[#F5F2EE] hover:text-[var(--cs-text)]"
+                variant="ghost"
+              >
+                <Plus size={14} className="text-[#1F4E33]" />
+                Book again
+              </OpenAdministrativeBookingButton>
+              <Link
+                href="#notes"
+                className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-[var(--cs-text-secondary)] transition hover:bg-[#F5F2EE] hover:text-[var(--cs-text)]"
+              >
+                <FileText size={14} className="text-[#1F4E33]" />
+                Add note
+              </Link>
             </div>
-            <CustomerNotesForm
-              customerId={customer.id}
-              initialFullName={customer.full_name}
-              initialPhone={customer.phone}
-              initialEmail={customer.email}
-              initialNotes={customer.notes}
-              initialPreferredStaffId={customer.preferred_staff_id}
-              initialPreferredVisitType={customer.preferred_visit_type}
-              initialPressurePreference={customer.pressure_preference}
-              initialHealthNotes={customer.health_notes}
-              initialBirthday={customer.birthday}
-              initialLoyaltyTier={customer.loyalty_tier}
-              staff={staffOptions}
-            />
+          </CrmSectionCard>
+
+          <div id="notes">
+            <CrmSectionCard title="CRM Notes" compact>
+              <CustomerNotesForm
+                customerId={customer.id}
+                initialFullName={customer.full_name}
+                initialPhone={customer.phone}
+                initialEmail={customer.email}
+                initialNotes={customer.notes}
+                initialPreferredStaffId={customer.preferred_staff_id}
+                initialPreferredVisitType={customer.preferred_visit_type}
+                initialPressurePreference={customer.pressure_preference}
+                initialHealthNotes={customer.health_notes}
+                initialBirthday={customer.birthday}
+                initialLoyaltyTier={customer.loyalty_tier}
+                staff={staffOptions}
+              />
+            </CrmSectionCard>
           </div>
         </div>
       </div>

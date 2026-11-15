@@ -33,7 +33,7 @@ import {
   ContextChip,
   EmptyState,
   WorkspaceSection,
-} from "@/components/features/attendance/attendance-ui";
+} from "@/components/features/crm/shared/crm-workspace-primitives";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { cn, formatTime, formatCurrency } from "@/lib/utils";
 import { AssignmentRecommendationPanel } from "@/components/features/assignments/assignment-recommendation-panel";

@@ -85,8 +85,8 @@ describe("Attendance Today", () => {
 
   it("renders all four live summary counts", () => {
     render(<AttendanceSummaryCards rows={rows} />);
-    expect(screen.getByText("Working")).toBeTruthy();
-    expect(screen.getByText("Not in yet")).toBeTruthy();
+    expect(screen.getByText("Working now")).toBeTruthy();
+    expect(screen.getByText("Not clocked in")).toBeTruthy();
     expect(screen.getByText("Needs review")).toBeTruthy();
     expect(screen.getByText("Checked out")).toBeTruthy();
   });

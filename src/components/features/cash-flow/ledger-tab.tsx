@@ -10,10 +10,9 @@ import {
   Calendar,
   Download,
   MoreHorizontal,
-  ChevronLeft,
-  ChevronRight,
   Filter,
 } from "lucide-react";
+import { CrmPagination } from "@/components/features/crm/shared/crm-pagination";
 import { CashFlowKpiCard } from "./cash-flow-kpi-card";
 import { useSheetNativeReferences } from "@/components/features/crm/master-sheet/use-sheet-native-references";
 import type { SheetTransactionReference } from "@/lib/integrations/google-sheets/sheet-native-types";
@@ -106,7 +105,6 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
     ),
     ...sheetRows,
   ].sort((a, b) => b.date.localeCompare(a.date) || (b.sortMinute ?? -1) - (a.sortMinute ?? -1));
-  const totalPages = Math.max(1, Math.ceil(presentationRows.length / pageSize));
   const displayedRecords = presentationRows.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
@@ -380,9 +378,8 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
                             {item.outflow !== null ? `-${formatPeso(item.outflow)}` : "—"}
                           </td>
                           <td
-                            className={`py-3 px-3 text-right font-bold tabular-nums ${
-                              item.netEffect >= 0 ? "text-[#1E1916]" : "text-rose-700"
-                            }`}
+                            className={`py-3 px-3 text-right font-bold tabular-nums ${item.netEffect >= 0 ? "text-[#1E1916]" : "text-rose-700"
+                              }`}
                           >
                             {item.isReconciliationOnly
                               ? "—"
@@ -393,11 +390,10 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
                           <td className="py-3 px-3 text-right">—</td>
                           <td className="py-3 px-3 text-center">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                item.status.toLowerCase() === "paid"
-                                  ? "bg-[#EEF8F2] text-[#1A4A2A]"
-                                  : "bg-[#FFFBEB] text-[#92400E]"
-                              }`}
+                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${item.status.toLowerCase() === "paid"
+                                ? "bg-[#EEF8F2] text-[#1A4A2A]"
+                                : "bg-[#FFFBEB] text-[#92400E]"
+                                }`}
                             >
                               {item.status}
                             </span>
@@ -418,60 +414,19 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
         )}
 
         {/* Pagination Footer */}
-        <div className="mt-4 pt-3 border-t border-[#F0ECE5] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#6B5D52]">
-          <div>
-            Showing {(currentPage - 1) * pageSize + (presentationRows.length > 0 ? 1 : 0)}–
-            {Math.min(currentPage * pageSize, presentationRows.length)} of {presentationRows.length}{" "}
-            rows
-          </div>
-
-          <div className="flex items-center gap-2">
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="px-2 py-1 bg-[#FAF8F5] border border-[#EAE4DC] rounded-md text-xs text-[#1E1916] focus:outline-none"
-            >
-              <option value={10}>10 per page</option>
-              <option value={12}>12 per page</option>
-              <option value={20}>20 per page</option>
-              <option value={50}>50 per page</option>
-            </select>
-
-            <div className="flex items-center gap-1">
-              <button
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="p-1.5 rounded-md border border-[#EAE4DC] hover:bg-[#FAF8F5] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-
-              {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setCurrentPage(p)}
-                  className={`w-7 h-7 rounded-md text-xs font-semibold ${
-                    currentPage === p
-                      ? "bg-[#1B4D3E] text-white"
-                      : "border border-[#EAE4DC] text-[#1E1916] hover:bg-[#FAF8F5]"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-
-              <button
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1.5 rounded-md border border-[#EAE4DC] hover:bg-[#FAF8F5] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
+        <div className="mt-4 overflow-hidden rounded-b-xl border-t border-[#F0ECE5]">
+          <CrmPagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={presentationRows.length}
+            itemLabel="rows"
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(nextSize) => {
+              setPageSize(nextSize);
+              setCurrentPage(1);
+            }}
+            pageSizeOptions={[10, 12, 20, 50]}
+          />
         </div>
       </div>
     </div>

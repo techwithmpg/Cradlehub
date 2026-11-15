@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Building2, Calendar, Home, Mail, Phone, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { OpenAdministrativeBookingButton } from "@/components/features/bookings/administrative-booking-modal-provider";
+import { CrmInfoCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
 import { updateWaitlistStatusAction } from "./actions";
 
 type WaitlistRow = {
@@ -155,60 +157,54 @@ export function WaitlistQueue({
           {filtered.map((row) => {
             const svc = first(row.services);
             const style = STATUS_STYLE[row.status] ?? STATUS_STYLE["waiting"]!;
+            const cardTone: CrmCardTone =
+              row.status === "waiting"
+                ? "warning"
+                : row.status === "contacted"
+                  ? "info"
+                  : row.status === "converted"
+                    ? "success"
+                    : row.status === "cancelled"
+                      ? "danger"
+                      : "neutral";
 
             return (
-              <div
+              <CrmInfoCard
                 key={row.id}
-                className="cs-card"
-                style={{ padding: "0.875rem 1rem" }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--cs-text)" }}>
-                        {row.customer_name}
+                tone={cardTone}
+                compact
+                title={row.customer_name}
+                badge={
+                  <span
+                    className="rounded-md px-2 py-0.5 text-[10px] font-bold capitalize"
+                    style={style}
+                  >
+                    {row.status}
+                  </span>
+                }
+                subtitle={
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="inline-flex items-center gap-1">
+                      <Phone className="size-3.5" aria-hidden />
+                      {row.customer_phone}
+                    </span>
+                    {row.customer_email ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Mail className="size-3.5" aria-hidden />
+                        {row.customer_email}
                       </span>
-                      <span
-                        style={{
-                          fontSize: "0.625rem", fontWeight: 700, padding: "2px 6px", borderRadius: 3,
-                          textTransform: "capitalize", ...style,
-                        }}
-                      >
-                        {row.status}
-                      </span>
-                    </div>
-
-                    <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-muted)", marginBottom: 4 }}>
-                      📞 {row.customer_phone}
-                      {row.customer_email && <span style={{ marginLeft: 8 }}>✉ {row.customer_email}</span>}
-                    </div>
-
-                    <div style={{ display: "flex", gap: 12, fontSize: "0.8125rem", color: "var(--cs-text-muted)", flexWrap: "wrap" }}>
-                      {row.preferred_date && (
-                        <span>
-                          📅 {new Date(row.preferred_date + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
-                          {row.preferred_time && ` ${row.preferred_time.substring(0, 5)}`}
-                        </span>
-                      )}
-                      {svc && <span>💆 {svc.name}</span>}
-                      {row.visit_type && (
-                        <span>{row.visit_type === "home_service" ? "🏠 Home" : "🏢 In-Spa"}</span>
-                      )}
-                    </div>
-
-                    {row.notes && (
-                      <div style={{ marginTop: 6, fontSize: "0.8125rem", color: "var(--cs-text-muted)", fontStyle: "italic" }}>
-                        &ldquo;{row.notes}&rdquo;
-                      </div>
-                    )}
+                    ) : null}
                   </div>
-
-                  {/* Actions */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0, alignItems: "flex-end" }}>
-                    <div style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)", marginBottom: 4 }}>
-                      {new Date(row.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}
-                    </div>
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                }
+                actions={
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className="text-[11px] text-[var(--cs-text-muted)]">
+                      {new Date(row.created_at).toLocaleDateString("en-PH", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                    <div className="flex flex-wrap justify-end gap-1">
                       {row.status === "waiting" && (
                         <>
                           <OpenAdministrativeBookingButton
@@ -219,10 +215,16 @@ export function WaitlistQueue({
                             time={row.preferred_time?.slice(0, 5)}
                             showIcon={false}
                             style={{
-                              padding: "3px 8px", borderRadius: 4, border: "none",
-                              backgroundColor: "#0D5C43", color: "#fff",
-                              fontSize: "0.6875rem", fontWeight: 700, textDecoration: "none",
-                              textTransform: "uppercase", letterSpacing: "0.04em",
+                              padding: "3px 8px",
+                              borderRadius: 6,
+                              border: "none",
+                              backgroundColor: "#0D5C43",
+                              color: "#fff",
+                              fontSize: "0.6875rem",
+                              fontWeight: 700,
+                              textDecoration: "none",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
                             }}
                           >
                             Book Now
@@ -241,10 +243,16 @@ export function WaitlistQueue({
                             time={row.preferred_time?.slice(0, 5)}
                             showIcon={false}
                             style={{
-                              padding: "3px 8px", borderRadius: 4, border: "none",
-                              backgroundColor: "var(--cs-sand)", color: "#fff",
-                              fontSize: "0.6875rem", fontWeight: 600, textDecoration: "none",
-                              textTransform: "uppercase", letterSpacing: "0.04em",
+                              padding: "3px 8px",
+                              borderRadius: 6,
+                              border: "none",
+                              backgroundColor: "var(--cs-sand)",
+                              color: "#fff",
+                              fontSize: "0.6875rem",
+                              fontWeight: 600,
+                              textDecoration: "none",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
                             }}
                           >
                             Book
@@ -258,8 +266,42 @@ export function WaitlistQueue({
                       )}
                     </div>
                   </div>
+                }
+              >
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--cs-text-secondary)]">
+                  {row.preferred_date ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="size-3.5 text-[var(--cs-text-muted)]" aria-hidden />
+                      {new Date(row.preferred_date + "T00:00:00").toLocaleDateString("en-PH", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                      {row.preferred_time && ` ${row.preferred_time.substring(0, 5)}`}
+                    </span>
+                  ) : null}
+                  {svc ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Sparkles className="size-3.5 text-[var(--cs-text-muted)]" aria-hidden />
+                      {svc.name}
+                    </span>
+                  ) : null}
+                  {row.visit_type ? (
+                    <span className="inline-flex items-center gap-1">
+                      {row.visit_type === "home_service" ? (
+                        <Home className="size-3.5 text-[var(--cs-text-muted)]" aria-hidden />
+                      ) : (
+                        <Building2 className="size-3.5 text-[var(--cs-text-muted)]" aria-hidden />
+                      )}
+                      {row.visit_type === "home_service" ? "Home" : "In-Spa"}
+                    </span>
+                  ) : null}
                 </div>
-              </div>
+                {row.notes ? (
+                  <p className="mt-1.5 text-xs italic text-[var(--cs-text-muted)]">
+                    &ldquo;{row.notes}&rdquo;
+                  </p>
+                ) : null}
+              </CrmInfoCard>
             );
           })}
         </div>

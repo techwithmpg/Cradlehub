@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { AlertTriangle, ArrowLeftRight, CalendarDays, ClipboardPlus, WalletCards } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ArrowRight, CalendarDays, ClipboardPlus, WalletCards } from "lucide-react";
 import { AttendanceScanFeedPanel } from "@/components/features/attendance/attendance-scan-feed-card";
 import type { AttendanceRealtimeStatus } from "@/components/features/attendance/use-attendance-scan-realtime";
 import type { AttendanceScanFeedData, RecentAttendanceScan } from "@/lib/attendance/types";
+import { CrmActionCard, CrmSectionCard } from "@/components/features/crm/shared/crm-cards";
 import { getCradleFlowServiceRecipientName, type CradleFlowBooking } from "@/lib/crm/cradle-flow";
 import type { CrmTodayPayment } from "@/lib/queries/crm-today";
 import type { ReadinessIssue } from "@/types/readiness";
@@ -13,21 +13,19 @@ import { CradleFlowMoneySummary } from "./cradle-flow-lower-panels";
 
 function RailPanel({
   title,
+  icon,
   children,
   action,
 }: {
   title: string;
+  icon?: React.ReactNode;
   children: React.ReactNode;
   action?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-3 shadow-[var(--cs-shadow-xs)]">
-      <header className="mb-2.5 flex items-center justify-between gap-2 border-b border-[var(--cs-border-soft)] pb-2.5">
-        <h2 className="text-sm font-extrabold text-[var(--cs-text)]">{title}</h2>
-        {action}
-      </header>
+    <CrmSectionCard title={title} icon={icon} actions={action} compact>
       {children}
-    </section>
+    </CrmSectionCard>
   );
 }
 
@@ -43,18 +41,16 @@ function RailLink({
   icon: React.ReactNode;
 }) {
   return (
-    <Link
+    <CrmActionCard
       href={href}
-      className="flex items-center gap-2.5 rounded-lg border border-[var(--cs-border-soft)] px-2.5 py-2 transition hover:bg-[var(--cs-surface-warm)]"
-    >
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <strong className="block text-[11px] text-[var(--cs-text)]">{title}</strong>
-        <span className="block truncate text-[10px] text-[var(--cs-text-muted)]">{helper}</span>
-      </span>
-    </Link>
+      title={title}
+      description={helper}
+      icon={icon}
+      surface="plain"
+      decorative={false}
+      compact
+      trailing={<ArrowRight className="size-3.5 text-[var(--cs-text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-[#1F4E33]" />}
+    />
   );
 }
 
@@ -142,7 +138,6 @@ export function CradleFlowSideRail({
         refreshError={attendanceRefreshError}
         onRefresh={onAttendanceRefresh}
         onScanSelect={onAttendanceSelect}
-        className="rounded-xl"
       />
       <CradleFlowMoneySummary
         payment={payment}
@@ -153,12 +148,13 @@ export function CradleFlowSideRail({
       />
       <RailPanel
         title="Needs Attention"
+        icon={<AlertTriangle className="size-4 text-[#A16207]" />}
         action={
           attention.length > 0 ? (
             <button
               type="button"
               onClick={bookingAttention.length ? onShowNeedsAction : onReviewReadiness}
-              className="text-[11px] font-bold text-blue-700 hover:underline"
+              className="text-[11px] font-bold text-[#1F4E33] hover:underline"
             >
               {bookingAttention.length
                 ? `View visits (${groups.filter((group) => group.attentionSummary.length > 0).length})`
@@ -174,15 +170,14 @@ export function CradleFlowSideRail({
                 key={item.key}
                 type="button"
                 onClick={item.onClick}
-                className="flex w-full items-start gap-2 py-2 text-left hover:bg-[var(--cs-surface-warm)]"
+                className="flex w-full items-start gap-2.5 rounded-lg px-1.5 py-2 text-left transition hover:bg-[#FAF8F5]"
               >
-                <AlertTriangle
-                  className="mt-0.5 size-3.5 shrink-0 text-orange-700"
-                  aria-hidden="true"
-                />
+                <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#FDF8EC] text-[#A16207] ring-1 ring-[#EFE1BE]">
+                  <AlertTriangle className="size-3.5" aria-hidden="true" />
+                </span>
                 <span className="min-w-0">
-                  <strong className="block text-[11px] text-[var(--cs-text)]">{item.title}</strong>
-                  <span className="block truncate text-[10px] text-[var(--cs-text-muted)]">
+                  <strong className="block text-xs text-[var(--cs-text)]">{item.title}</strong>
+                  <span className="block truncate text-[11px] text-[var(--cs-text-muted)]">
                     {item.detail}
                   </span>
                 </span>
@@ -194,13 +189,13 @@ export function CradleFlowSideRail({
         )}
       </RailPanel>
       {assistanceEnabled ? (
-        <RailPanel title="Staff Coverage">
-          <p className="mb-2 text-xs text-[var(--cs-text-muted)]">Short on therapists, nail technicians, or aestheticians? Ask the other branch for support.</p>
+        <RailPanel title="Staff Coverage" icon={<ArrowLeftRight className="size-4" />}>
+          <p className="mb-2.5 text-xs text-[var(--cs-text-muted)]">Short on therapists, nail technicians, or aestheticians? Ask the other branch for support.</p>
           <RailLink href="/crm/schedule?tab=assistance" title="Request Staff Assistance" helper="Schedule → Assistance" icon={<ArrowLeftRight className="size-4" />} />
         </RailPanel>
       ) : null}
-      <RailPanel title="Quick Actions">
-        <div className="grid gap-1.5">
+      <RailPanel title="Quick Actions" icon={<ClipboardPlus className="size-4" />}>
+        <div className="grid gap-2">
           <RailLink
             href="/crm/customers?tab=followup"
             title="Add follow-up"

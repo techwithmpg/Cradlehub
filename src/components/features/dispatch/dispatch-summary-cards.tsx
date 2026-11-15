@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
+import { CrmStatCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
 import type { RealDispatchItem, DispatchStats } from "@/lib/queries/dispatch-queries";
 
 interface Props {
@@ -28,8 +29,7 @@ interface KpiCard {
   value: number;
   label: string;
   detail: string;
-  valueColor: string;
-  iconColor: string;
+  tone: CrmCardTone;
 }
 
 export function DispatchSummaryCards({ items, stats, alertCount }: Props) {
@@ -45,88 +45,57 @@ export function DispatchSummaryCards({ items, stats, alertCount }: Props) {
       value: stats.awaitingDispatch,
       label: "Needs Driver",
       detail: "Awaiting assignment",
-      valueColor:
-        stats.awaitingDispatch > 0 ? "#B45309" : "var(--cs-text-muted)",
-      iconColor:
-        stats.awaitingDispatch > 0 ? "#B45309" : "var(--cs-text-muted)",
+      tone: stats.awaitingDispatch > 0 ? "warning" : "neutral",
     },
     {
       icon: <Car className="h-4 w-4" />,
       value: readyCount,
       label: "Ready",
       detail: "Driver assigned",
-      valueColor: readyCount > 0 ? "#1D4ED8" : "var(--cs-text-muted)",
-      iconColor: readyCount > 0 ? "#1D4ED8" : "var(--cs-text-muted)",
+      tone: readyCount > 0 ? "info" : "neutral",
     },
     {
       icon: <Navigation className="h-4 w-4" />,
       value: enRouteCount,
       label: "En Route",
       detail: "Trip underway",
-      valueColor: enRouteCount > 0 ? "#7C3AED" : "var(--cs-text-muted)",
-      iconColor: enRouteCount > 0 ? "#7C3AED" : "var(--cs-text-muted)",
+      tone: enRouteCount > 0 ? "info" : "neutral",
     },
     {
       icon: <Briefcase className="h-4 w-4" />,
       value: inServiceCount,
       label: "In Service",
       detail: "Session ongoing",
-      valueColor:
-        inServiceCount > 0 ? "var(--cs-success)" : "var(--cs-text-muted)",
-      iconColor:
-        inServiceCount > 0 ? "var(--cs-success)" : "var(--cs-text-muted)",
+      tone: inServiceCount > 0 ? "success" : "neutral",
     },
     {
       icon: <CheckCircle2 className="h-4 w-4" />,
       value: stats.completedToday,
       label: "Completed",
       detail: "Finished today",
-      valueColor: "var(--cs-text-secondary)",
-      iconColor: "var(--cs-text-muted)",
+      tone: "success",
     },
     {
       icon: <AlertTriangle className="h-4 w-4" />,
       value: alertCount,
       label: "Alerts",
       detail: "Need attention",
-      valueColor: alertCount > 0 ? "var(--cs-error)" : "var(--cs-text-muted)",
-      iconColor: alertCount > 0 ? "var(--cs-error)" : "var(--cs-text-muted)",
+      tone: alertCount > 0 ? "danger" : "neutral",
     },
   ];
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {cards.map((card) => (
-        <div
+        <CrmStatCard
           key={card.label}
-          className="cs-metric flex flex-col gap-1.5"
-        >
-          <span style={{ color: card.iconColor }}>{card.icon}</span>
-          <span
-            style={{
-              fontSize: "1.5rem",
-              fontWeight: 700,
-              lineHeight: 1,
-              color: card.valueColor,
-            }}
-          >
-            {card.value}
-          </span>
-          <span
-            style={{
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              color: "var(--cs-text)",
-            }}
-          >
-            {card.label}
-          </span>
-          <span
-            style={{ fontSize: "0.6875rem", color: "var(--cs-text-muted)" }}
-          >
-            {card.detail}
-          </span>
-        </div>
+          title={card.label}
+          value={card.value}
+          subtitle={card.detail}
+          icon={card.icon}
+          tone={card.tone}
+          compact
+        />
       ))}
     </div>
   );

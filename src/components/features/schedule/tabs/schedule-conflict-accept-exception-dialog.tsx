@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type {
   AcceptedScheduleConflictException,
   ScheduleConflictAuditVisibility,
@@ -42,20 +43,28 @@ export function ScheduleConflictAcceptExceptionDialog({
   const reasonValid = reason.trim().length >= 8;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 px-4 py-6 backdrop-blur-sm">
-      <section className="w-full max-w-lg rounded-2xl border border-amber-200 bg-[#fffaf2] p-4 shadow-xl">
+    <Dialog
+      open={Boolean(issue)}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="w-full max-w-lg sm:max-w-lg gap-0 rounded-2xl border border-amber-200 bg-[#fffaf2] p-4 shadow-xl"
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-amber-900">
               <AlertTriangle className="size-3.5" />
               Accept exception
             </p>
-            <h3 className="mt-1 text-base font-bold text-[var(--cs-text)]">
+            <DialogTitle className="mt-1 text-base font-bold text-[var(--cs-text)]">
               {getConflictTypeLabel(issue.conflict.type)}
-            </h3>
-            <p className="mt-1 text-xs leading-5 text-[var(--cs-text-secondary)]">
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-xs leading-5 text-[var(--cs-text-secondary)]">
               {impactCopy.label} issues require a reason and scope. Must Fix issues cannot be accepted here.
-            </p>
+            </DialogDescription>
           </div>
           <button
             type="button"
@@ -148,7 +157,7 @@ export function ScheduleConflictAcceptExceptionDialog({
             Accept exception
           </button>
         </div>
-      </section>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

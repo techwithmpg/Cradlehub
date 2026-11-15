@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 import { CrmPreviewRailShell } from "@/components/features/crm/premium/crm-preview-rail-shell";
 import { CrmStatusBadge } from "@/components/features/crm/premium/crm-status-badge";
 import { CrmLoadingShimmer } from "@/components/features/crm/premium/crm-loading-shimmer";
@@ -261,60 +262,54 @@ export function CustomerPreviewRail({
 
             {/* Summary cards */}
             <div className="mb-4 grid grid-cols-2 gap-2">
-              <div className="cs-metric p-2.5">
-                <div className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-[var(--cs-text-muted)]">
-                  <User size={10} />
-                  Total Visits
-                </div>
-                <div className="mt-1 text-base font-semibold text-[var(--cs-text)]">
-                  {customer.total_bookings}
-                </div>
-              </div>
-              <div className="cs-metric p-2.5">
-                <div className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-[var(--cs-text-muted)]">
-                  <DollarSign size={10} />
-                  Total Spent
-                </div>
-                <div className="mt-1 text-base font-semibold text-[var(--cs-text)]">
-                  {formatCurrency(totalRevenue)}
-                </div>
-              </div>
-              <div className="cs-metric p-2.5">
-                <div className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-[var(--cs-text-muted)]">
-                  <Clock size={10} />
-                  Last Visit
-                </div>
-                <div className="mt-1 text-sm font-semibold text-[var(--cs-text)]">
-                  {lastVisit ? formatDate(lastVisit) : "—"}
-                </div>
-              </div>
-              <div className="cs-metric p-2.5">
-                <div className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-[var(--cs-text-muted)]">
-                  <Calendar size={10} />
-                  Next Booking
-                </div>
-                <div className="mt-1 text-sm font-semibold text-[var(--cs-text)]">
-                  {nextBooking ? formatDate(nextBooking) : "—"}
-                </div>
-              </div>
-              <div className="cs-metric p-2.5">
-                <div className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-[var(--cs-text-muted)]">
-                  <Heart size={10} />
-                  Favourite
-                </div>
-                <div className="mt-1 truncate text-sm font-semibold text-[var(--cs-text)]">
-                  {favoriteService ?? "—"}
-                </div>
-              </div>
-              <div className="cs-metric p-2.5">
-                <div className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-[var(--cs-text-muted)]">
-                  <Star size={10} />
-                  Tier
-                </div>
-                <div className="mt-1 text-sm font-semibold text-[var(--cs-text)]">
-                  {profile?.customer.loyalty_tier ?? "—"}
-                </div>
-              </div>
+              <CrmStatCard
+                compact
+                tone="success"
+                decorative={false}
+                title="Total Visits"
+                value={customer.total_bookings}
+                icon={<User size={14} aria-hidden="true" />}
+              />
+              <CrmStatCard
+                compact
+                tone="info"
+                decorative={false}
+                title="Total Spent"
+                value={formatCurrency(totalRevenue)}
+                icon={<DollarSign size={14} aria-hidden="true" />}
+              />
+              <CrmStatCard
+                compact
+                tone="neutral"
+                decorative={false}
+                title="Last Visit"
+                value={lastVisit ? formatDate(lastVisit) : "—"}
+                icon={<Clock size={14} aria-hidden="true" />}
+              />
+              <CrmStatCard
+                compact
+                tone="neutral"
+                decorative={false}
+                title="Next Booking"
+                value={nextBooking ? formatDate(nextBooking) : "—"}
+                icon={<Calendar size={14} aria-hidden="true" />}
+              />
+              <CrmStatCard
+                compact
+                tone="neutral"
+                decorative={false}
+                title="Favourite"
+                value={<span className="block truncate">{favoriteService ?? "—"}</span>}
+                icon={<Heart size={14} aria-hidden="true" />}
+              />
+              <CrmStatCard
+                compact
+                tone="warning"
+                decorative={false}
+                title="Tier"
+                value={profile?.customer.loyalty_tier ?? "—"}
+                icon={<Star size={14} aria-hidden="true" />}
+              />
             </div>
 
             {/* Quick Actions */}

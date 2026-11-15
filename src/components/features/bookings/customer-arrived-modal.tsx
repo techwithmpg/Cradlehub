@@ -7,7 +7,7 @@ import {
   AdminOverlayFooter,
   AdminOverlayHeader,
 } from "@/components/shared/overlays";
-import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
+import { WorkspaceNotice } from "@/components/features/crm/shared/crm-workspace-primitives";
 import { Button } from "@/components/ui/button";
 import { markBookingArrivedAction } from "@/app/(dashboard)/crm/bookings/actions";
 import type { WorkspaceBookingRow } from "./bookings-workspace";

@@ -36,10 +36,10 @@ import { getStaffAdminName } from "@/lib/staff/display-name";
 // ── Style helpers ─────────────────────────────────────────────────────────────
 
 const STAFF_TYPE_COLOR: Record<string, { bg: string; color: string }> = {
-  therapist:    { bg: "var(--cs-sand-mist)",           color: "var(--cs-sand)"    },
-  nail_tech:    { bg: "rgba(124,58,237,0.08)",          color: "#7c3aed"           },
-  aesthetician: { bg: "rgba(219,39,119,0.08)",          color: "#db2777"           },
-  salon_head:   { bg: "rgba(230,126,34,0.08)",          color: "#b45309"           },
+  therapist:    { bg: "#EEF7F1",                 color: "#1F4E33" },
+  nail_tech:    { bg: "rgba(124,58,237,0.08)",     color: "#7c3aed" },
+  aesthetician: { bg: "rgba(219,39,119,0.08)",     color: "#db2777" },
+  salon_head:   { bg: "rgba(230,126,34,0.08)",     color: "#b45309" },
 };
 
 const VISIBILITY_LABEL: Record<string, string> = {
@@ -121,13 +121,13 @@ function AssignedProviderRow({
           width: 32,
           height: 32,
           borderRadius: "50%",
-          background: "var(--cs-sand-mist)",
+          background: "#EEF7F1",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: "0.6875rem",
           fontWeight: 700,
-          color: "var(--cs-sand)",
+          color: "#1F4E33",
           flexShrink: 0,
         }}
       >
@@ -206,13 +206,13 @@ function EligibleProviderRow({
           width: 32,
           height: 32,
           borderRadius: "50%",
-          background: "var(--cs-sand-mist)",
+          background: "#EEF7F1",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: "0.6875rem",
           fontWeight: 700,
-          color: "var(--cs-sand)",
+          color: "#1F4E33",
           flexShrink: 0,
         }}
       >
@@ -246,7 +246,7 @@ function EligibleProviderRow({
           padding: "4px 12px",
           borderRadius: 6,
           border: "none",
-          background: isPending ? "var(--cs-border)" : "var(--cs-sand)",
+          background: isPending ? "var(--cs-border)" : "#1F4E33",
           color: isPending ? "var(--cs-text-muted)" : "#fff",
           fontSize: "0.75rem",
           fontWeight: 600,

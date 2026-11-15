@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Banknote, CheckCircle2, CreditCard, ReceiptText, Search } from "lucide-react";
+import { Banknote, CheckCircle2, Search } from "lucide-react";
+import { CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 import type { CashFlowWorkspaceData } from "@/lib/cash-flow/cash-flow-types";
 import {
   isCompletedAndPayable,
@@ -43,25 +44,13 @@ function Kpi({
   tone?: "green" | "neutral";
 }) {
   return (
-    <div
-      className={`min-w-0 rounded-xl border p-4 shadow-sm ${
-        tone === "green"
-          ? "border-emerald-900 bg-[#163E32] text-white"
-          : "border-[#EAE4DC] bg-white text-[#1E1916]"
-      }`}
-    >
-      <p
-        className={`text-xs font-semibold ${tone === "green" ? "text-emerald-100" : "text-[#6B5D52]"}`}
-      >
-        {label}
-      </p>
-      <p className="mt-2 truncate text-xl font-bold tabular-nums sm:text-2xl">{value}</p>
-      <p
-        className={`mt-1 truncate text-[11px] ${tone === "green" ? "text-emerald-100" : "text-[#7B6D61]"}`}
-      >
-        {hint}
-      </p>
-    </div>
+    <CrmStatCard
+      title={label}
+      value={value}
+      subtitle={hint}
+      tone={tone === "green" ? "success" : "neutral"}
+      icon={<Banknote className="size-4.5" aria-hidden="true" />}
+    />
   );
 }
 

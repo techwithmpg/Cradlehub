@@ -22,8 +22,8 @@ vi.mock("@/components/features/crm/staff/use-live-crm-staff-data", () => ({
   }),
 }));
 
-vi.mock("@/components/features/attendance/attendance-ui", () => ({
-  AttendanceTabPanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+vi.mock("@/components/features/crm/shared/crm-workspace-primitives", () => ({
+  CrmTabPanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("@/components/features/crm/staff/crm-staff-applications-tab", () => ({

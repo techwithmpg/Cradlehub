@@ -55,7 +55,7 @@ export function AttendanceRulesSetup({
   }
   return (
     <>
-      <section className="rounded-xl border border-[var(--cs-border)] bg-white p-5">
+      <section className="rounded-2xl border border-[var(--cs-border-soft)] bg-white p-5 shadow-2xs">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--cs-sand-dark)]">
@@ -66,7 +66,12 @@ export function AttendanceRulesSetup({
               Plain-language rules applied to clock-in, clock-out, and phone scans.
             </p>
           </div>
-          <Button onClick={() => setOpen(true)}>Edit rules</Button>
+          <Button
+            onClick={() => setOpen(true)}
+            className="rounded-lg bg-[#1F4E33] text-xs font-semibold text-white hover:bg-[#163B26]"
+          >
+            Edit rules
+          </Button>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <Rule

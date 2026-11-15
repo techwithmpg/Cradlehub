@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { ArrowLeftRight, Loader2, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { handoverCashSessionAction } from "@/lib/cash-flow/cash-flow-actions";
 import type { CashSessionSummary, StaffOption } from "@/lib/cash-flow/cash-flow-types";
 
@@ -94,20 +95,15 @@ export function HandoverDrawerModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-[1px]"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !isSubmitting) {
-          onOpenChange(false);
-        }
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!isSubmitting) onOpenChange(nextOpen);
       }}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="handover-drawer-title"
-        className="w-full max-w-md rounded-2xl border border-[#E5DED5] bg-white shadow-2xl"
+      <DialogContent
+        showCloseButton={false}
+        className="w-full max-w-md sm:max-w-md gap-0 overflow-hidden rounded-2xl border border-[#E5DED5] bg-white p-0 shadow-2xl"
       >
         <div className="flex items-start justify-between border-b border-[#EFEAE4] px-5 py-4">
           <div className="flex items-start gap-3">
@@ -116,13 +112,13 @@ export function HandoverDrawerModal({
             </div>
 
             <div>
-              <h2 id="handover-drawer-title" className="text-base font-bold text-[#1E1916]">
+              <DialogTitle className="text-base font-bold text-[#1E1916]">
                 Hand over drawer
-              </h2>
+              </DialogTitle>
 
-              <p className="mt-0.5 text-xs text-[#7B6D61]">
+              <DialogDescription className="mt-0.5 text-xs text-[#7B6D61]">
                 {session.cashDrawerName} · Shift custody handover
-              </p>
+              </DialogDescription>
             </div>
           </div>
 
@@ -184,13 +180,12 @@ export function HandoverDrawerModal({
           {/* Live Variance Display */}
           {hasCount && (
             <div
-              className={`rounded-xl border p-3 text-xs flex justify-between items-center ${
-                variance === 0
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                  : variance > 0
-                    ? "border-blue-200 bg-blue-50 text-blue-900"
-                    : "border-amber-200 bg-amber-50 text-amber-900"
-              }`}
+              className={`rounded-xl border p-3 text-xs flex justify-between items-center ${variance === 0
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : variance > 0
+                  ? "border-blue-200 bg-blue-50 text-blue-900"
+                  : "border-amber-200 bg-amber-50 text-amber-900"
+                }`}
             >
               <span className="font-medium">
                 {variance === 0
@@ -274,7 +269,7 @@ export function HandoverDrawerModal({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="inline-flex min-w-[140px] items-center justify-center gap-2 rounded-lg bg-[#163E32] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#1B4D3E] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-w-[140px] items-center justify-center gap-2 rounded-lg bg-[#1F4E33] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#163B26] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
@@ -287,7 +282,7 @@ export function HandoverDrawerModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -314,6 +314,7 @@ export type AttendanceException = {
   dedupe_key?: string | null;
   priority?: string | null;
   staff_response_required?: boolean;
+  reviewed_at?: string | null;
   technical_context?: Record<string, unknown>;
 };
 
@@ -431,6 +432,7 @@ export type AttendanceWorkspaceData = {
     checkedInNow: number;
     recordsToday: number;
     openExceptions: number;
+    resolvedToday?: number;
     activeSessions: number;
     activeDevices: number;
   };

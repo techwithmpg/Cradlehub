@@ -32,6 +32,8 @@ import {
   bookingGuestCount,
   sessionMatchesPresentationFilters,
 } from "@/lib/bookings/bookings-presentation";
+import { CrmPageHeader } from "@/components/features/crm/shared/crm-page-header";
+import { CrmPagination } from "@/components/features/crm/shared/crm-pagination";
 import { BookingsQuickFilters } from "./bookings-quick-filters";
 import { useAdministrativeBookingModal } from "./administrative-booking-modal-provider";
 import { BookingsModalStack, type BookingModalState } from "./bookings-modal-stack";
@@ -301,8 +303,8 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         quickFilter === "upcoming"
           ? undefined
           : operationalGroups.filter((group) =>
-              group.lines.some((line) => bookingMatchesQuickFilter(line, "active-now"))
-            ).length,
+            group.lines.some((line) => bookingMatchesQuickFilter(line, "active-now"))
+          ).length,
     },
     {
       key: "upcoming" as const,
@@ -340,8 +342,8 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       sortBy === "name-asc"
         ? a.group.organizerName.localeCompare(b.group.organizerName)
         : (sortBy === "time-desc" ? -1 : 1) *
-          (a.group.bookingDate.localeCompare(b.group.bookingDate) ||
-            a.group.startTime.localeCompare(b.group.startTime))
+        (a.group.bookingDate.localeCompare(b.group.bookingDate) ||
+          a.group.startTime.localeCompare(b.group.startTime))
     );
   }, [displayMode, filteredGroups, sessionFilters, sortBy]);
   const totalPages = Math.max(1, Math.ceil(displayEntries.length / PAGE_SIZE));
@@ -397,39 +399,33 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-      {/* â”€â”€ Page Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">
-            Bookings
-          </h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            Manage today&apos;s bookings, check-ins and service flow.
-          </p>
-        </div>
-
-        {/* Header actions: Refresh + Green New Booking button */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={props.isRefreshing}
-            onClick={() => (props.onRefresh ?? props.onBookingsChanged)?.()}
-            className="flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-xs font-semibold text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:opacity-50"
-          >
-            <RefreshCw className={`size-3.5 ${props.isRefreshing ? "animate-spin" : ""}`} />
-            <span>{props.isRefreshing ? "Refreshing..." : "Refresh"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleNewBooking}
-            className="flex items-center gap-1.5 rounded-lg bg-[#006044] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#004d37] active:scale-[0.98]"
-          >
-            <Plus className="size-4" />
-            <span>New Booking</span>
-          </button>
-        </div>
-      </div>
+    <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+      <CrmPageHeader
+        eyebrow="Front Desk Queue"
+        title="Bookings"
+        description="Manage today's bookings, check-ins and service flow."
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={props.isRefreshing}
+              onClick={() => (props.onRefresh ?? props.onBookingsChanged)?.()}
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--cs-border-soft)] bg-white px-3 py-2 text-xs font-semibold text-[var(--cs-text-secondary)] shadow-xs transition hover:bg-[#FAF8F5] disabled:opacity-50"
+            >
+              <RefreshCw className={`size-3.5 ${props.isRefreshing ? "animate-spin" : ""}`} />
+              <span>{props.isRefreshing ? "Refreshing..." : "Refresh"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleNewBooking}
+              className="flex items-center gap-1.5 rounded-lg bg-[#1F4E33] px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-[#163B26] active:scale-[0.98]"
+            >
+              <Plus className="size-4" />
+              <span>New Booking</span>
+            </button>
+          </div>
+        }
+      />
 
       {props.referenceSource !== "master_sheet" ? (
         <div className="mb-4">
@@ -648,11 +644,10 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
             <button
               type="button"
               onClick={() => setViewMode("list")}
-              className={`rounded-lg p-1.5 transition ${
-                viewMode === "list"
-                  ? "border border-[#a7d7c5] bg-[#e6f4ee] text-[#006044]"
-                  : "border border-neutral-200 text-neutral-500 hover:bg-neutral-50"
-              }`}
+              className={`rounded-lg p-1.5 transition ${viewMode === "list"
+                ? "border border-[#a7d7c5] bg-[#e6f4ee] text-[#006044]"
+                : "border border-neutral-200 text-neutral-500 hover:bg-neutral-50"
+                }`}
               aria-label="List view"
             >
               <List className="size-4" />
@@ -663,11 +658,10 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
                 setViewMode("calendar");
                 router.push("/crm/calendar");
               }}
-              className={`rounded-lg p-1.5 transition ${
-                viewMode === "calendar"
-                  ? "border border-[#a7d7c5] bg-[#e6f4ee] text-[#006044]"
-                  : "border border-neutral-200 text-neutral-500 hover:bg-neutral-50"
-              }`}
+              className={`rounded-lg p-1.5 transition ${viewMode === "calendar"
+                ? "border border-[#a7d7c5] bg-[#e6f4ee] text-[#006044]"
+                : "border border-neutral-200 text-neutral-500 hover:bg-neutral-50"
+                }`}
               aria-label="Calendar view"
             >
               <CalendarIcon className="size-4" />
@@ -775,30 +769,16 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
         </div>
       )}
 
-      {/* â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {totalPages > 1 ? (
-        <div className="mt-6 flex items-center justify-between border-t border-neutral-200 pt-4">
-          <span className="text-xs text-neutral-500">
-            Page {safePage} of {totalPages}
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safePage <= 1}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:opacity-40"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safePage >= totalPages}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
+        <div className="mt-6 overflow-hidden rounded-xl border border-[var(--cs-border-soft)]">
+          <CrmPagination
+            page={safePage}
+            pageSize={PAGE_SIZE}
+            totalItems={displayEntries.length}
+            itemLabel="bookings"
+            onPageChange={setCurrentPage}
+            showPageSizeSelector={false}
+          />
         </div>
       ) : null}
 

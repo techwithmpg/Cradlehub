@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { CalendarClock, Search, UserRoundCheck, UsersRound } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CrmSectionCard, CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 import { CradleFlowTicket } from "./cradle-flow-ticket";
 import {
   CRADLE_FLOW_FILTERS,
@@ -29,20 +29,14 @@ function EmptyContextCard({
   href: string;
 }) {
   return (
-    <Link
+    <CrmStatCard
+      title={label}
+      value={value}
+      icon={icon}
       href={href}
-      className="flex items-center gap-3 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] p-3 hover:border-[var(--cs-border-strong)]"
-    >
-      <span className="grid size-9 place-items-center rounded-lg bg-[var(--cs-surface)] text-[var(--cs-sand-dark)]">
-        {icon}
-      </span>
-      <span>
-        <span className="block text-[11px] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-          {label}
-        </span>
-        <span className="mt-0.5 block text-sm font-semibold text-[var(--cs-text)]">{value}</span>
-      </span>
-    </Link>
+      tone="neutral"
+      compact
+    />
   );
 }
 
@@ -92,31 +86,30 @@ export function CradleFlowWorkflow({
   );
 
   return (
-    <section className="overflow-hidden rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-xs)]">
-      <header className="border-b border-[var(--cs-border-soft)] px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-base font-extrabold text-[var(--cs-text)]">
-              Active Service Workflow{" "}
-              <span className="font-medium text-[var(--cs-text-muted)]">({counts.all})</span>
-            </h2>
-            <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
-              Manage today’s customer visits and service flow.
-            </p>
-          </div>
-          <label className="relative block w-full lg:max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Customer, phone, booking ID, therapist…"
-              className="h-10 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface-warm)] pl-9 pr-3 text-sm text-[var(--cs-text)] outline-none focus:border-[var(--cs-sand)]"
-            />
-          </label>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Service status">
+    <CrmSectionCard
+      title={
+        <>
+          Active Service Workflow{" "}
+          <span className="font-medium text-[var(--cs-text-muted)]">({counts.all})</span>
+        </>
+      }
+      description="Manage today’s customer visits and service flow."
+      noPadding
+      actions={
+        <label className="relative block w-full lg:w-72">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Customer, phone, booking ID, therapist…"
+            className="h-9 w-full rounded-xl border border-[var(--cs-border)] bg-[#FAF8F5] pl-9 pr-3 text-sm text-[var(--cs-text)] outline-none focus:border-[#1F4E33]"
+          />
+        </label>
+      }
+    >
+      <div className="border-b border-[var(--cs-border-soft)] bg-[#FAF8F5]/60 px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Service status">
           {CRADLE_FLOW_FILTERS.map((item) => {
             const count = counts[item.key];
             return (
@@ -127,15 +120,15 @@ export function CradleFlowWorkflow({
                 aria-selected={filter === item.key}
                 onClick={() => onFilterChange(item.key)}
                 className={cn(
-                  "flex h-8 items-center justify-between gap-2 rounded-lg border px-2.5 text-[11px] font-bold sm:justify-center",
+                  "flex h-8 items-center justify-between gap-2 rounded-lg border px-2.5 text-[11px] font-bold transition sm:justify-center",
                   filter === item.key
-                    ? "border-[#164b36] bg-[#164b36] text-white"
-                    : "border-[var(--cs-border)] bg-[var(--cs-surface)] text-[var(--cs-text-secondary)]"
+                    ? "border-[#1F4E33] bg-[#1F4E33] text-white"
+                    : "border-[var(--cs-border-soft)] bg-white text-[var(--cs-text-secondary)] hover:border-[#CFE5D6]"
                 )}
               >
                 {item.label}
                 <span
-                  className={filter === item.key ? "text-white/70" : "text-[var(--cs-text-muted)]"}
+                  className={filter === item.key ? "text-white/75" : "text-[var(--cs-text-muted)]"}
                 >
                   {count}
                 </span>
@@ -143,11 +136,11 @@ export function CradleFlowWorkflow({
             );
           })}
         </div>
-      </header>
+      </div>
 
-      <div className="min-h-72 p-2 sm:p-3">
+      <div className="min-h-72 p-3 sm:p-4">
         {visible.length > 0 ? (
-          <div className="grid gap-2">
+          <div className="grid gap-2.5">
             {visible.map((group) => (
               <CradleFlowTicket
                 key={group.displayId}
@@ -166,7 +159,7 @@ export function CradleFlowWorkflow({
         ) : (
           <div className="grid min-h-64 place-items-center">
             <div className="w-full max-w-2xl text-center">
-              <span className="mx-auto grid size-12 place-items-center rounded-full bg-[var(--cs-sand-mist)] text-[var(--cs-sand-dark)]">
+              <span className="mx-auto grid size-12 place-items-center rounded-xl bg-[#EEF7F1] text-[#1F4E33] ring-1 ring-[#CFE5D6]">
                 <CalendarClock className="size-5" />
               </span>
               <h3 className="mt-3 text-base font-extrabold text-[var(--cs-text)]">
@@ -183,13 +176,13 @@ export function CradleFlowWorkflow({
                 <button
                   type="button"
                   onClick={() => openBookingModal({ mode: "walkin" })}
-                  className="mt-4 h-10 rounded-lg bg-[#164b36] px-5 text-sm font-bold text-white"
+                  className="mt-4 h-10 rounded-xl bg-[#1F4E33] px-5 text-sm font-bold text-white transition hover:bg-[#163B26]"
                 >
                   New Booking
                 </button>
               ) : null}
               {!query ? (
-                <div className="mt-5 grid gap-2 text-left sm:grid-cols-3">
+                <div className="mt-5 grid gap-2.5 text-left sm:grid-cols-3">
                   <EmptyContextCard
                     icon={<CalendarClock className="size-4" />}
                     label="Upcoming"
@@ -214,6 +207,6 @@ export function CradleFlowWorkflow({
           </div>
         )}
       </div>
-    </section>
+    </CrmSectionCard>
   );
 }

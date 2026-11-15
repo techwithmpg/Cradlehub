@@ -13,6 +13,8 @@
  */
 
 import { useMemo } from "react";
+import { AlertTriangle, CheckCircle2, SearchCheck, ShieldAlert } from "lucide-react";
+import { CrmAlertCard, CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 import type { ActiveBranchService } from "@/components/features/manager-settings/types";
 import type { StaffForServicePanel, ServiceAssignmentRow } from "@/lib/queries/crm-services";
 import { ReadinessIssueList } from "@/components/shared/readiness-issue-list";
@@ -109,43 +111,6 @@ function buildReadinessIssues(
   return issues;
 }
 
-// ── KPI summary ───────────────────────────────────────────────────────────────
-
-function ReadinessKpi({
-  count,
-  label,
-  color,
-}: {
-  count: number;
-  label: string;
-  color: string;
-}) {
-  return (
-    <div
-      className="cs-card"
-      style={{ padding: "0.875rem 1rem", display: "flex", alignItems: "center", gap: "0.625rem" }}
-    >
-      <span
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: "50%",
-          background: color,
-          flexShrink: 0,
-        }}
-      />
-      <div>
-        <span style={{ fontSize: "1.125rem", fontWeight: 700, color }}>{count}</span>
-        <span style={{ fontSize: "0.75rem", color: "var(--cs-text-secondary)", marginLeft: 6 }}>
-          {label}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ── Main export ───────────────────────────────────────────────────────────────
-
 export function CrmServiceReadinessTab({
   services,
   staff,
@@ -163,61 +128,37 @@ export function CrmServiceReadinessTab({
   const healthyCount = rows.length - issues.length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      {/* Intro */}
-      <div
-        style={{
-          padding: "0.875rem 1.125rem",
-          borderRadius: 10,
-          background: "rgba(41,128,185,0.04)",
-          border: "1px solid rgba(41,128,185,0.18)",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.875rem",
-        }}
-      >
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            background: "rgba(41,128,185,0.12)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
-            flexShrink: 0,
-          }}
-        >
-          🔎
-        </div>
-        <div>
-          <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--cs-text)" }}>
-            Service Readiness Check
-          </div>
-          <div style={{ fontSize: "0.8125rem", color: "var(--cs-text-secondary)", lineHeight: 1.5, marginTop: 2 }}>
-            Review what blocks booking for your branch services. Fix critical issues first,
-            then warnings, so customers and CRM can book confidently.
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col gap-5">
+      <CrmAlertCard
+        tone="info"
+        role="region"
+        title="Service Readiness Check"
+        description="Review what blocks booking for your branch services. Fix critical issues first, then warnings, so customers and CRM can book confidently."
+        icon={<SearchCheck className="size-4.5" aria-hidden="true" />}
+      />
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <ReadinessKpi
-          count={healthyCount}
-          label="Healthy"
-          color="#065F46"
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <CrmStatCard
+          title="Healthy"
+          value={healthyCount}
+          subtitle="Services ready for booking"
+          tone="success"
+          icon={<CheckCircle2 className="size-4.5" aria-hidden="true" />}
         />
-        <ReadinessKpi
-          count={criticalCount}
-          label="Critical"
-          color="#991B1B"
+        <CrmStatCard
+          title="Critical"
+          value={criticalCount}
+          subtitle="Public services blocked"
+          tone="danger"
+          icon={<ShieldAlert className="size-4.5" aria-hidden="true" />}
         />
-        <ReadinessKpi
-          count={warningCount}
-          label="Warnings"
-          color="#92400E"
+        <CrmStatCard
+          title="Warnings"
+          value={warningCount}
+          subtitle="Low coverage or delivery gaps"
+          tone="warning"
+          icon={<AlertTriangle className="size-4.5" aria-hidden="true" />}
         />
       </div>
 

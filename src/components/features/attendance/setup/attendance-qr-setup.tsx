@@ -79,7 +79,7 @@ export function AttendanceQrSetup({
   return (
     <>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,.7fr)] xl:items-start">
-        <section className="rounded-xl border border-[var(--cs-border)] bg-white p-5">
+        <section className="rounded-2xl border border-[var(--cs-border-soft)] bg-white p-5 shadow-2xs">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--cs-sand-dark)]">
@@ -170,7 +170,7 @@ export function AttendanceQrSetup({
             </div>
           )}
         </section>
-        <section className="rounded-xl border border-[var(--cs-border)] bg-white p-5">
+        <section className="rounded-2xl border border-[var(--cs-border-soft)] bg-white p-5 shadow-2xs">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="font-bold">Room codes</h2>

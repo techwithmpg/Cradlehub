@@ -18,7 +18,7 @@ import {
   AdminOverlayBody,
   ConfirmUnsavedChangesDialog,
 } from "@/components/shared/overlays";
-import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
+import { WorkspaceNotice } from "@/components/features/crm/shared/crm-workspace-primitives";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import {
   QuickBookingForm,

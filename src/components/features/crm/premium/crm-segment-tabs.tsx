@@ -62,7 +62,7 @@ export function CrmSegmentTabs({
             className={cn(
               "ml-1.5 inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-semibold",
               isActive
-                ? "bg-[var(--cs-sand-mist)] text-[var(--cs-sand)]"
+                ? "border border-[#CFE5D6] bg-[#EEF7F1] text-[#1F4E33]"
                 : "bg-[var(--cs-border)] text-[var(--cs-text-muted)]"
             )}
           >
@@ -75,13 +75,13 @@ export function CrmSegmentTabs({
           variant === "underline" && isActive ? (
             shouldReduceMotion ? (
               <span
-                className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-[var(--cs-sand)]"
+                className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-[#1F4E33]"
                 aria-hidden="true"
               />
             ) : (
               <motion.span
                 layoutId="crm-tab-indicator"
-                className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-[var(--cs-sand)]"
+                className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-[#1F4E33]"
                 transition={TAB_INDICATOR_SPRING}
                 aria-hidden="true"
               />
@@ -90,17 +90,17 @@ export function CrmSegmentTabs({
 
         const pillClass = cn(
           "relative shrink-0 rounded-lg px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-all duration-200",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F4E33]",
           isActive
-            ? "bg-[var(--cs-surface)] text-[var(--cs-text)] shadow-[var(--cs-shadow-xs)]"
+            ? "bg-[var(--cs-surface)] text-[#1F4E33] shadow-[var(--cs-shadow-xs)]"
             : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text-secondary)]"
         );
 
         const underlineClass = cn(
           "relative shrink-0 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors duration-200",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F4E33]",
           isActive
-            ? "text-[var(--cs-text)]"
+            ? "font-semibold text-[#1F4E33]"
             : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text-secondary)]"
         );
 

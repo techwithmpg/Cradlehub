@@ -1,6 +1,8 @@
 "use client";
 
+import { CheckCircle2, Clock, PhoneCall } from "lucide-react";
 import { WaitlistFollowupTable, type WaitlistRow } from "@/components/features/crm/customers/waitlist-followup-table";
+import { CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 
 type CallbackFollowupPanelProps = {
   rows: WaitlistRow[];
@@ -14,22 +16,32 @@ export function CallbackFollowupPanel({ rows }: CallbackFollowupPanelProps) {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryCard label="Waiting" value={waitingCount} />
-        <SummaryCard label="Contacted" value={contactedCount} />
-        <SummaryCard label="Converted" value={convertedCount} />
+        <CrmStatCard
+          title="Waiting"
+          value={waitingCount}
+          subtitle="Awaiting callback"
+          icon={<Clock className="size-4" />}
+          tone="warning"
+          compact
+        />
+        <CrmStatCard
+          title="Contacted"
+          value={contactedCount}
+          subtitle="Follow-up sent"
+          icon={<PhoneCall className="size-4" />}
+          tone="info"
+          compact
+        />
+        <CrmStatCard
+          title="Converted"
+          value={convertedCount}
+          subtitle="Booked from callback"
+          icon={<CheckCircle2 className="size-4" />}
+          tone="success"
+          compact
+        />
       </div>
       <WaitlistFollowupTable rows={rows} />
-    </div>
-  );
-}
-
-function SummaryCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] p-4 shadow-[var(--cs-shadow-xs)]">
-      <div className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-semibold text-[var(--cs-text)] tabular-nums">{value}</div>
     </div>
   );
 }

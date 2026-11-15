@@ -55,7 +55,7 @@ export function CradleFlowTicket({
       completed: "Completed",
     }[group.stage];
     return (
-      <article className="grid gap-3 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-4 py-3 shadow-[var(--cs-shadow-xs)] lg:grid-cols-[5rem_minmax(0,1fr)_10rem_auto] lg:items-center">
+      <article className="grid gap-3 rounded-2xl border border-[var(--cs-border-soft)] bg-white px-4 py-3.5 shadow-2xs transition hover:border-[#CFE5D6] lg:grid-cols-[5rem_minmax(0,1fr)_10rem_auto] lg:items-center">
         <div className="text-sm font-extrabold tabular-nums">{formatTime(group.startTime)}</div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -109,7 +109,7 @@ export function CradleFlowTicket({
         <button
           type="button"
           onClick={() => onOpenGroup?.(group)}
-          className="min-h-9 rounded-lg bg-[#164b36] px-3 text-xs font-bold text-white"
+          className="min-h-9 rounded-xl bg-[#1F4E33] px-3.5 text-xs font-bold text-white transition hover:bg-[#163B26]"
         >
           Open Group
         </button>
@@ -148,8 +148,8 @@ export function CradleFlowTicket({
           : "bg-amber-50 text-amber-800";
 
   return (
-    <article className="relative grid gap-2 overflow-hidden rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-3 py-3 shadow-[var(--cs-shadow-xs)] transition hover:border-[var(--cs-border-strong)] sm:grid-cols-[4.5rem_minmax(0,1fr)] sm:items-center lg:grid-cols-[4.5rem_minmax(0,1fr)_9rem_auto] lg:gap-3">
-      <span className={`absolute inset-y-0 left-0 w-[3px] ${accent}`} aria-hidden="true" />
+    <article className="relative grid gap-2 overflow-hidden rounded-2xl border border-[var(--cs-border-soft)] bg-white px-3.5 py-3.5 shadow-2xs transition hover:border-[#CFE5D6] sm:grid-cols-[4.5rem_minmax(0,1fr)] sm:items-center lg:grid-cols-[4.5rem_minmax(0,1fr)_9rem_auto] lg:gap-3">
+      <span className={`absolute inset-y-0 left-0 w-1 ${accent}`} aria-hidden="true" />
       <div className="pl-1 text-sm font-extrabold tabular-nums text-[var(--cs-text)]">
         {booking.booking_date > businessDate ? (
           <span className="block text-xs">
@@ -237,7 +237,7 @@ export function CradleFlowTicket({
           onClick={() => onPrimary(booking)}
           disabled={primaryPending}
           aria-busy={primaryPending}
-          className="inline-flex min-h-9 items-center justify-center rounded-lg bg-[#164b36] px-3 text-[11px] font-bold text-white transition hover:bg-[#0e3d2b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:opacity-60"
+          className="inline-flex min-h-9 items-center justify-center rounded-xl bg-[#1F4E33] px-3.5 text-[11px] font-bold text-white transition hover:bg-[#163B26] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F4E33] disabled:opacity-60"
         >
           {primaryPending
             ? booking.status === "pending" ||

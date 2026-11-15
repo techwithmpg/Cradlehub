@@ -4,11 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
 import { refreshCrmAttendanceWorkspaceAction } from "@/app/(dashboard)/crm/attendance/actions";
+import {
+  AttendanceCorrectionModal,
+  type AttendanceCorrectionModalTarget,
+} from "@/components/features/attendance/attendance-correction-modal";
 import { CrmAttendanceHeader } from "@/components/features/attendance/crm-attendance-header";
 import { CrmAttendanceNavigation } from "@/components/features/attendance/crm-attendance-navigation";
-import { AttendanceStaffDrawer } from "@/components/features/attendance/attendance-staff-drawer";
 import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
 import { AttendanceHistoryView } from "@/components/features/attendance/history/attendance-history-view";
+import { AttendanceIssueModalRouter } from "@/components/features/attendance/review/attendance-issue-modal-router";
 import { AttendanceReviewView } from "@/components/features/attendance/review/attendance-review-view";
 import { AttendanceSetupView } from "@/components/features/attendance/setup/attendance-setup-view";
 import { AttendanceTodayView } from "@/components/features/attendance/today/attendance-today-view";
@@ -25,12 +29,9 @@ import {
 import {
   applyCanonicalReviewToStaff,
   buildAttendanceReviewItems,
+  type AttendanceReviewItem,
 } from "@/lib/attendance/crm-review";
-import {
-  buildAttendanceStaffDiagnostics,
-  type AttendanceStaffDiagnostic,
-} from "@/lib/attendance/staff-diagnostics";
-import type { AttendanceIssueAction } from "@/lib/attendance/issue-presentation-types";
+import { buildAttendanceStaffDiagnostics } from "@/lib/attendance/staff-diagnostics";
 import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
 import {
   mergeAttendanceWorkspaceCheckin,
@@ -51,13 +52,16 @@ export function CrmAttendanceWorkspace({
   const [view, setView] = useState<CrmAttendanceView>(initialNavigation.view);
   const [section, setSection] = useState<AttendanceSetupSection>(initialNavigation.section);
   const [phoneStaffId, setPhoneStaffId] = useState(initialStaffId ?? null);
-  const [selectedStaff, setSelectedStaff] = useState<AttendanceStaffDiagnostic | null>(null);
+  const [modalTarget, setModalTarget] = useState<AttendanceCorrectionModalTarget | null>(null);
+  const [fullIssueItem, setFullIssueItem] = useState<AttendanceReviewItem | null>(null);
   const [nowMs, setNowMs] = useState(data.serverNowMs);
+
   const attendanceFetcher = useCallback(async () => {
     const result = await refreshCrmAttendanceWorkspaceAction();
     if (!result.ok) throw new Error(result.error);
     return result.data;
   }, []);
+
   const {
     data: authoritativeData,
     error: refreshError,
@@ -69,9 +73,11 @@ export function CrmAttendanceWorkspace({
     attendanceFetcher,
     data
   );
+
   const authoritativeWorkspace = authoritativeData ?? data;
   const [tacticalWorkspace, setTacticalWorkspace] = useState<AttendanceWorkspaceData | null>(null);
-  const [prevAuthoritativeWorkspace, setPrevAuthoritativeWorkspace] = useState(authoritativeWorkspace);
+  const [prevAuthoritativeWorkspace, setPrevAuthoritativeWorkspace] =
+    useState(authoritativeWorkspace);
   if (prevAuthoritativeWorkspace !== authoritativeWorkspace) {
     setPrevAuthoritativeWorkspace(authoritativeWorkspace);
     setTacticalWorkspace(null);
@@ -86,6 +92,14 @@ export function CrmAttendanceWorkspace({
     () => applyCanonicalReviewToStaff(buildAttendanceStaffDiagnostics(current), reviewItems),
     [current, reviewItems]
   );
+  const unscannedCount = useMemo(
+    () =>
+      current.dailyStaffStates.filter(
+        (r) => !r.clockInAt && Boolean(r.scheduledStart && !r.clockOutAt)
+      ).length,
+    [current.dailyStaffStates]
+  );
+
   const invalidateAttendance = useCallback(() => {
     generation.store?.invalidate("crm-attendance");
   }, [generation.store]);
@@ -114,6 +128,7 @@ export function CrmAttendanceWorkspace({
     onCheckinChange: handleCheckinChange,
     onRefresh: invalidateAttendance,
   });
+
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(timer);
@@ -131,17 +146,10 @@ export function CrmAttendanceWorkspace({
       )
     );
   }
+
   function openPhones(staffId: string | null) {
     setPhoneStaffId(staffId);
     updateNavigation("setup", "phones");
-  }
-  function handleStaffAction(action: AttendanceIssueAction, row: AttendanceStaffDiagnostic) {
-    setSelectedStaff(null);
-    if (action.id === "manage_phone") return openPhones(row.staff.staffId);
-    if (action.id === "view_attendance_history") return updateNavigation("history");
-    const incident = reviewItems.find((item) => item.exception.staff_id === row.staff.staffId);
-    if (incident) updateNavigation("review");
-    else updateNavigation("history");
   }
 
   return (
@@ -151,29 +159,36 @@ export function CrmAttendanceWorkspace({
         timezone={current.timezone}
         businessDate={current.businessDate}
         nowMs={nowMs}
+        activeView={view}
+        unscannedCount={unscannedCount}
         refreshing={generation.isRefreshing}
         onRefresh={refresh}
       />
+
       {current.settings.test_mode_enabled ? (
         <AttendanceTestModeBanner reason={current.settings.test_mode_reason} />
       ) : null}
-      <section className="overflow-hidden rounded-[var(--cs-r-lg)] border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] shadow-[var(--cs-shadow-sm)]">
+
+      <section className="overflow-hidden rounded-2xl border border-[var(--cs-border-soft)] bg-[#F7F5F0] shadow-xs">
         <CrmAttendanceNavigation
           activeView={view}
           reviewCount={reviewItems.length}
           onChange={(next) => updateNavigation(next)}
         />
-        <div className="grid gap-4 p-3 sm:p-4 lg:p-5">
+
+        <div className="@container grid min-w-0 gap-4 p-3.5 sm:p-5">
           {flash?.message ? (
             <WorkspaceNotice tone={flash.status === "ok" ? "success" : "error"}>
               {flash.message}
             </WorkspaceNotice>
           ) : null}
+
           {refreshError ? (
             <WorkspaceNotice tone="error">
               Attendance could not refresh. Showing the last validated workspace data.
             </WorkspaceNotice>
           ) : null}
+
           <div
             id={crmAttendancePanelId(view)}
             role="tabpanel"
@@ -183,11 +198,23 @@ export function CrmAttendanceWorkspace({
               <AttendanceTodayView
                 data={current}
                 rows={staffRows}
-                onOpen={setSelectedStaff}
+                reviewItems={reviewItems}
+                onOpen={(row) => {
+                  const matchedReview =
+                    reviewItems.find((i) => i.exception.staff_id === row.staff.staffId) ?? null;
+                  setModalTarget({ kind: "staff", row, reviewItem: matchedReview });
+                }}
+                onOpenReviewItem={(item) => {
+                  const matchedRow =
+                    staffRows.find((r) => r.staff.staffId === item.exception.staff_id) ?? null;
+                  setModalTarget({ kind: "review", item, row: matchedRow });
+                }}
+                onOpenAllReview={() => updateNavigation("review")}
                 onOpenHistory={() => updateNavigation("history")}
                 onOpenPhone={(row) => openPhones(row?.staff.staffId ?? null)}
               />
             ) : null}
+
             {view === "review" ? (
               <AttendanceReviewView
                 data={current}
@@ -196,9 +223,11 @@ export function CrmAttendanceWorkspace({
                 onManagePhone={openPhones}
               />
             ) : null}
+
             {view === "history" ? (
               <AttendanceHistoryView workspace={current} onRefresh={refresh} />
             ) : null}
+
             {view === "setup" ? (
               <AttendanceSetupView
                 data={current}
@@ -211,13 +240,24 @@ export function CrmAttendanceWorkspace({
           </div>
         </div>
       </section>
-      <AttendanceStaffDrawer
+
+      <AttendanceCorrectionModal
         data={current}
-        row={selectedStaff}
-        onClose={() => setSelectedStaff(null)}
-        onAction={handleStaffAction}
+        target={modalTarget}
+        onClose={() => setModalTarget(null)}
+        onSaved={refresh}
+        onOpenHistory={() => updateNavigation("history")}
+        onOpenPhone={openPhones}
+        onOpenFullIssueDialog={(item) => setFullIssueItem(item)}
+      />
+
+      <AttendanceIssueModalRouter
+        data={current}
+        item={fullIssueItem}
+        onClose={() => setFullIssueItem(null)}
+        onRefresh={refresh}
+        onManagePhone={openPhones}
       />
     </div>
   );
 }
-

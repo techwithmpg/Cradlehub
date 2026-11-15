@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Banknote, CreditCard, Package, Smartphone, Wallet } from "lucide-react";
 import { toast } from "sonner";
-import { WorkspaceNotice, WorkspaceSection } from "@/components/features/attendance/attendance-ui";
+import { WorkspaceNotice, WorkspaceSection } from "@/components/features/crm/shared/crm-workspace-primitives";
 import { Button } from "@/components/ui/button";
 import { upsertReconciliationAction } from "./actions";
 import type { ReconciliationExpected } from "@/lib/cash-flow/reconciliation-expected";
@@ -18,21 +19,21 @@ type ExistingRecord = {
 };
 
 const METHODS = [
-  { key: "actualCash",   label: "Cash",   icon: "💵" },
-  { key: "actualGcash",  label: "GCash",  icon: "📱" },
-  { key: "actualMaya",   label: "Maya",   icon: "💙" },
-  { key: "actualCard",   label: "Card",   icon: "💳" },
-  { key: "actualOther",  label: "Other",  icon: "📦" },
+  { key: "actualCash", label: "Cash", Icon: Banknote },
+  { key: "actualGcash", label: "GCash", Icon: Smartphone },
+  { key: "actualMaya", label: "Maya", Icon: Wallet },
+  { key: "actualCard", label: "Card", Icon: CreditCard },
+  { key: "actualOther", label: "Other", Icon: Package },
 ] as const;
 
 type MethodKey = typeof METHODS[number]["key"];
 
 function getExpected(key: MethodKey, expected: ReconciliationExpected | null): number {
   if (!expected) return 0;
-  if (key === "actualCash")  return expected.cash;
+  if (key === "actualCash") return expected.cash;
   if (key === "actualGcash") return expected.gcash;
-  if (key === "actualMaya")  return expected.maya;
-  if (key === "actualCard")  return expected.card;
+  if (key === "actualMaya") return expected.maya;
+  if (key === "actualCard") return expected.card;
   if (key === "actualOther") return expected.other;
   return 0;
 }
@@ -54,10 +55,10 @@ export function ReconciliationForm({
   const [serverError, setServerError] = useState<string | null>(null);
 
   const initActual: Record<MethodKey, string> = {
-    actualCash:  String(existing?.actual_cash  ?? 0),
+    actualCash: String(existing?.actual_cash ?? 0),
     actualGcash: String(existing?.actual_gcash ?? 0),
-    actualMaya:  String(existing?.actual_maya  ?? 0),
-    actualCard:  String(existing?.actual_card  ?? 0),
+    actualMaya: String(existing?.actual_maya ?? 0),
+    actualCard: String(existing?.actual_card ?? 0),
     actualOther: String(existing?.actual_other ?? 0),
   };
   const [actuals, setActuals] = useState(initActual);
@@ -84,12 +85,12 @@ export function ReconciliationForm({
       const result = await upsertReconciliationAction({
         branchId,
         date,
-        actualCash:  actuals.actualCash,
+        actualCash: actuals.actualCash,
         actualGcash: actuals.actualGcash,
-        actualMaya:  actuals.actualMaya,
-        actualCard:  actuals.actualCard,
+        actualMaya: actuals.actualMaya,
+        actualCard: actuals.actualCard,
         actualOther: actuals.actualOther,
-        notes:       notes || undefined,
+        notes: notes || undefined,
         status,
       });
       if (result.ok) {
@@ -125,8 +126,8 @@ export function ReconciliationForm({
           {!expected
             ? "Unavailable"
             : varAmount === 0
-            ? "Balanced"
-            : `${varAmount > 0 ? "+" : ""}₱${varAmount.toLocaleString("en-PH", {
+              ? "Balanced"
+              : `${varAmount > 0 ? "+" : ""}₱${varAmount.toLocaleString("en-PH", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}`}
@@ -156,6 +157,7 @@ export function ReconciliationForm({
             </div>
 
             {METHODS.map((m) => {
+              const Icon = m.Icon;
               const expectedAmount = getExpected(m.key, expected);
               const actual = parseFloat(actuals[m.key]) || 0;
               const diff = actual - expectedAmount;
@@ -164,8 +166,8 @@ export function ReconciliationForm({
                   key={m.key}
                   className="grid grid-cols-[1fr_1fr_1fr_80px] items-center gap-2"
                 >
-                  <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--cs-text)]">
-                    <span aria-hidden="true">{m.icon}</span>
+                  <div className="flex items-center gap-2 text-sm font-medium text-[var(--cs-text)]">
+                    <Icon className="h-4 w-4 text-[#7B6D61]" aria-hidden="true" />
                     {m.label}
                   </div>
                   <div className="text-right text-sm text-[var(--cs-text-muted)]">
@@ -197,9 +199,9 @@ export function ReconciliationForm({
                     {diff === 0
                       ? "—"
                       : `${diff > 0 ? "+" : ""}₱${diff.toLocaleString("en-PH", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}`}
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`}
                   </div>
                 </div>
               );
@@ -217,8 +219,8 @@ export function ReconciliationForm({
                 {!expected
                   ? "Unavailable"
                   : varAmount === 0
-                  ? "✓"
-                  : `${varAmount > 0 ? "+" : ""}₱${varAmount.toLocaleString("en-PH", {
+                    ? "✓"
+                    : `${varAmount > 0 ? "+" : ""}₱${varAmount.toLocaleString("en-PH", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}`}
@@ -259,15 +261,15 @@ export function ReconciliationForm({
               type="button"
               variant="outline"
               onClick={() => handleSubmit("draft")}
-               disabled={isPending || !expected}
+              disabled={isPending || !expected}
             >
               Save Draft
             </Button>
             <Button
               type="button"
               onClick={() => handleSubmit("submitted")}
-               disabled={isPending || !expected}
-              className="bg-[var(--cs-sand)] text-white hover:bg-[var(--cs-sand)]/90"
+              disabled={isPending || !expected}
+              className="bg-[#1F4E33] text-white hover:bg-[#163B26]"
             >
               Submit for Approval
             </Button>

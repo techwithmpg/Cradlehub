@@ -1,3 +1,7 @@
+import type { CSSProperties, ReactNode } from "react";
+import { CrmSectionCard } from "@/components/features/crm/shared/crm-cards";
+import { cn } from "@/lib/utils";
+
 export function CrmPanel({
   title,
   action,
@@ -5,50 +9,39 @@ export function CrmPanel({
   className = "",
   style,
 }: {
-  title?: React.ReactNode;
-  action?: React.ReactNode;
-  children: React.ReactNode;
+  title?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
   className?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }) {
+  if (style) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col gap-3 rounded-2xl border border-[var(--cs-border-soft)] bg-white p-4 shadow-2xs",
+          className
+        )}
+        style={style}
+      >
+        {(title || action) && (
+          <div className="flex items-center justify-between gap-3">
+            {title && (
+              <div className="text-sm font-bold tracking-tight text-[var(--cs-text)]">
+                {title}
+              </div>
+            )}
+            {action && <div className="shrink-0">{action}</div>}
+          </div>
+        )}
+        {children}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`cs-card ${className}`}
-      style={{
-        padding: "1rem 1.125rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.75rem",
-        borderRadius: "var(--cs-r-xl)",
-        ...style,
-      }}
-    >
-      {(title || action) && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "0.75rem",
-          }}
-        >
-          {title && (
-            <div
-              style={{
-                fontSize: "0.875rem",
-                fontWeight: 600,
-                color: "var(--cs-text)",
-                fontFamily: "var(--font-display)",
-                letterSpacing: "0.01em",
-              }}
-            >
-              {title}
-            </div>
-          )}
-          {action && <div style={{ flexShrink: 0 }}>{action}</div>}
-        </div>
-      )}
+    <CrmSectionCard title={title} actions={action} className={className} compact>
       {children}
-    </div>
+    </CrmSectionCard>
   );
 }

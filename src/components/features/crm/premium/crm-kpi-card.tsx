@@ -1,74 +1,56 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { cn } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
+import { CrmStatCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
 import { CountUpNumber } from "@/components/features/crm/today/count-up-number";
 import { itemVariants, itemVariantsStill } from "./variants";
-import type { LucideIcon } from "lucide-react";
 
 type CrmKpiCardProps = {
   label: string;
   value: number | string;
   icon?: LucideIcon;
-  /** Adds a top accent bar using --cs-sand */
+  tone?: CrmCardTone;
+  /** Adds subtle emphasis when highlighted as the lead KPI */
   accent?: boolean;
   /** Reserved – future custom accent colour token */
   accentColor?: string;
   trend?: string;
+  subtitle?: string;
   className?: string;
 };
 
 /**
- * Premium KPI card for CRM workspace sections.
- *
- * – Uses .cs-metric base class for surface/border/hover-shadow
- * – Participates in CrmMotionSection stagger (variants: hidden → visible)
- * – whileHover lifts 2 px when no reduced-motion preference
- * – CountUpNumber animates numeric values
+ * Animated KPI card for CRM workspace sections, backed by canonical CrmStatCard.
  */
 export function CrmKpiCard({
   label,
   value,
   icon: Icon,
+  tone,
   accent,
   trend,
+  subtitle,
   className,
 }: CrmKpiCardProps) {
   const shouldReduceMotion = useReducedMotion();
   const vars = shouldReduceMotion ? itemVariantsStill : itemVariants;
+  const resolvedTone: CrmCardTone = tone ?? (accent ? "success" : "neutral");
 
   return (
     <motion.div
       variants={vars}
       whileHover={shouldReduceMotion ? undefined : { y: -2 }}
-      className={cn(
-        "cs-metric flex items-center gap-3",
-        accent && "border-t-[3px] border-t-[var(--cs-sand)]",
-        className
-      )}
+      className="h-full"
     >
-      {Icon && (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[var(--cs-sand-mist)] text-[var(--cs-sand)]">
-          <Icon size={16} />
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--cs-text-muted)]">
-          {label}
-        </div>
-        <div className="mt-0.5 text-lg font-semibold leading-tight text-[var(--cs-text)] tabular-nums">
-          {typeof value === "number" ? (
-            <CountUpNumber value={value} />
-          ) : (
-            value
-          )}
-        </div>
-        {trend && (
-          <div className="mt-0.5 text-[10.5px] text-[var(--cs-text-muted)]">
-            {trend}
-          </div>
-        )}
-      </div>
+      <CrmStatCard
+        title={label}
+        value={typeof value === "number" ? <CountUpNumber value={value} /> : value}
+        subtitle={subtitle ?? trend}
+        icon={Icon ? <Icon className="size-4.5" aria-hidden="true" /> : undefined}
+        tone={resolvedTone}
+        className={className ? `h-full ${className}` : "h-full"}
+      />
     </motion.div>
   );
 }

@@ -44,12 +44,13 @@ export function CrmAttendanceNavigation({
       tablist.querySelectorAll<HTMLButtonElement>("[role=tab]")[next]?.focus()
     );
   }
+
   return (
     <div
       role="tablist"
       aria-label="Attendance workspaces"
       onKeyDown={onKeyDown}
-      className="flex overflow-x-auto border-b border-[var(--cs-border-soft)] px-2 sm:px-4"
+      className="flex overflow-x-auto border-b border-[var(--cs-border-soft)] bg-white px-2 sm:px-5"
     >
       {CRM_ATTENDANCE_VIEWS.map((item) => {
         const active = activeView === item.key;
@@ -68,18 +69,22 @@ export function CrmAttendanceNavigation({
             }
             onClick={() => onChange(item.key)}
             className={cn(
-              "relative inline-flex min-h-12 shrink-0 items-center gap-2 px-4 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-[#2A5A3A]",
-              active ? "text-[#2A5A3A]" : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]"
+              "relative inline-flex min-h-12 shrink-0 items-center gap-2 px-4 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-[#1F4E33]",
+              active
+                ? "text-[#1F4E33]"
+                : "text-[var(--cs-text-muted)] hover:text-[var(--cs-text)]"
             )}
           >
             <Icon className="size-4" />
-            {item.label}
+            <span>{item.label}</span>
             {item.key === "review" && reviewCount > 0 ? (
-              <span className="rounded-full bg-[#E8D5A3] px-1.5 py-0.5 text-[0.68rem] font-bold text-[#2A5A3A]">
+              <span className="rounded-md bg-[#EFE2BE] px-1.5 py-0.5 text-[0.68rem] font-bold text-[#6E531A]">
                 {reviewCount}
               </span>
             ) : null}
-            {active ? <span className="absolute inset-x-3 bottom-0 h-0.5 bg-[#2A5A3A]" /> : null}
+            {active ? (
+              <span className="absolute inset-x-3 bottom-0 h-[2.5px] rounded-t-full bg-[#1F4E33]" />
+            ) : null}
           </button>
         );
       })}

@@ -1,7 +1,17 @@
-import Link from "next/link";
+import type { ReactNode } from "react";
+import {
+  ArrowRight,
+  BarChart3,
+  Building2,
+  CalendarClock,
+  Car,
+  ClipboardList,
+  Sparkles,
+} from "lucide-react";
+import { CrmActionCard } from "@/components/features/crm/shared/crm-cards";
 
 type ShortcutTile = {
-  icon: string;
+  icon: ReactNode;
   label: string;
   description: string;
   href: string;
@@ -9,37 +19,37 @@ type ShortcutTile = {
 
 const TILES: ShortcutTile[] = [
   {
-    icon: "✨",
+    icon: <Sparkles className="size-4" />,
     label: "Fix Services",
     description: "Assign providers to active services so customers can book.",
     href: "/crm/services",
   },
   {
-    icon: "🗓️",
+    icon: <CalendarClock className="size-4" />,
     label: "Fix Schedules",
     description: "Add weekly schedules, day-offs, and blocked time.",
     href: "/crm/schedule?tab=setup",
   },
   {
-    icon: "🏠",
+    icon: <Building2 className="size-4" />,
     label: "Fix Rooms & Rules",
     description: "Review rooms, resources, booking hours, and home-service windows.",
     href: "/crm/spaces-rules",
   },
   {
-    icon: "📋",
+    icon: <ClipboardList className="size-4" />,
     label: "Review Bookings",
     description: "Process pending requests and assign today’s bookings.",
     href: "/crm/today?filter=exceptions",
   },
   {
-    icon: "🚗",
+    icon: <Car className="size-4" />,
     label: "Open Dispatch",
     description: "Review home-service trips and driver assignment.",
     href: "/crm/dispatch",
   },
   {
-    icon: "📊",
+    icon: <BarChart3 className="size-4" />,
     label: "Cradle Flow",
     description: "Return to today’s front-desk command center.",
     href: "/crm/today",
@@ -48,48 +58,18 @@ const TILES: ShortcutTile[] = [
 
 export function CrmSetupWorkspaceTiles() {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-        gap: "0.625rem",
-      }}
-    >
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {TILES.map((tile) => (
-        <Link
+        <CrmActionCard
           key={tile.href}
+          title={tile.label}
+          description={tile.description}
+          icon={tile.icon}
           href={tile.href}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 4,
-            padding: "0.875rem 1rem",
-            backgroundColor: "var(--cs-surface)",
-            border: "1px solid var(--cs-border-soft)",
-            borderRadius: "var(--cs-r-md, 10px)",
-            textDecoration: "none",
-            color: "var(--cs-text)",
-            transition: "border-color 0.15s, background 0.15s",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 18 }}>{tile.icon}</span>
-            <span
-              style={{
-                fontSize: "0.875rem",
-                fontWeight: 600,
-                color: "var(--cs-text)",
-                flex: 1,
-              }}
-            >
-              {tile.label}
-            </span>
-            <span style={{ color: "var(--cs-text-muted)", fontSize: 14 }}>›</span>
-          </div>
-          <div style={{ fontSize: "0.75rem", color: "var(--cs-text-muted)", lineHeight: 1.5 }}>
-            {tile.description}
-          </div>
-        </Link>
+          trailing={
+            <ArrowRight className="size-4 text-[var(--cs-text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-[#1F4E33]" />
+          }
+        />
       ))}
     </div>
   );

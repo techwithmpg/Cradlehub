@@ -9,7 +9,7 @@ import {
   AdminOverlayFooter,
   AdminOverlayHeader,
 } from "@/components/shared/overlays";
-import { WorkspaceNotice } from "@/components/features/attendance/attendance-ui";
+import { WorkspaceNotice } from "@/components/features/crm/shared/crm-workspace-primitives";
 import { Button } from "@/components/ui/button";
 import {
   assignBookingTherapistAction,
@@ -428,8 +428,8 @@ function RescheduleBookingModalContent({
                 </p>
               ) : null}
               {placesStatus === "missing_key" ||
-              placesStatus === "failed" ||
-              placesStatus === "place_missing_coordinates" ? (
+                placesStatus === "failed" ||
+                placesStatus === "place_missing_coordinates" ? (
                 <p className="mt-2 text-xs text-[var(--cs-error-text)]">
                   Address search is unavailable. A precise destination cannot be saved right now.
                 </p>

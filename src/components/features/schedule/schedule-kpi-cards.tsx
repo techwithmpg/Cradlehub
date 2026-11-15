@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, Clock, Users, AlertTriangle, ClipboardList } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, Clock, Users } from "lucide-react";
+import { CrmStatCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
 
 export type ScheduleKpiData = {
   total: number;
@@ -16,59 +17,31 @@ type ScheduleKpiCardsProps = {
 };
 
 const KPI_DEF = [
-  { key: "total" as const, label: "Total Bookings", icon: ClipboardList, sub: "scheduled today" },
-  { key: "confirmed" as const, label: "Confirmed", icon: CheckCircle2, sub: "awaiting service" },
-  { key: "in_progress" as const, label: "In Progress", icon: Clock, sub: "currently serving" },
-  { key: "completed" as const, label: "Completed", icon: CheckCircle2, sub: "finished today" },
-  { key: "available_staff" as const, label: "Available Staff", icon: Users, sub: "on duty now" },
-  { key: "alerts" as const, label: "Alerts", icon: AlertTriangle, sub: "need attention", accent: true },
+  { key: "total" as const, label: "Total Bookings", icon: ClipboardList, sub: "Scheduled today", tone: "neutral" as CrmCardTone },
+  { key: "confirmed" as const, label: "Confirmed", icon: CheckCircle2, sub: "Awaiting service", tone: "info" as CrmCardTone },
+  { key: "in_progress" as const, label: "In Progress", icon: Clock, sub: "Currently serving", tone: "warning" as CrmCardTone },
+  { key: "completed" as const, label: "Completed", icon: CheckCircle2, sub: "Finished today", tone: "success" as CrmCardTone },
+  { key: "available_staff" as const, label: "Available Staff", icon: Users, sub: "On duty now", tone: "success" as CrmCardTone },
+  { key: "alerts" as const, label: "Alerts", icon: AlertTriangle, sub: "Need attention", tone: "danger" as CrmCardTone },
 ];
 
 export function ScheduleKpiCards({ data }: ScheduleKpiCardsProps) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "0.75rem" }}>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {KPI_DEF.map((kpi) => {
         const value = data[kpi.key];
         const Icon = kpi.icon;
-        const isAlert = kpi.key === "alerts" && value > 0;
+        const tone: CrmCardTone = kpi.key === "alerts" && value === 0 ? "neutral" : kpi.tone;
         return (
-          <div
+          <CrmStatCard
             key={kpi.key}
-            style={{
-              backgroundColor: "var(--cs-surface)",
-              border: "1px solid var(--cs-border)",
-              borderRadius: 10,
-              padding: "0.875rem 1rem",
-              minWidth: 0,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: "0.375rem" }}>
-              <Icon size={13} style={{ color: isAlert ? "#DC2626" : "var(--cs-text-muted)", flexShrink: 0 }} />
-              <span
-                style={{
-                  fontSize: "0.625rem",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: "var(--cs-text-muted)",
-                }}
-              >
-                {kpi.label}
-              </span>
-            </div>
-            <div
-              style={{
-                fontSize: "1.375rem",
-                fontWeight: 700,
-                color: isAlert ? "#DC2626" : "var(--cs-text)",
-                fontFamily: "var(--font-playfair, serif)",
-                lineHeight: 1.1,
-              }}
-            >
-              {value}
-            </div>
-            <div style={{ fontSize: "0.625rem", color: "var(--cs-text-muted)", marginTop: 2 }}>{kpi.sub}</div>
-          </div>
+            title={kpi.label}
+            value={value}
+            subtitle={kpi.sub}
+            icon={<Icon className="size-4" />}
+            tone={tone}
+            compact
+          />
         );
       })}
     </div>

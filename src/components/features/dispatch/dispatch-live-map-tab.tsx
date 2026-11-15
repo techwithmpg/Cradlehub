@@ -210,11 +210,10 @@ function BookingSummaryCard({
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:border-[#155A33] hover:shadow-md ${
-        selected
-          ? "border-[#155A33] bg-green-50"
-          : "border-[var(--cs-border)] bg-[var(--cs-surface)]"
-      }`}
+      className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:border-[#155A33] hover:shadow-md ${selected
+        ? "border-[#155A33] bg-green-50"
+        : "border-[var(--cs-border)] bg-[var(--cs-surface)]"
+        }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -498,7 +497,7 @@ function MapCanvas({
             href={selectedRouteUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#155A33] px-4 text-sm font-bold text-white hover:bg-[#104728]"
+            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#1F4E33] px-4 text-sm font-bold text-white transition hover:bg-[#163B26]"
           >
             Open Customer Route
             <ExternalLink size={13} />
@@ -509,7 +508,13 @@ function MapCanvas({
   );
 }
 
-export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
+export function DispatchLiveMapTab({
+  data,
+  onRefresh,
+}: {
+  data: DispatchData;
+  onRefresh?: () => void;
+}) {
   const [query, setQuery] = useState("");
   const openBookings = useMemo(
     () => data.items.filter((item) => isOpenHomeServiceBooking(item, data.today)),
@@ -594,12 +599,16 @@ export function DispatchLiveMapTab({ data }: { data: DispatchData }) {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search client, service, area..."
-                className="h-10 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] pl-9 pr-3 text-sm outline-none transition focus:border-[#155A33] sm:w-[280px]"
+                className="h-10 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] pl-9 pr-3 text-sm outline-none transition focus:border-[#1F4E33] sm:w-[280px]"
               />
             </span>
           </label>
 
-          <Button type="button" variant="outline" onClick={() => window.location.reload()}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => (onRefresh ? onRefresh() : window.location.reload())}
+          >
             <RefreshCw size={14} />
             Refresh
           </Button>
