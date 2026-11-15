@@ -46,6 +46,9 @@ export function ServiceDetailDialog({
           src={service.imageUrl}
           alt={service.imageAlt || service.name}
           category={service.categoryName}
+          fill
+          sizes="(max-width: 640px) 94vw, 608px"
+          className="object-cover"
         />
         <button
           type="button"

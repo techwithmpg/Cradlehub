@@ -5,12 +5,18 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BoutiqueCartProvider } from "@/components/public/boutique-cart-context";
 import { BoutiqueClient } from "@/components/public/boutique-client";
+import { PublicMobileServices } from "@/components/public/mobile/public-mobile-services";
 import { ServiceCatalogClient } from "@/components/public/service-catalog-client";
 import type { PublicCatalogService } from "@/lib/queries/services";
 import type { PublicBranch } from "@/lib/public/public-site-data";
 
 vi.mock("next/image", () => ({
   default: (props: React.ImgHTMLAttributes<HTMLImageElement> & { fill?: boolean; preload?: boolean; priority?: boolean }) => {
+    const hasDimensions =
+      Boolean(props.fill) || (props.width !== undefined && props.height !== undefined);
+    if (!hasDimensions) {
+      throw new Error(`Image with src "${String(props.src)}" is missing required "width" property.`);
+    }
     const { fill: _fill, preload: _preload, priority: _priority, ...rest } = props;
     return <img {...rest} alt={props.alt || ""} />;
   },
@@ -26,10 +32,6 @@ vi.mock("next/link", () => ({
       {children}
     </a>
   ),
-}));
-
-vi.mock("@/components/public/service-image", () => ({
-  ServiceImage: ({ alt }: { alt: string }) => <span aria-label={alt} />,
 }));
 
 beforeEach(() => {
@@ -206,5 +208,31 @@ describe("ServiceCatalogClient", () => {
     });
     expect(screen.getAllByRole("heading", { name: "Aromatherapy Escape" }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("heading", { name: "Cradle Signature Massage" })).toBeNull();
+  });
+
+  it("renders remote Supabase service images in PublicMobileServices without missing width or fill", () => {
+    const [primaryService, secondaryService] = services;
+    if (!primaryService || !secondaryService) {
+      throw new Error("Expected mock services");
+    }
+
+    const remoteServices: PublicCatalogService[] = [
+      {
+        ...primaryService,
+        imageUrl:
+          "https://lsrbwqhvzjfpiabeolkv.supabase.co/storage/v1/object/public/public-site-media/media/1790845034734-images.jpeg",
+      },
+      secondaryService,
+    ];
+
+    render(
+      <BoutiqueCartProvider>
+        <PublicMobileServices services={remoteServices} />
+      </BoutiqueCartProvider>,
+    );
+
+    const renderedImages = screen.getAllByRole("img", { name: "Cradle Signature Massage" });
+    expect(renderedImages.length).toBeGreaterThan(0);
+    expect(renderedImages[0]?.getAttribute("src")).toContain("public-site-media");
   });
 });

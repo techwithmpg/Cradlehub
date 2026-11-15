@@ -37,5 +37,23 @@ export function ServiceImage({
     onError?.(event);
   }
 
-  return <Image {...props} src={currentSrc} alt={alt} onError={handleError} />;
+  const hasExplicitDimensions =
+    props.width !== undefined || props.height !== undefined || props.fill !== undefined;
+  const fallbackFillProps = hasExplicitDimensions
+    ? {}
+    : {
+        fill: true as const,
+        sizes: props.sizes ?? "100vw",
+        className: props.className ? `object-cover ${props.className}` : "object-cover",
+      };
+
+  return (
+    <Image
+      {...props}
+      {...fallbackFillProps}
+      src={currentSrc}
+      alt={alt}
+      onError={handleError}
+    />
+  );
 }

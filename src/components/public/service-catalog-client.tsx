@@ -392,6 +392,9 @@ export function ServiceCatalogClient({
                     src={featuredService.imageUrl}
                     alt={featuredService.imageAlt || featuredService.name}
                     category={featuredService.categoryName}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 40vw"
+                    className="object-cover"
                   />
                   <span className="absolute top-3 left-3 rounded-full bg-[#163A2B]/90 px-3 py-1 text-[10px] font-semibold tracking-wider text-[#E8D5A3] uppercase">
                     Featured Service
@@ -550,6 +553,9 @@ export function ServiceCatalogClient({
                       src={service.imageUrl}
                       alt={service.imageAlt || service.name}
                       category={service.categoryName}
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                      className="object-cover"
                     />
                     {service.availableHomeService && (
                       <span className="absolute top-2.5 right-2.5 rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-semibold text-[#163A2B] shadow-xs">
@@ -610,6 +616,9 @@ export function ServiceCatalogClient({
                       src={service.imageUrl}
                       alt={service.imageAlt || service.name}
                       category={service.categoryName}
+                      fill
+                      sizes="(max-width: 640px) 100vw, 128px"
+                      className="object-cover"
                     />
                   </div>
                   <div className="min-w-0 flex-1">

@@ -255,6 +255,9 @@ export function PublicMobileServices({
                     src={featured.imageUrl}
                     alt={featured.imageAlt || featured.name}
                     category={featured.categoryName}
+                    fill
+                    sizes="96px"
+                    className="object-cover"
                   />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -301,6 +304,9 @@ export function PublicMobileServices({
                     src={service.imageUrl}
                     alt={service.imageAlt || service.name}
                     category={service.categoryName}
+                    fill
+                    sizes="96px"
+                    className="object-cover"
                   />
                 </div>
                 <div className="min-w-0 flex-1">
