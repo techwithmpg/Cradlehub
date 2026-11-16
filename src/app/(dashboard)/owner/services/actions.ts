@@ -24,6 +24,7 @@ import { synchronizeBranchServiceCatalog } from "@/lib/services/service-catalog"
 import { invalidateServiceSurfaces, writeCanonicalService } from "@/lib/services/service-mutation";
 import { validateMediaBuffer } from "@/lib/marketing/media-contracts-server";
 import { getMediaContract } from "@/lib/marketing/media-contracts";
+import { DEFAULT_PUBLIC_IMAGE_CACHE_CONTROL } from "@/lib/public/public-image-resolver";
 import type { Json } from "@/types/supabase";
 
 type ServiceCatalogAccessContext = {
@@ -301,7 +302,11 @@ export async function saveOwnerServiceCatalogAction(formData: FormData): Promise
     const extension = validation.format === "jpeg" ? "jpg" : validation.format || file.type.split("/")[1];
     uploadedPath = `service-images/${data.serviceId ?? crypto.randomUUID()}/${crypto.randomUUID()}.${extension}`;
     const { error: uploadError } = await supabase.storage.from("public-site-media")
-      .upload(uploadedPath, buffer, { contentType: file.type, upsert: false });
+      .upload(uploadedPath, buffer, {
+        contentType: file.type,
+        cacheControl: DEFAULT_PUBLIC_IMAGE_CACHE_CONTROL,
+        upsert: false,
+      });
     if (uploadError) return { success: false, error: uploadError.message };
     imageUrl = supabase.storage.from("public-site-media").getPublicUrl(uploadedPath).data.publicUrl;
   }

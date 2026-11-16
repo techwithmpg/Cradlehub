@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
 import Image, { type ImageProps } from "next/image";
+import { normalizeSafeImageUrl } from "@/lib/public/public-image-resolver";
 import { DEFAULT_SERVICE_IMAGE_URL } from "@/lib/service-images";
 
 type ServiceImageProps = Omit<ImageProps, "src" | "alt"> & {
@@ -11,28 +12,24 @@ type ServiceImageProps = Omit<ImageProps, "src" | "alt"> & {
   category?: string;
 };
 
-function cleanSrc(src: string | null | undefined) {
-  const trimmed = src?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : DEFAULT_SERVICE_IMAGE_URL;
-}
-
 export function ServiceImage({
   src,
   alt,
   fallbackSrc = DEFAULT_SERVICE_IMAGE_URL,
-  category: _category,
+  category,
   onError,
   ...props
 }: ServiceImageProps) {
-  const initialSrc = cleanSrc(src);
-  const [currentSrc, setCurrentSrc] = useState(initialSrc);
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setCurrentSrc(cleanSrc(src)); }, [src]);
+  void category;
+  const resolvedFallback =
+    normalizeSafeImageUrl(fallbackSrc) ?? DEFAULT_SERVICE_IMAGE_URL;
+  const initialSrc = normalizeSafeImageUrl(src) ?? resolvedFallback;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const currentSrc = failedSrc === initialSrc ? resolvedFallback : initialSrc;
 
   function handleError(event: SyntheticEvent<HTMLImageElement, Event>) {
-    if (currentSrc !== fallbackSrc) {
-      setCurrentSrc(fallbackSrc);
+    if (currentSrc !== resolvedFallback) {
+      setFailedSrc(initialSrc);
     }
     onError?.(event);
   }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cacheTags, invalidateTag } from "@/lib/cache/cache-tags";
 import { updateBranchAction } from "@/app/(dashboard)/owner/branches/actions";
 import { getMarketingAccessContext } from "@/lib/queries/marketing-content";
 
@@ -75,6 +76,7 @@ export async function updateBranchPresentationAction(
     return { success: false, error: result.error ?? "Failed to update branch." };
   }
 
+  invalidateTag(cacheTags.publicBranches);
   revalidatePath("/marketing");
   revalidatePath("/owner/marketing");
   revalidatePath("/branches");

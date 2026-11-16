@@ -4,9 +4,11 @@ import Image from "next/image";
 import { ArrowRight, Calendar } from "lucide-react";
 import { ServiceCatalogClient } from "@/components/public/service-catalog-client";
 import { PublicMobileServices } from "@/components/public/mobile/public-mobile-services";
-import { getPublicServiceCatalog } from "@/lib/queries/services";
-import { getPublicBranches } from "@/lib/queries/branches";
-import { getPublicSiteSections } from "@/lib/queries/public-site";
+import {
+  getPublicBranchesSafeCached,
+  getPublicServiceCatalogCached,
+  getPublicSiteSectionsCached,
+} from "@/lib/public/public-site-cached";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
 import { SPA_IMAGES } from "@/constants/spa-images";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -31,12 +33,9 @@ export default async function ServicesPage({
     typeof resolvedParams.q === "string" ? resolvedParams.q : "";
 
   const [services, branches, managedSections] = await Promise.all([
-    getPublicServiceCatalog(),
-    getPublicBranches(),
-    getPublicSiteSections({ includeDisabled: false }).catch((error) => {
-      console.error("[ServicesPage] Failed to load site sections:", error);
-      return [];
-    }),
+    getPublicServiceCatalogCached(),
+    getPublicBranchesSafeCached(),
+    getPublicSiteSectionsCached({ includeDisabled: false }),
   ]);
 
   const sections = resolvePublicSiteSections(managedSections);

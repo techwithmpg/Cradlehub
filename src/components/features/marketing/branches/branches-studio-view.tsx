@@ -15,6 +15,7 @@ import {
   Send,
 } from "lucide-react";
 import type { Database } from "@/types/supabase";
+import { resolvePublicBranchImage } from "@/lib/public/public-site-data";
 import type {
   MarketingContentDraftRow,
   MarketingContentRevisionRow,
@@ -54,19 +55,11 @@ type BranchFormValues = {
 };
 
 function getBranchImageUrl(branch: BranchRow): string {
-  if (
-    branch.location_metadata &&
-    typeof branch.location_metadata === "object" &&
-    !Array.isArray(branch.location_metadata)
-  ) {
-    const meta = branch.location_metadata as Record<string, unknown>;
-    if (typeof meta.image_url === "string" && meta.image_url.trim().length > 0) {
-      return meta.image_url;
-    }
-  }
-  return branch.name.toLowerCase().includes("sm")
-    ? "/images/spa/cradle-sm-branch.webp"
-    : "/images/spa/cradle-main-spa.webp";
+  return resolvePublicBranchImage({
+    id: branch.id,
+    name: branch.name,
+    location_metadata: branch.location_metadata,
+  });
 }
 
 export function BranchesStudioView({

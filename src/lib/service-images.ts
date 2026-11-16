@@ -1,4 +1,8 @@
 import serviceImageManifest from "@/data/service-images.json";
+import {
+  resolveHybridImage,
+  type HybridImageCandidate,
+} from "@/lib/public/public-image-resolver";
 
 export type ServiceImageManifestEntry = {
   id: string;
@@ -16,8 +20,13 @@ export type ServiceImageManifestEntry = {
 export type ServiceImageInput = {
   id?: string | null;
   name?: string | null;
+  branchImageUrl?: string | null;
   imageUrl?: string | null;
   imageAlt?: string | null;
+};
+
+export type ResolveServiceImageOptions = {
+  isAvailable?: (url: string, tier: HybridImageCandidate["tier"]) => boolean;
 };
 
 export const DEFAULT_SERVICE_IMAGE_URL = "/images/services/default-service.webp";
@@ -32,6 +41,7 @@ function cleanText(value: string | null | undefined): string | null {
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
+/** Looks up the static fallback manifest strictly by canonical service ID (never by name). */
 export function getServiceImageManifestEntry(
   serviceId: string | null | undefined
 ): ServiceImageManifestEntry | null {
@@ -39,17 +49,32 @@ export function getServiceImageManifestEntry(
   return serviceImagesById.get(serviceId) ?? null;
 }
 
-export function resolveServiceImage(service: ServiceImageInput) {
+/**
+ * Unified service image resolver:
+ * 1. Valid branch-specific override (`branchImageUrl` / `custom_image_url`)
+ * 2. Authoritative service catalog URL (`imageUrl` / `services.image_url`)
+ * 3. Approved static manifest entry matched by `service.id`
+ * 4. Standard Category A fallback (`/images/services/default-service.webp`)
+ */
+export function resolveServiceImage(
+  service: ServiceImageInput,
+  options?: ResolveServiceImageOptions
+) {
   const manifestEntry = getServiceImageManifestEntry(service.id);
-  const imageUrl =
-    cleanText(service.imageUrl) ??
-    manifestEntry?.imageUrl ??
-    DEFAULT_SERVICE_IMAGE_URL;
+  const { url: imageUrl } = resolveHybridImage(
+    [
+      { value: service.branchImageUrl, tier: "override" },
+      { value: service.imageUrl, tier: "database" },
+      { value: manifestEntry?.imageUrl, tier: "manifest_fallback" },
+    ],
+    DEFAULT_SERVICE_IMAGE_URL,
+    options?.isAvailable
+  );
   const imageAlt =
     cleanText(service.imageAlt) ??
     manifestEntry?.imageAlt ??
     (cleanText(service.name)
-      ? `${service.name} service at Cradle Massage and Wellness Spa`
+      ? `${cleanText(service.name)} service at Cradle Massage and Wellness Spa`
       : DEFAULT_SERVICE_IMAGE_ALT);
 
   return { imageUrl, imageAlt };

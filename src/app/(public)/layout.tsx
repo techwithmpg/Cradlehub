@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { PublicShell } from "@/components/public/public-shell";
-import { getPublicBranchesCached } from "@/lib/queries/branches";
+import { getPublicBranchesSafeCached } from "@/lib/public/public-site-cached";
 import { getPublishedBrandSettingsCached } from "@/lib/queries/marketing-brand";
 import { MOBILE_PRELOADER_COOKIE } from "@/lib/public/mobile-preloader";
 import {
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
   const [branches, brand, cookieStore] = await Promise.all([
-    getPublicBranchesCached(),
+    getPublicBranchesSafeCached(),
     getPublishedBrandSettingsCached(),
     cookies(),
   ]);

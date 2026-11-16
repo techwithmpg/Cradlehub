@@ -1,4 +1,5 @@
 import { SPA_IMAGES } from "@/constants/spa-images";
+import { resolveHybridImage } from "@/lib/public/public-image-resolver";
 
 export type PublicBranch = {
   id: string;
@@ -17,21 +18,27 @@ export type PublicBranch = {
 
 export function resolvePublicBranchImage(
   branch: PublicBranch,
-  fallbackImage: string,
+  fallbackImage?: string,
 ): string {
-  if (branch.imageUrl && branch.imageUrl.trim().length > 0) {
-    return branch.imageUrl.trim();
-  }
-  if (
+  const metadataUrl =
     branch.location_metadata &&
     typeof branch.location_metadata === "object" &&
-    "image_url" in branch.location_metadata &&
-    typeof branch.location_metadata.image_url === "string" &&
-    branch.location_metadata.image_url.trim().length > 0
-  ) {
-    return branch.location_metadata.image_url.trim();
-  }
-  return fallbackImage;
+    !Array.isArray(branch.location_metadata)
+      ? ((branch.location_metadata as Record<string, unknown>).image_url ??
+          (branch.location_metadata as Record<string, unknown>).imageUrl)
+      : undefined;
+
+  const defaultBranchFallback =
+    fallbackImage ||
+    (branch.name.toLowerCase().includes("sm") ? SPA_IMAGES.branchSm : SPA_IMAGES.branchMain);
+
+  return resolveHybridImage(
+    [
+      { value: branch.imageUrl, tier: "database" },
+      { value: metadataUrl, tier: "database" },
+    ],
+    defaultBranchFallback
+  ).url;
 }
 
 export type PublicPhone = {

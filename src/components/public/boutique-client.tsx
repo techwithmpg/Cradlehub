@@ -26,6 +26,7 @@ import {
   BOUTIQUE_HERO_IMAGE,
   BOUTIQUE_PRODUCTS,
   type BoutiqueCategoryId,
+  type BoutiqueCollection,
   type BoutiqueGiftCardOption,
   type BoutiqueProduct,
 } from "@/lib/public/boutique-catalog";
@@ -64,8 +65,16 @@ function CategoryIcon({ category }: { category: BoutiqueCategoryId }) {
 
 export function BoutiqueClient({
   initialCategory = "all",
+  heroImage = BOUTIQUE_HERO_IMAGE,
+  heroAlt = "Cradle Boutique botanical massage oils and glowing lantern",
+  products = BOUTIQUE_PRODUCTS,
+  collections = BOUTIQUE_COLLECTIONS,
 }: {
   initialCategory?: string;
+  heroImage?: string;
+  heroAlt?: string;
+  products?: BoutiqueProduct[];
+  collections?: BoutiqueCollection[];
 }) {
   const validCategory: BoutiqueCategoryId = BOUTIQUE_CATEGORIES.some(
     (c) => c.id === initialCategory,
@@ -100,7 +109,7 @@ export function BoutiqueClient({
 
   const filteredProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return BOUTIQUE_PRODUCTS.filter((item) => {
+    return products.filter((item) => {
       if (activeCategory !== "all" && item.category !== activeCategory) {
         return false;
       }
@@ -111,7 +120,7 @@ export function BoutiqueClient({
         item.description.toLowerCase().includes(q)
       );
     });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, products, searchQuery]);
 
   const getQty = (id: string) => quantities[id] ?? 1;
   const setQty = (id: string, val: number) =>
@@ -130,7 +139,7 @@ export function BoutiqueClient({
   };
 
   const handleAddGiftCertificate = () => {
-    const giftProduct = BOUTIQUE_PRODUCTS.find((p) => p.isGiftCertificate);
+    const giftProduct = products.find((p) => p.isGiftCertificate);
     if (!giftProduct) return;
     addItem({
       productId: giftProduct.id,
@@ -155,10 +164,10 @@ export function BoutiqueClient({
           <div className="relative overflow-hidden rounded-3xl border border-[#C8A96B]/30 bg-[#163A2B] p-5 shadow-lg">
             <div className="relative mb-4 aspect-[16/10] w-full overflow-hidden rounded-2xl">
               <Image
-                src={BOUTIQUE_HERO_IMAGE}
-                alt="Cradle Boutique botanical massage oils and glowing lantern"
+                src={heroImage}
+                alt={heroAlt}
                 fill
-                preload={true}
+                loading="eager"
                 fetchPriority="high"
                 sizes="(max-width: 768px) 92vw, 50vw"
                 className="object-cover"
@@ -232,8 +241,8 @@ export function BoutiqueClient({
 
         <div className="pointer-events-none absolute inset-y-0 right-0 w-[60%]">
           <Image
-            src={BOUTIQUE_HERO_IMAGE}
-            alt="Amber apothecary bottles, glowing candle, and spa towel on wood"
+            src={heroImage}
+            alt={heroAlt}
             fill
             preload={true}
             fetchPriority="high"
@@ -516,7 +525,7 @@ export function BoutiqueClient({
             </div>
 
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3 lg:col-span-9">
-              {BOUTIQUE_COLLECTIONS.map((col) => (
+              {collections.map((col) => (
                 <button
                   key={col.id}
                   type="button"

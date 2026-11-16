@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { BoutiqueClient } from "@/components/public/boutique-client";
 import { BreadcrumbJsonLd } from "@/components/seo/structured-data";
+import { getPublicBoutiqueCatalogCached } from "@/lib/public/boutique-data";
 import { buildMetadata } from "@/lib/seo/metadata";
 
 export const metadata: Metadata = buildMetadata({
@@ -15,13 +16,22 @@ export default async function ProductsPage({
 }: {
   searchParams?: Promise<{ category?: string }>;
 }) {
-  const params = searchParams ? await searchParams : {};
+  const [params, boutiqueCatalog] = await Promise.all([
+    searchParams ? searchParams : Promise.resolve({} as { category?: string }),
+    getPublicBoutiqueCatalogCached(),
+  ]);
   const initialCategory =
     typeof params.category === "string" ? params.category : "all";
 
   return (
     <>
-      <BoutiqueClient initialCategory={initialCategory} />
+      <BoutiqueClient
+        initialCategory={initialCategory}
+        heroImage={boutiqueCatalog.heroImage}
+        heroAlt={boutiqueCatalog.heroAlt}
+        products={boutiqueCatalog.products}
+        collections={boutiqueCatalog.collections}
+      />
       <BreadcrumbJsonLd
         items={[
           { name: "Home", path: "/" },

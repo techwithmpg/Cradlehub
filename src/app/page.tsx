@@ -3,9 +3,12 @@ import { cookies } from "next/headers";
 import { PublicShell } from "@/components/public/public-shell";
 import { HomePageSections } from "@/components/public/home-page-sections";
 import { PublicMobileHome } from "@/components/public/mobile/public-mobile-home";
-import { getPublicBranches } from "@/lib/queries/branches";
-import { getPublicServiceCatalog } from "@/lib/queries/services";
-import { getPublicSiteSections } from "@/lib/queries/public-site";
+import {
+  getPublicBranchesSafeCached,
+  getPublicServiceCatalogCached,
+  getPublicSiteSectionsCached,
+} from "@/lib/public/public-site-cached";
+import { getPublicBoutiqueCatalogCached } from "@/lib/public/boutique-data";
 import { getPublishedBrandSettingsCached } from "@/lib/queries/marketing-brand";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
 import { MOBILE_PRELOADER_COOKIE } from "@/lib/public/mobile-preloader";
@@ -20,13 +23,15 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function HomePage() {
-  const [branches, services, managedSections, brand, cookieStore] = await Promise.all([
-    getPublicBranches(),
-    getPublicServiceCatalog(),
-    getPublicSiteSections({ includeDisabled: true }),
-    getPublishedBrandSettingsCached(),
-    cookies(),
-  ]);
+  const [branches, services, managedSections, boutiqueCatalog, brand, cookieStore] =
+    await Promise.all([
+      getPublicBranchesSafeCached(),
+      getPublicServiceCatalogCached(),
+      getPublicSiteSectionsCached({ includeDisabled: true }),
+      getPublicBoutiqueCatalogCached(),
+      getPublishedBrandSettingsCached(),
+      cookies(),
+    ]);
   const hasSeenMobilePreloader = cookieStore.get(MOBILE_PRELOADER_COOKIE)?.value === "1";
   const primaryPhone = branches[0]?.phone
     ? { label: branches[0].phone, href: `tel:${branches[0].phone.replace(/\s/g, "")}` }
@@ -86,9 +91,19 @@ export default async function HomePage() {
       footerLogoAlt={brand.footerLogoAlt}
       taglineText={brand.taglineText}
     >
-      <PublicMobileHome branches={branches} services={services} sections={normalizedSections} />
+      <PublicMobileHome
+        branches={branches}
+        services={services}
+        sections={normalizedSections}
+        boutiqueProducts={boutiqueCatalog.products}
+      />
       <div className="hidden md:block">
-        <HomePageSections branches={branches} services={services} sections={normalizedSections} />
+        <HomePageSections
+          branches={branches}
+          services={services}
+          sections={normalizedSections}
+          boutiqueProducts={boutiqueCatalog.products}
+        />
       </div>
       <LocalBusinessJsonLd />
       <FAQPageJsonLd faqs={homepageFaqs} />

@@ -16,6 +16,7 @@ import {
   marketingDraftScheduleSchema,
   type MarketingContentDraftInput,
 } from "@/lib/validations/marketing";
+import { invalidatePublicSiteSurfaces } from "@/lib/cache/cache-tags";
 import { getPublicSiteSection, updatePublicSiteSection } from "@/lib/queries/public-site";
 import { validateTrustedSiteIconPackage } from "@/lib/marketing/icon-package-validator";
 
@@ -285,7 +286,7 @@ function revalidateMarketingWorkspace() {
 }
 
 function revalidatePublishedSite() {
-  revalidatePath("/");
+  invalidatePublicSiteSurfaces();
   revalidateMarketingWorkspace();
 }
 

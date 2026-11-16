@@ -1,6 +1,7 @@
 import React from "react";
 import type { PublicBranch } from "@/lib/public/public-site-data";
 import type { PublicCatalogService } from "@/lib/queries/services";
+import type { BoutiqueProduct } from "@/lib/public/boutique-catalog";
 import type { NormalizedPublicSiteSections } from "@/lib/public/normalized-sections";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
 import { MobileHomeHeroCarousel } from "./mobile-home-hero-carousel";
@@ -19,18 +20,21 @@ export type PublicMobileHomeProps = {
   branches: PublicBranch[];
   services: PublicCatalogService[];
   sections?: NormalizedPublicSiteSections;
+  boutiqueProducts?: BoutiqueProduct[];
 };
 
 export type PublicMobileHomeRendererProps = {
   sections: NormalizedPublicSiteSections;
   branches: PublicBranch[];
   services: PublicCatalogService[];
+  boutiqueProducts?: BoutiqueProduct[];
 };
 
 export function PublicMobileHomeRenderer({
   sections,
   branches,
   services,
+  boutiqueProducts,
 }: PublicMobileHomeRendererProps) {
   const safeServices = services.filter(isPublicSafeService);
   const featured = safeServices.slice(0, 6);
@@ -47,7 +51,11 @@ export function PublicMobileHomeRenderer({
       <MobileTrustPanel />
       <MobileMostLovedTreatments services={featured} />
       <MobileExperienceGrid siteImages={sections.siteImages} />
-      <MobileSignatureRituals services={safeServices} siteImages={sections.siteImages} />
+      <MobileSignatureRituals
+        services={safeServices}
+        siteImages={sections.siteImages}
+        boutiqueProducts={boutiqueProducts}
+      />
       <MobileBranchesSection branches={branches} siteImages={sections.siteImages} />
       <MobileFinalCta quoteBanner={sections.quoteBanner} siteImages={sections.siteImages} />
     </div>
@@ -58,6 +66,7 @@ export function PublicMobileHome({
   branches,
   services,
   sections,
+  boutiqueProducts,
 }: PublicMobileHomeProps) {
   const resolved = sections ?? resolvePublicSiteSections([]);
   const safeServices = services.filter(isPublicSafeService);
@@ -68,6 +77,7 @@ export function PublicMobileHome({
         sections={resolved}
         branches={branches}
         services={safeServices}
+        boutiqueProducts={boutiqueProducts}
       />
     </div>
   );

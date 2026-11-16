@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { invalidatePublicSiteSurfaces } from "@/lib/cache/cache-tags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
@@ -196,13 +196,7 @@ export async function updatePublicSiteSection(
     return { success: false, error: error?.message ?? "Could not save section." };
   }
 
-  revalidatePath("/");
-  revalidatePath("/about");
-  revalidatePath("/services");
-  revalidatePath("/branches");
-  revalidatePath("/massage-spa-bacolod");
-  revalidatePath("/home-service-massage-bacolod");
-  revalidatePath("/owner/marketing");
+  invalidatePublicSiteSurfaces();
 
   return { success: true, section: data };
 }
@@ -250,8 +244,7 @@ export async function createPublicSiteAsset(
     return { success: false, error: error?.message ?? "Could not create asset." };
   }
 
-  revalidatePath("/");
-  revalidatePath("/owner/marketing");
+  invalidatePublicSiteSurfaces();
 
   return { success: true, asset: data };
 }
@@ -300,8 +293,7 @@ export async function updatePublicSiteAsset(
     return { success: false, error: error?.message ?? "Could not update asset." };
   }
 
-  revalidatePath("/");
-  revalidatePath("/owner/marketing");
+  invalidatePublicSiteSurfaces();
 
   return { success: true, asset: data };
 }
@@ -336,8 +328,7 @@ export async function disablePublicSiteAsset(rawInput: unknown): Promise<ActionR
     return { success: false, error: error.message };
   }
 
-  revalidatePath("/");
-  revalidatePath("/owner/marketing");
+  invalidatePublicSiteSurfaces();
 
   return { success: true };
 }

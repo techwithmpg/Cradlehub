@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, MapPin, Phone } from "lucide-react";
 import {
@@ -50,11 +51,13 @@ export function MobileBranchesSection({
                 className="overflow-hidden rounded-2xl border border-[#E5DEC9] bg-white shadow-xs"
               >
                 <div className="relative h-36 w-full bg-[#EDE4D3]">
-                  <img
+                  <Image
                     src={img}
                     alt={branch.name}
+                    fill
+                    sizes="(max-width: 768px) 92vw, 420px"
                     loading="lazy"
-                    className="h-full w-full object-cover"
+                    className="object-cover"
                   />
                 </div>
                 <div className="p-4">

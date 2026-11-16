@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Calendar } from "lucide-react";
 import type { NormalizedQuoteBannerSection } from "@/lib/public/normalized-sections";
@@ -32,11 +33,13 @@ export function MobileFinalCta({ quoteBanner, siteImages }: MobileFinalCtaProps)
 
   return (
     <section className="relative overflow-hidden bg-[#10261D] px-5 py-12 text-center text-[#FAF5E9]">
-      <img
+      <Image
         src={bgImage}
         alt="Calm spa candlelight ambiance"
+        fill
+        sizes="100vw"
         loading="lazy"
-        className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-30"
+        className="pointer-events-none object-cover opacity-30"
       />
       <div className="relative z-10 mx-auto max-w-sm">
         <p className="text-[10px] font-semibold tracking-[0.24em] text-[#D4B57A] uppercase">

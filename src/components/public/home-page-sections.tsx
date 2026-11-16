@@ -27,18 +27,20 @@ import type { PublicCatalogService } from "@/lib/queries/services";
 import type { NormalizedPublicSiteSections } from "@/lib/public/normalized-sections";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
 import { SPA_IMAGES } from "@/constants/spa-images";
-import { BOUTIQUE_PRODUCTS } from "@/lib/public/boutique-catalog";
+import { BOUTIQUE_PRODUCTS, type BoutiqueProduct } from "@/lib/public/boutique-catalog";
 
 export type HomePageSectionsProps = {
   branches: PublicBranch[];
   services: PublicCatalogService[];
   sections?: NormalizedPublicSiteSections;
+  boutiqueProducts?: BoutiqueProduct[];
 };
 
 export type HomePageSectionsRendererProps = {
   sections: NormalizedPublicSiteSections;
   branches: PublicBranch[];
   services: PublicCatalogService[];
+  boutiqueProducts?: BoutiqueProduct[];
 };
 
 const SERVICE_EXPERIENCE_CARDS = [
@@ -102,6 +104,7 @@ export function HomePageSectionsRenderer({
   sections,
   branches,
   services,
+  boutiqueProducts = BOUTIQUE_PRODUCTS,
 }: HomePageSectionsRendererProps) {
   const { hero, about, quoteBanner, signatureServices, siteImages } = sections;
 
@@ -591,7 +594,7 @@ export function HomePageSectionsRenderer({
               </Link>
             </div>
             <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              {BOUTIQUE_PRODUCTS.slice(0, 4).map((item) => (
+              {boutiqueProducts.slice(0, 4).map((item) => (
                 <Link
                   key={item.id}
                   href={`/products?category=${item.category}`}
@@ -667,6 +670,7 @@ export function HomePageSections({
   branches,
   services,
   sections,
+  boutiqueProducts,
 }: HomePageSectionsProps) {
   const resolvedSections = sections ?? resolvePublicSiteSections([]);
   return (
@@ -674,6 +678,7 @@ export function HomePageSections({
       sections={resolvedSections}
       branches={branches}
       services={services}
+      boutiqueProducts={boutiqueProducts}
     />
   );
 }

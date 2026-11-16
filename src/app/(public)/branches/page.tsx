@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { MapPin, Phone, Mail, Clock, ArrowRight } from "lucide-react";
-import { getPublicBranches } from "@/lib/queries/branches";
-import { getPublicSiteSections } from "@/lib/queries/public-site";
+import {
+  getPublicBranchesSafeCached,
+  getPublicSiteSectionsCached,
+} from "@/lib/public/public-site-cached";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
-import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
 import { PublicMobileBranches } from "@/components/public/mobile/public-mobile-branches";
 import { SPA_IMAGES } from "@/constants/spa-images";
@@ -21,11 +22,8 @@ export const metadata: Metadata = buildMetadata({
 
 export default async function BranchesPage() {
   const [branches, managedSections] = await Promise.all([
-    getPublicBranches(),
-    getPublicSiteSections({ includeDisabled: false }).catch((error) => {
-      if (!isPublicReadTransportFailure(error)) throw error;
-      return [];
-    }),
+    getPublicBranchesSafeCached(),
+    getPublicSiteSectionsCached({ includeDisabled: false }),
   ]);
 
   const resolved = resolvePublicSiteSections(managedSections);

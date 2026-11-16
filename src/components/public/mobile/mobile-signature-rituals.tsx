@@ -1,18 +1,21 @@
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import type { PublicCatalogService } from "@/lib/queries/services";
-import { BOUTIQUE_PRODUCTS } from "@/lib/public/boutique-catalog";
+import { BOUTIQUE_PRODUCTS, type BoutiqueProduct } from "@/lib/public/boutique-catalog";
 
 type MobileSignatureRitualsProps = {
   services?: PublicCatalogService[];
   siteImages?: Record<string, string>;
+  boutiqueProducts?: BoutiqueProduct[];
 };
 
 export function MobileSignatureRituals({
   services = [],
+  boutiqueProducts = BOUTIQUE_PRODUCTS,
 }: MobileSignatureRitualsProps) {
-  const highlights = BOUTIQUE_PRODUCTS.slice(0, 2);
+  const highlights = boutiqueProducts.slice(0, 2);
 
   return (
     <section className="bg-[#F7F3EB] px-4 py-7 text-[#10261D]">
@@ -43,11 +46,13 @@ export function MobileSignatureRituals({
               className="overflow-hidden rounded-2xl border border-[#E5DEC9] bg-white p-2.5 shadow-xs"
             >
               <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[#F5EFE3]">
-                <img
+                <Image
                   src={item.image}
                   alt={item.imageAlt}
+                  fill
+                  sizes="(max-width: 768px) 45vw, 220px"
                   loading="lazy"
-                  className="h-full w-full object-cover"
+                  className="object-cover"
                 />
               </div>
               <p className="mt-2 truncate text-xs font-semibold text-[#10261D]">
