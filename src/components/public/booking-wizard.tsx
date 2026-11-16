@@ -200,47 +200,48 @@ const MOBILE_PROGRESS_STEPS = ["Branch", "Service", "Date & Time", "Details", "C
 const PRECISE_LOCATION_ERROR =
   "Please select your address from the Google suggestions so our therapist and driver can find you accurately.";
 const DEFAULT_STAFF_PREFERENCE = "auto" as const;
-const BOOKING_PAGE_BACKGROUND = "#F7F3EB";
+const BOOKING_PAGE_BACKGROUND =
+  "radial-gradient(1200px 560px at 14% 0%, rgba(28,89,63,0.42), transparent 62%), radial-gradient(880px 480px at 88% 12%, rgba(212,181,122,0.12), transparent 60%), #071A12";
 const BOOKING_HERO_OVERLAY =
-  "linear-gradient(90deg, rgba(16,38,29,0.92) 0%, rgba(16,38,29,0.74) 55%, rgba(16,38,29,0.52) 100%)";
+  "linear-gradient(90deg, rgba(5,20,14,0.94) 0%, rgba(5,20,14,0.78) 55%, rgba(5,20,14,0.5) 100%)";
 const WARM_HEADING_STYLE = {
   fontFamily: "var(--sp-font-display)",
-  color: "#10261D",
+  color: "#FAF5E9",
 } as const;
-const WARM_BODY_STYLE = { color: "#3E4C44" } as const;
-const WARM_MUTED_STYLE = { color: "#6B766F" } as const;
-const WARM_LABEL_STYLE = { color: "#8A6D3B" } as const;
+const WARM_BODY_STYLE = { color: "#CBD6CD" } as const;
+const WARM_MUTED_STYLE = { color: "#9FB1A6" } as const;
+const WARM_LABEL_STYLE = { color: "#E5C98B" } as const;
 const WARM_GLASS_PANEL_CLS =
-  "border border-[#E5DEC9] bg-white shadow-xs";
+  "eg-glass-card shadow-[0_20px_50px_-24px_rgba(0,0,0,0.65)]";
 const WARM_SELECTED_CARD_CLS =
-  "border-[#163A2B] bg-[#F5EFE3] ring-1 ring-[#163A2B]/30 shadow-sm";
+  "border-[#D4B57A] bg-[linear-gradient(160deg,rgba(20,64,46,0.9)_0%,rgba(11,38,28,0.92)_100%)] ring-1 ring-[#D4B57A]/45 shadow-[0_14px_34px_-16px_rgba(212,181,122,0.38)]";
 const WARM_IDLE_CARD_CLS =
-  "border-[#E5DEC9] bg-white hover:border-[#C8A96B] hover:bg-[#FCFAF5]";
+  "border-[#D4B57A]/22 bg-[#0A2219]/78 backdrop-blur-md hover:border-[#D4B57A]/55 hover:bg-[#0E2E22]/88";
 const WARM_PRIMARY_BUTTON_CLS =
-  "bg-[#163A2B] hover:bg-[#1E4D3A] text-[#FAF5E9] shadow-sm";
-const WARM_DISABLED_BUTTON_CLS = "border border-[#DDD4C2] bg-[#EDE4D3] text-[#8E9690]";
-const WARM_SKELETON_CLS = "bg-[#EDE4D3] after:via-white/60";
+  "bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] text-[#071A12] shadow-[0_8px_24px_-8px_rgba(212,181,122,0.55)] hover:brightness-105";
+const WARM_DISABLED_BUTTON_CLS = "border border-[#D4B57A]/20 bg-[#0A2219]/70 text-[#889B90]";
+const WARM_SKELETON_CLS = "bg-[#0F2F23]/80 after:via-[#D4B57A]/15";
 const BOOKING_CALENDAR_CLASSNAMES = {
-  root: "w-fit text-[#10261D]",
+  root: "w-fit text-[#FAF5E9]",
   months: "relative flex flex-col gap-4 md:flex-row",
   month: "flex w-full flex-col gap-4",
   month_caption: "flex h-(--cell-size) w-full items-center justify-center px-(--cell-size)",
-  caption_label: "select-none text-sm font-semibold text-[#10261D]",
+  caption_label: "select-none text-sm font-semibold text-[#FAF5E9]",
   nav: "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
   button_previous:
-    "size-(--cell-size) select-none rounded-lg border border-[#DDD4C2] bg-white p-0 text-[#163A2B] transition-colors hover:border-[#C8A96B] hover:bg-[#F5EFE3] aria-disabled:opacity-35",
+    "size-(--cell-size) select-none rounded-lg border border-[#D4B57A]/28 bg-[#0A251B] p-0 text-[#E5C98B] transition-colors hover:border-[#D4B57A]/60 hover:bg-[#123A2B] aria-disabled:opacity-35",
   button_next:
-    "size-(--cell-size) select-none rounded-lg border border-[#DDD4C2] bg-white p-0 text-[#163A2B] transition-colors hover:border-[#C8A96B] hover:bg-[#F5EFE3] aria-disabled:opacity-35",
+    "size-(--cell-size) select-none rounded-lg border border-[#D4B57A]/28 bg-[#0A251B] p-0 text-[#E5C98B] transition-colors hover:border-[#D4B57A]/60 hover:bg-[#123A2B] aria-disabled:opacity-35",
   weekdays: "flex",
-  weekday: "flex-1 rounded-lg text-[0.8rem] font-medium text-[#6B766F] select-none",
+  weekday: "flex-1 rounded-lg text-[0.8rem] font-medium text-[#9FB1A6] select-none",
   week: "mt-2 flex w-full",
   month_grid: "w-full border-collapse",
   day: "group/day relative aspect-square h-full w-full rounded-lg p-0 text-center select-none",
   day_button:
-    "relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 rounded-lg border border-transparent bg-transparent text-[#10261D] leading-none font-medium transition-colors hover:border-[#C8A96B] hover:bg-[#F5EFE3] focus-visible:border-[#163A2B] focus-visible:ring-2 focus-visible:ring-[#163A2B]/20 disabled:text-[#A4ACA6] disabled:hover:border-transparent disabled:hover:bg-transparent data-[selected-single=true]:border-[#163A2B] data-[selected-single=true]:bg-[#163A2B] data-[selected-single=true]:text-[#FAF5E9] data-[selected-single=true]:shadow-sm data-[selected-single=true]:hover:bg-[#1E4D3A]",
-  today: "rounded-lg border border-[#C8A96B] bg-[#F5EFE3] text-[#10261D]",
-  outside: "text-[#A4ACA6] aria-selected:text-[#FAF5E9]",
-  disabled: "text-[#A4ACA6] opacity-45",
+    "relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 rounded-lg border border-transparent bg-transparent text-[#FAF5E9] leading-none font-medium transition-colors hover:border-[#D4B57A]/55 hover:bg-[#103325] focus-visible:border-[#E5C98B] focus-visible:ring-2 focus-visible:ring-[#D4B57A]/35 disabled:text-[#607368] disabled:hover:border-transparent disabled:hover:bg-transparent data-[selected-single=true]:border-[#D4B57A] data-[selected-single=true]:bg-[#D4B57A] data-[selected-single=true]:text-[#071A12] data-[selected-single=true]:shadow-sm data-[selected-single=true]:hover:bg-[#E4C98E]",
+  today: "rounded-lg border border-[#D4B57A]/65 bg-[#0F3124] text-[#FAF5E9]",
+  outside: "text-[#607368] aria-selected:text-[#071A12]",
+  disabled: "text-[#607368] opacity-45",
   selected: "rounded-lg",
   hidden: "invisible",
 };
@@ -1426,19 +1427,19 @@ export function BookingWizard({
     <div
       className={
         mode === "public"
-          ? "public-booking-surface flex h-[calc(100dvh-4rem)] min-h-[calc(100dvh-4rem)] w-full max-w-full flex-col overflow-hidden text-[#10261D] md:block md:h-auto md:min-h-screen md:overflow-x-hidden md:overflow-y-visible"
+          ? "public-booking-surface flex h-[calc(100dvh-4rem)] min-h-[calc(100dvh-4rem)] w-full max-w-full flex-col overflow-hidden text-[#FAF5E9] md:block md:h-auto md:min-h-screen md:overflow-x-hidden md:overflow-y-visible"
           : ""
       }
       style={{ background: mode === "public" ? BOOKING_PAGE_BACKGROUND : "transparent" }}
     >
       {mode === "public" && currentStepName !== "details" && (
-        <div className="relative hidden overflow-hidden pt-28 pb-12 md:block lg:pt-32 lg:pb-16">
+        <div className="relative hidden overflow-hidden border-b border-[#D4B57A]/15 pt-28 pb-12 md:block lg:pt-32 lg:pb-16">
           <div className="absolute inset-0">
             <Image
               src={SPA_IMAGES.booking}
               alt="Spa atmosphere"
               fill
-              className="object-cover"
+              className="eg-hero-photo object-cover"
               sizes="100vw"
             />
             <div
@@ -1479,18 +1480,18 @@ export function BookingWizard({
         {mode === "public" && currentStepName !== "success" && (
           <div className="mb-3 shrink-0 text-center md:hidden">
             {currentStepName === "details" ? (
-              <h1 className="text-[22px] font-medium leading-tight text-[#10261D] [font-family:var(--sp-font-display)]">
+              <h1 className="text-[22px] font-medium leading-tight text-[#FAF5E9] [font-family:var(--sp-font-display)]">
                 Details
               </h1>
             ) : (
               <>
-                <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#8A6D3B]">
+                <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#E5C98B]">
                   Book Your Pause
                 </p>
-                <h1 className="text-[22px] font-medium leading-none text-[#10261D] [font-family:var(--sp-font-display)]">
+                <h1 className="text-[22px] font-medium leading-none text-[#FAF5E9] [font-family:var(--sp-font-display)]">
                   Choose your care
                 </h1>
-                <p className="mx-auto mt-1.5 max-w-[270px] text-[11px] leading-4 text-[#55635B]">
+                <p className="mx-auto mt-1.5 max-w-[270px] text-[11px] leading-4 text-[#CBD6CD]">
                   Select your branch, treatment, time, and details. We&apos;ll guide you gently.
                 </p>
               </>
@@ -1506,24 +1507,24 @@ export function BookingWizard({
                   {index < MOBILE_PROGRESS_STEPS.length - 1 && (
                     <span
                       className={`absolute left-1/2 top-2.5 h-px w-full ${
-                        mobileProgressIndex > index ? "bg-[#B68A3C]" : "bg-[#E5DEC9]"
+                        mobileProgressIndex > index ? "bg-[#D4B57A]" : "bg-[#D4B57A]/22"
                       }`}
                     />
                   )}
                   <span
                     className={`relative z-10 flex h-5 w-5 items-center justify-center rounded-full border text-[9px] font-semibold ${
                       mobileProgressIndex > index
-                        ? "border-[#163A2B] bg-[#163A2B] text-[#FCFAF5]"
+                        ? "border-[#D4B57A] bg-[#D4B57A]/20 text-[#E5C98B]"
                         : mobileProgressIndex === index
-                          ? "border-[#B68A3C] bg-[#D4B57A] text-[#10261D] shadow-xs"
-                          : "border-[#E5DEC9] bg-white text-[#55635B]"
+                          ? "border-[#E4C98E] bg-[#D4B57A] text-[#071A12] shadow-xs"
+                          : "border-[#D4B57A]/25 bg-[#092118] text-[#9FB1A6]"
                     }`}
                   >
                     {mobileProgressIndex > index ? <Check className="h-2.5 w-2.5" /> : index + 1}
                   </span>
                   <span
                     className={`mt-1.5 text-center text-[8.5px] font-medium leading-3 ${
-                      mobileProgressIndex >= index ? "text-[#10261D]" : "text-[#55635B]"
+                      mobileProgressIndex >= index ? "text-[#FAF5E9]" : "text-[#9FB1A6]"
                     }`}
                   >
                     {label}
@@ -1546,10 +1547,10 @@ export function BookingWizard({
                     <div
                       className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full text-[11px] sm:text-[12px] font-semibold transition-all duration-300 ${
                         step > s.id
-                          ? "border border-[#B68A3C]/50 bg-[#EFE2C2] text-[#163A2B]"
+                          ? "border border-[#D4B57A]/60 bg-[#D4B57A]/20 text-[#E5C98B]"
                           : step === s.id
-                            ? "bg-[#163A2B] text-[#FCFAF5] shadow-xs"
-                            : "border border-[#E5DEC9] bg-white text-[#55635B]"
+                            ? "bg-gradient-to-br from-[#D4B57A] to-[#C8A96B] text-[#071A12] shadow-[0_6px_18px_-6px_rgba(212,181,122,0.65)]"
+                            : "border border-[#D4B57A]/25 bg-[#092118] text-[#9FB1A6]"
                       }`}
                     >
                       {step > s.id ? (
@@ -1562,7 +1563,7 @@ export function BookingWizard({
                     </div>
                     <span
                       className={`hidden sm:block text-[10px] mt-1.5 font-medium ${
-                        step >= s.id ? "text-[#10261D] font-semibold" : "text-[#55635B]"
+                        step >= s.id ? "text-[#FAF5E9] font-semibold" : "text-[#9FB1A6]"
                       }`}
                     >
                       {s.label}
@@ -1571,7 +1572,7 @@ export function BookingWizard({
                   {i < visibleSteps.length - 1 && (
                     <div
                       className={`w-4 sm:w-8 lg:w-12 h-0.5 rounded-full mb-4 sm:mb-3 transition-colors duration-300 ${
-                        step > s.id ? "bg-[#B68A3C]" : "bg-[#E5DEC9]"
+                        step > s.id ? "bg-[#D4B57A]" : "bg-[#D4B57A]/22"
                       }`}
                     />
                   )}
@@ -1612,6 +1613,7 @@ export function BookingWizard({
                   : ""
               }
             >
+              <div key={currentStepName} className={mode === "public" ? "eg-step-enter" : undefined}>
               {currentStepName === "branch" && (
                 <StepBranches
                   branches={branches}
@@ -1821,6 +1823,7 @@ export function BookingWizard({
                   staffPreferenceNeedsConfirmation={success.staffPreferenceNeedsConfirmation}
                 />
               )}
+              </div>
             </div>
 
             {/* Navigation */}
@@ -1829,10 +1832,10 @@ export function BookingWizard({
                 className={
                   mode === "public"
                     ? isTherapistStep
-                      ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#E5DEC9] bg-[#FCFAF5]/95 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:relative md:mt-8 md:border-t md:bg-transparent md:px-0 md:pt-6 md:shadow-none md:backdrop-blur-0"
+                      ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/22 bg-[#061810]/92 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl md:relative md:mt-8 md:border-t md:bg-transparent md:px-0 md:pt-6 md:shadow-none md:backdrop-blur-0"
                       : currentStepName === "details"
-                        ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#E5DEC9] bg-[#FCFAF5]/95 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:static md:mx-auto md:mt-5 md:w-full md:max-w-3xl md:border-t md:bg-transparent md:px-0 md:pt-5 md:shadow-none md:backdrop-blur-0"
-                        : "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#E5DEC9] bg-[#FCFAF5]/95 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
+                        ? "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/22 bg-[#061810]/92 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl md:static md:mx-auto md:mt-5 md:w-full md:max-w-3xl md:border-t md:bg-transparent md:px-0 md:pt-5 md:shadow-none md:backdrop-blur-0"
+                        : "fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-[#D4B57A]/22 bg-[#061810]/92 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl md:static md:mt-10 md:border-t md:bg-transparent md:px-0 md:pt-8 md:shadow-none md:backdrop-blur-0"
                     : "flex items-center justify-between mt-10 pt-8 border-t border-[#EDE4D3]"
                 }
                 style={{
@@ -1843,7 +1846,7 @@ export function BookingWizard({
                 <button
                   onClick={handleBack}
                   disabled={currentStepName === "branch"}
-                  className="flex min-h-11 items-center gap-2 rounded-full border border-[#C8A96B]/55 bg-[#FCFAF5] px-4 text-[13px] font-medium text-[#10261D] transition-colors disabled:cursor-not-allowed disabled:opacity-30 hover:border-[#C8A96B]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A] md:bg-transparent"
+                  className="flex min-h-11 items-center gap-2 rounded-full border border-[#D4B57A]/40 bg-[#0D2E20]/80 px-5 text-[13px] font-medium text-[#FAF5E9] transition-colors disabled:cursor-not-allowed disabled:opacity-30 hover:border-[#E5C98B] hover:bg-[#14402E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A] md:bg-[#0D2E20]/50"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   Back
@@ -1943,8 +1946,8 @@ function SummaryRow({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#E5DEC9] bg-[#F7F3EB]">
-        <Icon className="h-4 w-4 text-[#8A6D3B]" />
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/25 bg-[#0A251A]/90">
+        <Icon className="h-4 w-4 text-[#E5C98B]" />
       </div>
       <div>
         <p className="text-[11px] font-medium uppercase tracking-wide" style={WARM_LABEL_STYLE}>
@@ -1976,9 +1979,9 @@ function TherapistSummaryItem({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-4 border-b border-[#163A2B]/16 py-4 last:border-b-0">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#E5DEC9] bg-[#F7F3EB]">
-        <Icon className="h-[18px] w-[18px] text-[#8A6D3B]" />
+    <div className="flex items-start gap-4 border-b border-[#D4B57A]/16 py-4 last:border-b-0">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D4B57A]/25 bg-[#0A251A]/90">
+        <Icon className="h-[18px] w-[18px] text-[#E5C98B]" />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-semibold uppercase tracking-wide" style={WARM_LABEL_STYLE}>
@@ -2068,7 +2071,7 @@ function BookingSummary({
 
           <div className="mt-5">
             <TherapistSummaryItem icon={Building} label="Branch">
-              {branch?.name ?? <span className="font-medium text-[#7A847D]">Not selected</span>}
+              {branch?.name ?? <span className="font-medium text-[#9FB1A6]">Not selected</span>}
             </TherapistSummaryItem>
             {bookingFor === "someone_else" && (
               <TherapistSummaryItem icon={Gift} label="For Recipient">
@@ -2094,14 +2097,14 @@ function BookingSummary({
                 {homeServiceQuote ? (
                   <p>
                     {formatCurrency(homeServiceQuote.travelFee)}
-                    <span className="ml-1 text-[12px] font-normal text-[#4C5A52]">
+                    <span className="ml-1 text-[12px] font-normal text-[#CBD6CD]">
                       · {homeServiceQuote.drivingDistanceKm.toFixed(1)} km
                     </span>
                   </p>
                 ) : homeServiceQuoteLoading ? (
-                  <span className="text-[12px] text-[#8A6D3B]/80">Calculating...</span>
+                  <span className="text-[12px] text-[#E5C98B]/85">Calculating...</span>
                 ) : (
-                  <span className="font-medium text-[#7A847D]">Location required</span>
+                  <span className="font-medium text-[#9FB1A6]">Location required</span>
                 )}
               </TherapistSummaryItem>
             )}
@@ -2110,7 +2113,7 @@ function BookingSummary({
               label={services.length === 1 ? "Service" : "Services"}
             >
               {services.length === 0 ? (
-                <span className="font-medium text-[#7A847D]">Not selected</span>
+                <span className="font-medium text-[#9FB1A6]">Not selected</span>
               ) : (
                 <>
                   {bookingFor === "me_and_others" && attendees
@@ -2130,27 +2133,27 @@ function BookingSummary({
                     </p>
                   ) : null}
                   {services.length > 0 && visitType === "home_service" && homeServiceQuote && (
-                    <div className="mt-2 pt-2 border-t border-[#163A2B]/16 text-[13px] font-semibold flex justify-between" style={WARM_LABEL_STYLE}>
+                    <div className="mt-2 pt-2 border-t border-[#D4B57A]/20 text-[13px] font-semibold flex justify-between" style={WARM_LABEL_STYLE}>
                       <span>Total with Transport</span>
-                      <span className="text-[#10261D]">{formatCurrency(totalPrice + homeServiceQuote.travelFee)}</span>
+                      <span className="text-[#FAF5E9]">{formatCurrency(totalPrice + homeServiceQuote.travelFee)}</span>
                     </div>
                   )}
                 </>
               )}
             </TherapistSummaryItem>
             <TherapistSummaryItem icon={CalendarDays} label="Date & Time">
-              {dateTimeLabel ?? <span className="font-medium text-[#7A847D]">Not selected</span>}
+              {dateTimeLabel ?? <span className="font-medium text-[#9FB1A6]">Not selected</span>}
             </TherapistSummaryItem>
             <TherapistSummaryItem icon={User} label="Therapist">
-              {staffLabel ?? <span className="font-medium text-[#7A847D]">Not selected</span>}
+              {staffLabel ?? <span className="font-medium text-[#9FB1A6]">Not selected</span>}
               {staffSubLabel ? (
-                <p className="mt-1 text-[12px] font-medium text-[#4C5A52]">{staffSubLabel}</p>
+                <p className="mt-1 text-[12px] font-medium text-[#CBD6CD]">{staffSubLabel}</p>
               ) : null}
             </TherapistSummaryItem>
           </div>
 
-          <div className="mt-6 flex gap-4 rounded-xl border border-[#E5DEC9] bg-[#F7F3EB] p-4">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#C8A96B]/55 bg-[#FCFAF5] text-[#8A6D3B] shadow-sm">
+          <div className="mt-6 flex gap-4 rounded-xl border border-[#D4B57A]/25 bg-[#092118]/85 p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D4B57A]/35 bg-[#0A251A] text-[#E5C98B] shadow-sm">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
@@ -2228,8 +2231,8 @@ function BookingSummary({
 
         {/* Services list */}
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#E5DEC9] bg-[#F7F3EB]">
-            <Clock className="h-4 w-4 text-[#8A6D3B]" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/25 bg-[#0A251A]/90">
+            <Clock className="h-4 w-4 text-[#E5C98B]" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-wide" style={WARM_LABEL_STYLE}>
@@ -2277,7 +2280,7 @@ function BookingSummary({
         />
 
         {services.length > 0 && (
-          <div className="pt-3 border-t border-[#163A2B]/16 flex justify-between items-center text-[13px] font-semibold">
+          <div className="pt-3 border-t border-[#D4B57A]/20 flex justify-between items-center text-[13px] font-semibold">
             <span style={WARM_LABEL_STYLE}>
               {visitType === "home_service" && homeServiceQuote ? "Total (with Transport)" : "Total"}
             </span>
@@ -2347,7 +2350,7 @@ export function BookingForSection({
       <div
         role="radiogroup"
         aria-label="Who is this booking for?"
-        className="grid grid-cols-3 gap-1 rounded-xl border border-[#C8A96B]/55 bg-[#FCFAF5] p-1"
+        className="grid grid-cols-3 gap-1 rounded-xl border border-[#D4B57A]/30 bg-[#071E15]/90 p-1"
       >
         {(
           [
@@ -2360,8 +2363,8 @@ export function BookingForSection({
             key={choice}
             className={`flex min-h-11 min-w-0 cursor-pointer items-center justify-center rounded-lg px-1 text-center text-[11px] font-semibold leading-tight transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#D4B57A] min-[390px]:text-[12px] ${
               bookingFor === choice
-                ? "bg-[#163A2B] text-[#FAF5E9]"
-                : "text-[#10261D] hover:bg-[#F5EFE3]"
+                ? "bg-gradient-to-r from-[#D4B57A] to-[#E4C98E] text-[#071A12] shadow-sm"
+                : "text-[#FAF5E9] hover:bg-[#103425]"
             }`}
           >
             <input
@@ -2379,7 +2382,7 @@ export function BookingForSection({
 
       {/* Progressive disclosure: Someone else */}
       {bookingFor === "someone_else" && (
-        <div className="mt-4 pt-4 border-t border-[#E5DEC9]">
+        <div className="mt-4 pt-4 border-t border-[#D4B57A]/20">
           <label className={LABEL_CLS}>
             <User className="h-3.5 w-3.5" />
             Recipient Full Name *
@@ -2400,15 +2403,15 @@ export function BookingForSection({
 
       {/* Progressive disclosure: Me and others */}
       {bookingFor === "me_and_others" && (
-        <div className="mt-3 border-t border-[#E5DEC9] pt-3">
+        <div className="mt-3 border-t border-[#D4B57A]/20 pt-3">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8A6D3B]">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#E5C98B]">
               Guest Sessions
             </p>
               <button
                 type="button"
                 onClick={onAddAttendee}
-                className="inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-[#8A6D3B] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A]"
+                className="inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-[#E5C98B] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A]"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 Add Guest
@@ -2430,8 +2433,8 @@ export function BookingForSection({
                   key={att.id}
                   className={`flex min-h-12 shrink-0 items-center rounded-xl border text-[12px] transition-colors ${
                     isSelected
-                      ? "border-[#163A2B] bg-[#F5EFE3] text-[#10261D]"
-                      : "border-[#C8A96B]/55 bg-[#F7F3EB] text-[#10261D] hover:border-[#C8A96B]/55"
+                      ? "border-[#D4B57A] bg-[#12392A] text-[#FAF5E9]"
+                      : "border-[#D4B57A]/25 bg-[#082017] text-[#CBD6CD] hover:border-[#D4B57A]/55"
                   }`}
                 >
                   <button
@@ -2443,7 +2446,7 @@ export function BookingForSection({
                   >
                     <span>{guestLabel}</span>
                     <span
-                      className={`text-[10px] ${svcCount > 0 ? "text-[#8A6D3B]" : "text-[#4C5A52]"}`}
+                      className={`text-[10px] ${svcCount > 0 ? "text-[#E5C98B]" : "text-[#9FB1A6]"}`}
                     >
                       {svcCount > 0
                         ? `${svcCount} ${svcCount === 1 ? "service" : "services"} ✓`
@@ -2454,7 +2457,7 @@ export function BookingForSection({
                     <button
                       type="button"
                       onClick={() => onRemoveAttendee(att.id)}
-                      className="flex min-h-11 min-w-10 items-center justify-center border-l border-[#E5DEC9] text-[#4C5A52] hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#D4B57A]"
+                      className="flex min-h-11 min-w-10 items-center justify-center border-l border-[#D4B57A]/20 text-[#9FB1A6] hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#D4B57A]"
                       aria-label={`Remove ${guestLabel}`}
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -2481,7 +2484,7 @@ export function BookingForSection({
                 value={activeAttendee.name}
                 onChange={(e) => onRenameAttendee(activeAttendee.id, e.target.value)}
                 placeholder="e.g. Sarah"
-                className="min-h-10 min-w-0 flex-1 rounded-md border border-[#E5DEC9] bg-[#FCFAF5] px-2 text-[12px] text-[#10261D] focus:border-[#163A2B] focus:outline-none"
+                className="min-h-10 min-w-0 flex-1 rounded-md border border-[#D4B57A]/28 bg-[#071E15]/85 px-2 text-[12px] text-[#FAF5E9] placeholder:text-[#96A89D] focus:border-[#E5C98B] focus:outline-none"
               />
             </div>
           )}
@@ -2557,7 +2560,7 @@ function StepBranches({
               selected?.id === branch.id ? WARM_SELECTED_CARD_CLS : WARM_IDLE_CARD_CLS
             }`}
           >
-            <div className="relative h-[76px] overflow-hidden rounded-[7px] bg-[#F5EFE3] md:hidden">
+            <div className="relative h-[76px] overflow-hidden rounded-[7px] bg-[#0A251A] md:hidden">
               <Image
                 src={index % 2 === 0 ? SPA_IMAGES.contact : SPA_IMAGES.booking}
                 alt={`${branch.name} branch`}
@@ -2565,19 +2568,19 @@ function StepBranches({
                 className="object-cover"
                 sizes="72px"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#10261D]/70 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#05140E]/75 via-transparent to-transparent" />
             </div>
             <div
               className={`hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg md:flex ${
                 selected?.id === branch.id
-                  ? "border border-[#C8A96B]/55 bg-[#FCFAF5] text-[#8A6D3B]"
-                  : "border border-[#E5DEC9] bg-[#F7F3EB] text-[#8A6D3B]"
+                  ? "border border-[#D4B57A]/60 bg-[#D4B57A]/18 text-[#E5C98B]"
+                  : "border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]"
               }`}
             >
               <MapPin className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <span className="mb-1 inline-flex rounded-full border border-[#E5DEC9] bg-[#FCFAF5] px-2 py-0.5 text-[9px] font-semibold text-[#8A6D3B] md:hidden">
+              <span className="mb-1 inline-flex rounded-full border border-[#D4B57A]/30 bg-[#0A251A]/90 px-2 py-0.5 text-[9px] font-semibold text-[#E5C98B] md:hidden">
                 Services vary by branch
               </span>
               <p className="text-[14px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -2591,7 +2594,7 @@ function StepBranches({
                   {branch.address}
                 </p>
               )}
-              <p className="mt-1 text-[10px] text-[#4C5A52] md:hidden">
+              <p className="mt-1 text-[10px] text-[#CBD6CD] md:hidden">
                 Open daily · 10:00 AM - 10:00 PM
               </p>
             </div>
@@ -2599,8 +2602,8 @@ function StepBranches({
               <span
                 className={`flex h-6 w-6 items-center justify-center rounded-full border ${
                   selected?.id === branch.id
-                    ? "border-[#163A2B] bg-[#163A2B] text-[#FAF5E9]"
-                    : "border-[#C8A96B]/55 bg-[#FCFAF5] text-transparent"
+                    ? "border-[#D4B57A] bg-[#D4B57A] text-[#071A12]"
+                    : "border-[#D4B57A]/40 bg-[#092118] text-transparent"
                 }`}
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
@@ -2657,14 +2660,14 @@ function StepVisitType({
                   ? WARM_SELECTED_CARD_CLS
                   : isEnabled
                     ? WARM_IDLE_CARD_CLS
-                    : "cursor-not-allowed border-[#E5DEC9] bg-[#F7F3EB] opacity-55"
+                    : "cursor-not-allowed border-[#D4B57A]/15 bg-[#081F16]/60 opacity-50"
               }`}
             >
               <div
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl md:h-12 md:w-12 ${
                   isSelected
-                    ? "border border-[#C8A96B]/55 bg-[#FCFAF5] text-[#8A6D3B]"
-                    : "border border-[#E5DEC9] bg-[#F7F3EB] text-[#8A6D3B]"
+                    ? "border border-[#D4B57A]/60 bg-[#D4B57A]/18 text-[#E5C98B]"
+                    : "border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]"
                 }`}
               >
                 <Icon className="h-5 w-5 md:h-6 md:w-6" />
@@ -2676,7 +2679,7 @@ function StepVisitType({
                   </p>
                   {isSelected && (
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#D4B57A] shrink-0">
-                      <Check className="h-3.5 w-3.5 text-[#FAF5E9]" />
+                      <Check className="h-3.5 w-3.5 text-[#071A12]" />
                     </span>
                   )}
                 </div>
@@ -2831,7 +2834,7 @@ function StepDateTime({
               }}
               className={
                 mode === "public"
-                  ? "rounded-md bg-transparent p-0 text-[#10261D] [--cell-radius:0.65rem] [--cell-size:2rem] min-[390px]:[--cell-size:2.15rem] sm:[--cell-size:2.5rem] [&_.rdp-chevron]:text-[#8A6D3B]"
+                  ? "rounded-md bg-transparent p-0 text-[#FAF5E9] [--cell-radius:0.65rem] [--cell-size:2rem] min-[390px]:[--cell-size:2.15rem] sm:[--cell-size:2.5rem] [&_.rdp-chevron]:text-[#E5C98B]"
                   : "rounded-md"
               }
               classNames={mode === "public" ? BOOKING_CALENDAR_CLASSNAMES : undefined}
@@ -2844,7 +2847,7 @@ function StepDateTime({
             onOpenSheet={() => setIsTimeSheetOpen(true)}
           />
           {!selectedDate && (
-            <p className="mt-3 rounded-xl border border-[#E5DEC9] bg-[#F7F3EB] px-3 py-2 text-[12px] leading-5 text-[#4C5A52] md:hidden">
+            <p className="mt-3 rounded-xl border border-[#D4B57A]/25 bg-[#092118]/85 px-3 py-2 text-[12px] leading-5 text-[#CBD6CD] md:hidden">
               Select a date to open available times in a bottom sheet.
             </p>
           )}
@@ -2862,13 +2865,13 @@ function StepDateTime({
             {formatTime(availability.endTime)}
           </p>
           {serviceCount === 0 ? (
-            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#E5DEC9] bg-[#F7F3EB]">
+            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/28 bg-[#092118]/75">
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 Choose a service to see available times.
               </p>
             </div>
           ) : !selectedDate ? (
-            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#E5DEC9] bg-[#F7F3EB]">
+            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/28 bg-[#092118]/75">
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 Choose a date to see available times.
               </p>
@@ -2890,7 +2893,7 @@ function StepDateTime({
               </div>
             </div>
           ) : availableSlots.length === 0 ? (
-            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#E5DEC9] bg-[#F7F3EB] px-5 text-center">
+            <div className="flex items-center justify-center h-48 rounded-xl border border-dashed border-[#D4B57A]/28 bg-[#092118]/75 px-5 text-center">
               <p className="text-[13px]" style={WARM_MUTED_STYLE}>
                 {displayEmptyMessage}
               </p>
@@ -2938,16 +2941,16 @@ function SelectedDateTimeCard({
   if (!selectedDate) return null;
 
   return (
-    <div className="mt-3 rounded-xl border border-[#E5DEC9] bg-white px-3 py-3 shadow-[0_14px_32px_rgba(0,0,0,0.22)] backdrop-blur-xl md:hidden">
+    <div className="eg-glass-card mt-3 rounded-xl px-3 py-3 shadow-[0_14px_32px_rgba(0,0,0,0.35)] md:hidden">
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E5DEC9] bg-[#FCFAF5] text-[#8A6D3B]">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/28 bg-[#0A251A] text-[#E5C98B]">
           <CalendarDays className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8A6D3B]">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#E5C98B]">
             {selectedSlot ? "Selected date & time" : "Selected date"}
           </p>
-          <p className="mt-0.5 text-[13px] font-semibold leading-5 text-[#10261D]">
+          <p className="mt-0.5 text-[13px] font-semibold leading-5 text-[#FAF5E9]">
             {formatCompactDate(selectedDate)}
             {selectedSlot ? ` at ${formatTime(selectedSlot.slot_time)}` : ""}
           </p>
@@ -2956,7 +2959,7 @@ function SelectedDateTimeCard({
       <button
         type="button"
         onClick={onOpenSheet}
-        className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-[7px] border border-[#C8A96B]/55 bg-[#FCFAF5] px-4 text-[11px] font-semibold uppercase tracking-widest text-[#8A6D3B] transition-colors hover:border-[#C8A96B]/55"
+        className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-[7px] border border-[#D4B57A]/40 bg-[#0D2E20]/80 px-4 text-[11px] font-semibold uppercase tracking-widest text-[#E5C98B] transition-colors hover:border-[#E5C98B] hover:bg-[#14402E]"
       >
         {selectedSlot ? "Change time" : "View available times"}
       </button>
@@ -2992,12 +2995,12 @@ function TimeSlotButton({
       aria-pressed={isSelected}
       className={`relative flex min-h-11 flex-col items-center justify-center rounded-lg px-2 py-2.5 text-[12px] font-medium transition-all duration-300 motion-reduce:transition-none ${
         isSelected
-          ? "bg-[#163A2B] text-[#FAF5E9] shadow-[0_12px_28px_rgba(212,181,122,0.22)]"
+          ? "bg-gradient-to-r from-[#D4B57A] to-[#E4C98E] text-[#071A12] font-semibold shadow-[0_10px_24px_-6px_rgba(212,181,122,0.5)]"
           : isHard
-            ? "cursor-not-allowed border border-[#E5DEC9] bg-[#F7F3EB] text-[#7A847D] opacity-50"
+            ? "cursor-not-allowed border border-[#D4B57A]/15 bg-[#071C14] text-[#728579] opacity-50"
             : isWarning
-              ? "border border-[#163A2B]/38 bg-[#B88945]/16 text-[#10261D] hover:border-[#163A2B]/65"
-              : "border border-[#E5DEC9] bg-[#F5EFE3]/62 text-[#10261D] hover:border-[#C8A96B]/55"
+              ? "border border-[#E5C98B]/45 bg-[#D4B57A]/16 text-[#FAF5E9] hover:border-[#E5C98B]/75"
+              : "border border-[#D4B57A]/25 bg-[#0B261C]/85 text-[#FAF5E9] hover:border-[#D4B57A]/60 hover:bg-[#123829]"
       }`}
     >
       <span className="inline-flex items-center gap-1">
@@ -3079,26 +3082,26 @@ function MobileTimeBottomSheet({
       <button
         type="button"
         aria-label="Close available times"
-        className="fixed inset-0 z-[70] bg-[#10261D]/55 backdrop-blur-[2px] md:hidden"
+        className="fixed inset-0 z-[70] bg-[#04100B]/70 backdrop-blur-[2px] md:hidden"
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed inset-x-0 bottom-0 z-[80] flex max-h-[72dvh] flex-col overflow-hidden rounded-t-[28px] border-t border-[#E5DEC9] bg-[#FCFAF5] shadow-[0_-24px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-[80] flex max-h-[72dvh] flex-col overflow-hidden rounded-t-[28px] border-t border-[#D4B57A]/35 bg-[#081F17]/96 shadow-[0_-24px_70px_rgba(0,0,0,0.65)] backdrop-blur-xl md:hidden"
       >
         <div className="shrink-0">
-          <div className="mx-auto mt-3 h-1 w-12 rounded-full bg-[#D4B57A]/50" />
+          <div className="mx-auto mt-3 h-1 w-12 rounded-full bg-[#D4B57A]/45" />
           <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
             <div>
               <p
                 id={titleId}
-                className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]"
+                className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#E5C98B]"
               >
                 Available times
               </p>
-              <p className="mt-1 text-[18px] font-semibold text-[#10261D] [font-family:var(--sp-font-display)]">
+              <p className="mt-1 text-[18px] font-semibold text-[#FAF5E9] [font-family:var(--sp-font-display)]">
                 {selectedDate ? formatSheetDate(selectedDate) : "Choose a date"}
               </p>
             </div>
@@ -3107,7 +3110,7 @@ function MobileTimeBottomSheet({
               type="button"
               onClick={onClose}
               aria-label="Close available times"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#C8A96B]/55 bg-[#FCFAF5] text-[#8A6D3B] transition-colors hover:border-[#163A2B]/65"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#D4B57A]/35 bg-[#0D2E20] text-[#E5C98B] transition-colors hover:border-[#E5C98B]"
             >
               <X className="h-4 w-4" />
             </button>
@@ -3122,8 +3125,8 @@ function MobileTimeBottomSheet({
           ) : !selectedDate ? (
             <MobileTimeSheetMessage>Choose a date to see available times.</MobileTimeSheetMessage>
           ) : loading ? (
-            <div className="rounded-xl border border-[#E5DEC9] bg-[#F7F3EB] px-4 py-5">
-              <p className="mb-3 text-[13px] text-[#4C5A52]">Checking available times...</p>
+            <div className="rounded-xl border border-[#D4B57A]/22 bg-[#092118] px-4 py-5">
+              <p className="mb-3 text-[13px] text-[#CBD6CD]">Checking available times...</p>
               <div className="grid grid-cols-2 gap-2">
                 {Array.from({ length: 6 }).map((_, index) => (
                   <Skeleton key={index} className={`h-11 rounded-lg ${WARM_SKELETON_CLS}`} />
@@ -3143,7 +3146,7 @@ function MobileTimeBottomSheet({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-[#E5DEC9] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="shrink-0 border-t border-[#D4B57A]/20 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onClose}
@@ -3158,7 +3161,7 @@ function MobileTimeBottomSheet({
           <button
             type="button"
             onClick={onClose}
-            className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-[7px] text-[12px] font-semibold text-[#4C5A52] transition-colors hover:text-[#10261D]"
+            className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-[7px] text-[12px] font-semibold text-[#CBD6CD] transition-colors hover:text-[#FAF5E9]"
           >
             Close
           </button>
@@ -3170,8 +3173,8 @@ function MobileTimeBottomSheet({
 
 function MobileTimeSheetMessage({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-32 items-center justify-center rounded-xl border border-dashed border-[#E5DEC9] bg-[#F7F3EB] px-5 text-center">
-      <p className="text-[13px] leading-6 text-[#4C5A52]">{children}</p>
+    <div className="flex min-h-32 items-center justify-center rounded-xl border border-dashed border-[#D4B57A]/28 bg-[#092118]/75 px-5 text-center">
+      <p className="text-[13px] leading-6 text-[#CBD6CD]">{children}</p>
     </div>
   );
 }
@@ -3207,7 +3210,7 @@ function StepTherapist({
   return (
     <div>
       {bookingFor === "me_and_others" && attendeesCount && attendeesCount > 1 && (
-        <div className="mb-6 rounded-2xl border border-[#E5DEC9] bg-white p-4 text-left backdrop-blur-xl">
+        <div className="eg-glass-card mb-6 rounded-2xl p-4 text-left">
           <div className="flex items-center gap-2 mb-1">
             <Users className="h-4 w-4" style={WARM_LABEL_STYLE} />
             <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -3238,9 +3241,9 @@ function StepTherapist({
 const INPUT_CLS =
   "w-full rounded-xl border border-[#DDD4C2] bg-white px-4 py-3 text-[14px] text-[#10261D] placeholder:text-[#8E9690] outline-none transition-all focus:border-[#163A2B] focus:ring-2 focus:ring-[#163A2B]/15";
 const PUBLIC_INPUT_CLS =
-  "w-full rounded-xl border border-[#DDD4C2] bg-white px-4 py-3 text-[14px] text-[#10261D] placeholder:text-[#8E9690] outline-none transition-all selection:bg-[#D4B57A]/35 focus:border-[#163A2B] focus:ring-2 focus:ring-[#163A2B]/15";
+  "w-full rounded-xl border border-[#D4B57A]/28 bg-[#071E15]/85 px-4 py-3 text-[14px] text-[#FAF5E9] placeholder:text-[#96A89D] outline-none transition-all selection:bg-[#D4B57A]/35 focus:border-[#E5C98B] focus:ring-2 focus:ring-[#D4B57A]/25";
 const LABEL_CLS =
-  "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2 text-[#8A6D3B]";
+  "flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide mb-2 text-[#E5C98B]";
 
 // ── Step 4 (HS only): Location ────────────────────────────────────────────────
 
@@ -3418,27 +3421,27 @@ function StepLocation({
               </p>
             </>
           ) : (
-            <div className="flex items-start gap-3 rounded-xl border border-[#E5DEC9] bg-white px-4 py-3 backdrop-blur-xl">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#8A6D3B]" />
+            <div className="eg-glass-card flex items-start gap-3 rounded-xl px-4 py-3">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#E5C98B]" />
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A6D3B]">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#E5C98B]">
                   Selected location
                 </p>
-                <p className="mt-0.5 text-[13px] leading-5 text-[#10261D]">
+                <p className="mt-0.5 text-[13px] leading-5 text-[#FAF5E9]">
                   {form.hsFormattedAddress}
                 </p>
                 {homeServiceQuoteLoading && (
-                  <div className="mt-2 flex items-center gap-2 text-[12px] text-[#8A6D3B]/80">
+                  <div className="mt-2 flex items-center gap-2 text-[12px] text-[#E5C98B]/85">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     <span>Calculating transportation fee...</span>
                   </div>
                 )}
                 {homeServiceQuote && (
-                  <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#C8A96B]/55 bg-[#FCFAF5] px-2.5 py-1 text-[12px] font-medium text-[#10261D]">
-                    <Car className="h-3.5 w-3.5 text-[#8A6D3B]" />
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#D4B57A]/35 bg-[#092118] px-2.5 py-1 text-[12px] font-medium text-[#FAF5E9]">
+                    <Car className="h-3.5 w-3.5 text-[#E5C98B]" />
                     <span>Transportation: {formatCurrency(homeServiceQuote.travelFee)}</span>
-                    <span className="text-[#8A6D3B]/60">·</span>
-                    <span className="text-[#4C5A52]">{homeServiceQuote.drivingDistanceKm.toFixed(1)} km</span>
+                    <span className="text-[#D4B57A]/60">·</span>
+                    <span className="text-[#CBD6CD]">{homeServiceQuote.drivingDistanceKm.toFixed(1)} km</span>
                   </div>
                 )}
                 {homeServiceQuoteError && (
@@ -3453,7 +3456,7 @@ function StepLocation({
               <button
                 type="button"
                 onClick={() => onChange(clearSelectedPlace(form, ""))}
-                className="rounded-full border border-[#C8A96B]/55 bg-[#FCFAF5] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#8A6D3B] transition-colors hover:border-[#C8A96B]/55"
+                className="rounded-full border border-[#D4B57A]/40 bg-[#0D2E20]/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#E5C98B] transition-colors hover:border-[#E5C98B] hover:bg-[#14402E]"
               >
                 Change
               </button>
@@ -3464,8 +3467,8 @@ function StepLocation({
             <p
               className={`mt-2 rounded-lg px-3 py-2 text-[12px] ${
                 placesStatus === "loading"
-                  ? "border border-[#E5DEC9] bg-[#F7F3EB] text-[#4C5A52]"
-                  : "border border-[#C8A96B]/55 bg-[#F5EFE3] text-[#10261D]"
+                  ? "border border-[#D4B57A]/22 bg-[#092118] text-[#CBD6CD]"
+                  : "border border-[#D4B57A]/40 bg-[#103325] text-[#FAF5E9]"
               }`}
             >
               {statusMessage}
@@ -3512,7 +3515,7 @@ function PromotionalSmsOptInField({
   return (
     <label
       htmlFor="wizard-promotional-sms"
-      className="flex cursor-pointer items-start gap-2.5 text-[12px] leading-5 text-[#10261D]"
+      className="flex cursor-pointer items-start gap-2.5 text-[12px] leading-5 text-[#FAF5E9]"
     >
       <input
         id="wizard-promotional-sms"
@@ -3520,7 +3523,7 @@ function PromotionalSmsOptInField({
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange?.(event.target.checked)}
-        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#D4CBB3] accent-[#163A2B]"
+        className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#D4B57A]/60 bg-[#071E15] accent-[#D4B57A]"
       />
       <span>
         I&apos;d like to receive special offers, promotions, and wellness updates from Cradle
@@ -3675,7 +3678,7 @@ export function PublicStepDetails({
         <div>
           <label
             htmlFor="wizard-fullName"
-            className="mb-1 block text-[13px] font-semibold text-[#8A6D3B]"
+            className="mb-1 block text-[13px] font-semibold text-[#E5C98B]"
           >
             Full name <span aria-hidden="true">*</span>
           </label>
@@ -3694,7 +3697,7 @@ export function PublicStepDetails({
         <div>
           <label
             htmlFor="wizard-phone"
-            className="mb-1 block text-[13px] font-semibold text-[#8A6D3B]"
+            className="mb-1 block text-[13px] font-semibold text-[#E5C98B]"
           >
             Phone number <span aria-hidden="true">*</span>
           </label>
@@ -3710,7 +3713,7 @@ export function PublicStepDetails({
             value={form.phone}
             onChange={(event) => onChange({ ...form, phone: event.target.value })}
             placeholder="e.g. 0917 123 4567"
-            className={`${PUBLIC_INPUT_CLS} ${phoneError ? "border-red-400/70" : ""}`}
+            className={`${PUBLIC_INPUT_CLS} ${phoneError ? "border-rose-400/70" : ""}`}
           />
           {phoneFeedback.status !== "hint" && (
             <p
@@ -3718,7 +3721,7 @@ export function PublicStepDetails({
               aria-live="polite"
               aria-atomic="true"
               className={`mt-1 text-[12px] leading-5 ${
-                phoneError ? "text-red-700" : "text-emerald-800"
+                phoneError ? "text-rose-300" : "text-emerald-300"
               }`}
             >
               {phoneFeedback.message}
@@ -3728,7 +3731,7 @@ export function PublicStepDetails({
       </div>
 
       <div className="space-y-2">
-        <p className="text-[12px] leading-5 text-[#4C5A52]">
+        <p className="text-[12px] leading-5 text-[#CBD6CD]">
           Booking updates &amp; reminders apply automatically. Contact our front desk to opt out.
         </p>
         <PromotionalSmsOptInField
@@ -3739,8 +3742,8 @@ export function PublicStepDetails({
 
       <div>
         <div className="mb-1 flex items-baseline justify-between gap-2">
-          <p className="text-[13px] font-semibold text-[#8A6D3B]">Therapist preference</p>
-          <span className="text-[12px] text-[#4C5A52]">Optional</span>
+          <p className="text-[13px] font-semibold text-[#E5C98B]">Therapist preference</p>
+          <span className="text-[12px] text-[#9FB1A6]">Optional</span>
         </div>
         <TherapistDropdownPicker
           options={therapistOptions}
@@ -3753,19 +3756,19 @@ export function PublicStepDetails({
         {bookingFor === "me_and_others" &&
           (attendees?.length ?? 0) > 1 &&
           selectedStaff === "auto" && (
-            <p className="mt-1.5 text-[12px] leading-5 text-[#4C5A52]">
+            <p className="mt-1.5 text-[12px] leading-5 text-[#CBD6CD]">
               {attendees?.length} guests · We&apos;ll assign one qualified therapist to each guest.
             </p>
           )}
       </div>
 
-      <div className="border-t border-[#E5DEC9] pt-1">
+      <div className="border-t border-[#D4B57A]/20 pt-1">
         <button
           type="button"
           aria-expanded={optionalExpanded}
           aria-controls="wizard-optional-details"
           onClick={() => setOptionalExpanded((expanded) => !expanded)}
-          className="inline-flex min-h-11 items-center gap-1.5 text-[13px] font-medium text-[#8A6D3B] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A]"
+          className="inline-flex min-h-11 items-center gap-1.5 text-[13px] font-medium text-[#E5C98B] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D4B57A]"
         >
           <Plus className="size-4" aria-hidden="true" />
           {optionalExpanded ? "Hide optional details" : "Add email or special request"}
@@ -3777,7 +3780,7 @@ export function PublicStepDetails({
           <div id="wizard-optional-email">
             <label
               htmlFor="wizard-email"
-              className="mb-1 block text-[13px] font-semibold text-[#8A6D3B]"
+              className="mb-1 block text-[13px] font-semibold text-[#E5C98B]"
             >
               Email (optional)
             </label>
@@ -3795,7 +3798,7 @@ export function PublicStepDetails({
           <div id="wizard-optional-notes">
             <label
               htmlFor="wizard-notes"
-              className="mb-1 block text-[13px] font-semibold text-[#8A6D3B]"
+              className="mb-1 block text-[13px] font-semibold text-[#E5C98B]"
             >
               Special requests (optional)
             </label>
@@ -3903,7 +3906,7 @@ function StepDetails({
         )}
 
         {bookingFor === "someone_else" && (
-          <div className="mb-6 rounded-2xl border border-[#E5DEC9] bg-white p-4 text-left backdrop-blur-xl">
+          <div className="eg-glass-card mb-6 rounded-2xl p-4 text-left">
             <div className="flex items-center gap-2 mb-1">
               <Gift className="h-4 w-4" style={WARM_LABEL_STYLE} />
               <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -3918,7 +3921,7 @@ function StepDetails({
         )}
 
         {bookingFor === "me_and_others" && (
-          <div className="mb-6 rounded-2xl border border-[#E5DEC9] bg-white p-4 text-left backdrop-blur-xl">
+          <div className="eg-glass-card mb-6 rounded-2xl p-4 text-left">
             <div className="flex items-center gap-2 mb-1">
               <Users className="h-4 w-4" style={WARM_LABEL_STYLE} />
               <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -4083,7 +4086,7 @@ function StepDetails({
 
           {/* Public Booking Payment Preference */}
           {mode === "public" && (
-            <div className="flex flex-col gap-3 rounded-2xl border border-[#E5DEC9] bg-white p-5 backdrop-blur-xl">
+            <div className="eg-glass-card flex flex-col gap-3 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-1">
                 <Sparkles className="h-4 w-4" style={WARM_LABEL_STYLE} />
                 <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -4099,11 +4102,11 @@ function StepDetails({
                 you may settle at the spa or after your service.
               </p>
 
-              <div className="mt-2 flex items-center gap-3 rounded-xl border border-[#E5DEC9] bg-[#F7F3EB] p-3.5">
-                <BadgeCheck className="h-5 w-5 shrink-0 text-[#8A6D3B]" />
+              <div className="mt-2 flex items-center gap-3 rounded-xl border border-[#D4B57A]/25 bg-[#092118]/85 p-3.5">
+                <BadgeCheck className="h-5 w-5 shrink-0 text-[#E5C98B]" />
                 <div className="text-left">
-                  <p className="text-[13px] font-medium text-[#10261D]">Pay Later Accepted</p>
-                  <p className="text-[11px] text-[#4C5A52]">
+                  <p className="text-[13px] font-medium text-[#FAF5E9]">Pay Later Accepted</p>
+                  <p className="text-[11px] text-[#CBD6CD]">
                     Payment tracked separately. Zero payment provider details required online.
                   </p>
                 </div>
@@ -4113,7 +4116,7 @@ function StepDetails({
 
           {/* Home Service Address */}
           {isHomeService && (
-            <div className="flex flex-col gap-4 rounded-2xl border border-[#E5DEC9] bg-white p-5 backdrop-blur-xl">
+            <div className="eg-glass-card flex flex-col gap-4 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-1">
                 <Home className="h-4 w-4" style={WARM_LABEL_STYLE} />
                 <p className="text-[13px] font-semibold" style={WARM_HEADING_STYLE}>
@@ -4132,7 +4135,7 @@ function StepDetails({
               </p>
 
               {mode === "inhouse" && (
-                <div className="flex items-center gap-2 rounded-xl border border-[#E5DEC9] bg-[#F7F3EB] px-4 py-3">
+                <div className="flex items-center gap-2 rounded-xl border border-[#D4B57A]/25 bg-[#092118]/85 px-4 py-3">
                   <MapPin className="h-4 w-4 shrink-0" style={WARM_LABEL_STYLE} />
                   <div className="flex-1 min-w-0">
                     <p
@@ -4149,10 +4152,10 @@ function StepDetails({
               )}
 
               {isPreciseHomeServiceLocation(form) ? (
-                <div className="flex items-start gap-3 rounded-xl border border-[#E5DEC9] bg-[#F7F3EB] px-4 py-3">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#8A6D3B]" />
+                <div className="flex items-start gap-3 rounded-xl border border-[#D4B57A]/25 bg-[#092118]/85 px-4 py-3">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#E5C98B]" />
                   <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8A6D3B]">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#E5C98B]">
                       Selected location
                     </p>
                     <p className="mt-0.5 text-[13px] leading-5" style={WARM_BODY_STYLE}>
@@ -4170,7 +4173,7 @@ function StepDetails({
               )}
 
               {form.hsAddressDetails && (
-                <div className="rounded-xl border border-[#E5DEC9] bg-[#F7F3EB] px-4 py-3">
+                <div className="rounded-xl border border-[#D4B57A]/25 bg-[#092118]/85 px-4 py-3">
                   <p
                     className="text-[11px] font-semibold uppercase tracking-wide"
                     style={WARM_LABEL_STYLE}
@@ -4271,12 +4274,12 @@ function StepSuccess({
 
   return (
     <div className="text-center py-8 md:py-12">
-      <div className="mx-auto mb-5 flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-full border border-[#C8A96B]/55 bg-white text-[#8A6D3B] shadow-[0_20px_54px_rgba(0,0,0,0.32)]">
+      <div className="eg-glass-card mx-auto mb-5 flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-full border border-[#D4B57A]/55 bg-[#0A251A]/90 text-[#E5C98B] shadow-[0_20px_54px_rgba(0,0,0,0.4)]">
         <Check className="h-8 w-8 md:h-10 md:w-10" />
       </div>
 
       <h2 className="text-2xl sm:text-3xl font-medium mb-2.5" style={WARM_HEADING_STYLE}>
-        {mode === "inhouse" ? "Booking Saved" : "Booking request received 🌿"}
+        {mode === "inhouse" ? "Booking Saved" : "Booking request received"}
       </h2>
       <p
         className="text-[14px] md:text-[15px] max-w-md mx-auto mb-6 leading-relaxed"
@@ -4288,13 +4291,13 @@ function StepSuccess({
       </p>
 
       {/* Order request card */}
-      <div className="mx-auto mb-6 max-w-lg rounded-2xl border border-[#E5DEC9] bg-white p-5 sm:p-6 text-left backdrop-blur-xl shadow-[0_20px_48px_rgba(0,0,0,0.35)]">
-        <div className="flex items-center justify-between border-b border-[#E5DEC9] pb-4 mb-4">
+      <div className="eg-glass-card mx-auto mb-6 max-w-lg rounded-2xl p-5 sm:p-6 text-left shadow-[0_20px_48px_rgba(0,0,0,0.45)]">
+        <div className="flex items-center justify-between border-b border-[#D4B57A]/20 pb-4 mb-4">
           <div>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8A6D3B]">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#E5C98B]">
               Order Number
             </span>
-            <p className="text-[16px] font-mono font-bold text-[#10261D]">{displayOrderNum}</p>
+            <p className="text-[16px] font-mono font-bold text-[#FAF5E9]">{displayOrderNum}</p>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-950/60 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-200">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -4305,15 +4308,15 @@ function StepSuccess({
         {/* Overview details grid */}
         <div className="grid grid-cols-2 gap-4 text-left mb-5">
           <div>
-            <span className="text-[11px] uppercase tracking-wide text-[#8A6D3B]/75 flex items-center gap-1.5">
+            <span className="text-[11px] uppercase tracking-wide text-[#E5C98B]/85 flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5" /> Date & Time
             </span>
-            <p className="text-[13px] font-medium text-[#10261D] mt-0.5">{formattedDate}</p>
-            <p className="text-[12px] text-[#4C5A52]">{formattedTime}</p>
+            <p className="text-[13px] font-medium text-[#FAF5E9] mt-0.5">{formattedDate}</p>
+            <p className="text-[12px] text-[#CBD6CD]">{formattedTime}</p>
           </div>
 
           <div>
-            <span className="text-[11px] uppercase tracking-wide text-[#8A6D3B]/75 flex items-center gap-1.5">
+            <span className="text-[11px] uppercase tracking-wide text-[#E5C98B]/85 flex items-center gap-1.5">
               {visitType === "home_service" ? (
                 <Home className="h-3.5 w-3.5" />
               ) : (
@@ -4321,21 +4324,21 @@ function StepSuccess({
               )}
               {visitType === "home_service" ? "Home Service" : "Branch"}
             </span>
-            <p className="text-[13px] font-medium text-[#10261D] mt-0.5 truncate">
+            <p className="text-[13px] font-medium text-[#FAF5E9] mt-0.5 truncate">
               {visitType === "home_service"
                 ? hsAddress || "Home Service Location"
                 : selectedBranch?.name || "In-Spa Branch"}
             </p>
             {visitType === "home_service" && (
-              <p className="text-[11px] text-[#8A6D3B]/90">Door-to-door care</p>
+              <p className="text-[11px] text-[#E5C98B]/90">Door-to-door care</p>
             )}
           </div>
 
           <div>
-            <span className="text-[11px] uppercase tracking-wide text-[#8A6D3B]/75 flex items-center gap-1.5">
+            <span className="text-[11px] uppercase tracking-wide text-[#E5C98B]/85 flex items-center gap-1.5">
               <Users className="h-3.5 w-3.5" /> Guests
             </span>
-            <p className="text-[13px] font-medium text-[#10261D] mt-0.5">
+            <p className="text-[13px] font-medium text-[#FAF5E9] mt-0.5">
               {bookingFor === "me_and_others"
                 ? `${attendees?.length ?? 1} Guests`
                 : bookingFor === "someone_else"
@@ -4345,18 +4348,18 @@ function StepSuccess({
           </div>
 
           <div>
-            <span className="text-[11px] uppercase tracking-wide text-[#8A6D3B]/75 flex items-center gap-1.5">
+            <span className="text-[11px] uppercase tracking-wide text-[#E5C98B]/85 flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5" /> Total
             </span>
-            <p className="text-[14px] font-bold text-[#8A6D3B] mt-0.5">
+            <p className="text-[14px] font-bold text-[#E5C98B] mt-0.5">
               {formatCurrency(totalPrice ?? 0)}
             </p>
           </div>
         </div>
 
         {/* Attendees & Treatments breakdown */}
-        <div className="border-t border-[#E5DEC9] pt-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8A6D3B] mb-2.5">
+        <div className="border-t border-[#D4B57A]/20 pt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#E5C98B] mb-2.5">
             Treatments & Services
           </p>
 
@@ -4367,13 +4370,13 @@ function StepSuccess({
                 return (
                   <div
                     key={att.id}
-                    className="rounded-xl border border-[#E5DEC9] bg-[#F7F3EB] p-3"
+                    className="rounded-xl border border-[#D4B57A]/22 bg-[#092118]/85 p-3"
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[12px] font-semibold text-[#10261D]">
+                      <span className="text-[12px] font-semibold text-[#FAF5E9]">
                         {att.name || `Guest ${idx + 1}`}
                       </span>
-                      <span className="text-[11px] text-[#8A6D3B]">
+                      <span className="text-[11px] text-[#E5C98B]">
                         {attServices.length} {attServices.length === 1 ? "treatment" : "treatments"}
                       </span>
                     </div>
@@ -4381,9 +4384,9 @@ function StepSuccess({
                       {attServices.map((s) => (
                         <span
                           key={s.id}
-                          className="inline-flex items-center gap-1 text-[11px] bg-[#F5EFE3] text-[#4C5A52] px-2 py-0.5 rounded-md border border-[#E5DEC9]"
+                          className="inline-flex items-center gap-1 text-[11px] bg-[#0E3124] text-[#CBD6CD] px-2 py-0.5 rounded-md border border-[#D4B57A]/22"
                         >
-                          <Check className="h-3 w-3 text-[#8A6D3B]" />
+                          <Check className="h-3 w-3 text-[#E5C98B]" />
                           {s.name} · {lineQuotes[`${att.id}:${s.id}`]?.selectedDurationMinutes ?? s.durationMinutes} min · {formatCurrency(lineQuotes[`${att.id}:${s.id}`]?.calculatedPrice ?? s.price)}
                         </span>
                       ))}
@@ -4397,10 +4400,10 @@ function StepSuccess({
               {services.map((s) => (
                 <div key={s.id} className="flex items-center justify-between text-[12px]">
                   <div className="flex items-center gap-2">
-                    <Check className="h-3.5 w-3.5 text-[#8A6D3B]" />
-                    <span className="text-[#10261D] font-medium">{s.name}</span>
+                    <Check className="h-3.5 w-3.5 text-[#E5C98B]" />
+                    <span className="text-[#FAF5E9] font-medium">{s.name}</span>
                   </div>
-                  <span className="text-[#8A6D3B]/85">{lineQuotes[`att-1:${s.id}`]?.selectedDurationMinutes ?? s.durationMinutes} min · {formatCurrency(lineQuotes[`att-1:${s.id}`]?.calculatedPrice ?? s.price)}</span>
+                  <span className="text-[#E5C98B]/90">{lineQuotes[`att-1:${s.id}`]?.selectedDurationMinutes ?? s.durationMinutes} min · {formatCurrency(lineQuotes[`att-1:${s.id}`]?.calculatedPrice ?? s.price)}</span>
                 </div>
               ))}
             </div>
@@ -4408,16 +4411,16 @@ function StepSuccess({
         </div>
 
         {/* Payment details notice */}
-        <div className="mt-4 rounded-xl border border-[#E5DEC9] bg-[#F7F3EB] p-3.5">
+        <div className="mt-4 rounded-xl border border-[#D4B57A]/22 bg-[#092118]/85 p-3.5">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8A6D3B]">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#E5C98B]">
               Payment Status
             </span>
-            <span className="text-[11px] font-medium text-[#4C5A52]">
+            <span className="text-[11px] font-medium text-[#CBD6CD]">
               {paymentChoice === "pay_now" ? "Online checkout" : "Pay at spa / after service"}
             </span>
           </div>
-          <p className="text-[12px] leading-relaxed text-[#4C5A52]">
+          <p className="text-[12px] leading-relaxed text-[#CBD6CD]">
             {paymentChoice === "pay_now"
               ? mode === "inhouse"
                 ? "Your booking is confirmed. We will provide payment guidance and receipt confirmation."
@@ -4430,8 +4433,8 @@ function StepSuccess({
       </div>
 
       {staffPreferenceNeedsConfirmation && (
-        <div className="mx-auto mb-6 max-w-lg rounded-xl border border-amber-300/35 bg-amber-300/10 px-5 py-3.5 text-left">
-          <p className="text-[12px] leading-relaxed text-[#10261D]">
+        <div className="mx-auto mb-6 max-w-lg rounded-xl border border-amber-300/35 bg-amber-300/12 px-5 py-3.5 text-left">
+          <p className="text-[12px] leading-relaxed text-[#FAF5E9]">
             {mode === "inhouse"
               ? "Your therapist preference has been noted for the confirmed appointment."
               : "We have noted your therapist preference. Our team will review it when confirming your request."}
@@ -4449,7 +4452,7 @@ function StepSuccess({
         <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             href="/"
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#C8A96B]/55 bg-[#FCFAF5] px-5 text-[13px] font-semibold text-[#10261D] transition-colors hover:border-[#C8A96B]/55"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#D4B57A]/40 bg-[#0D2E20]/75 px-6 text-[13px] font-semibold text-[#FAF5E9] backdrop-blur-sm transition-colors hover:border-[#E5C98B] hover:bg-[#14402E]"
           >
             Back to home
           </Link>

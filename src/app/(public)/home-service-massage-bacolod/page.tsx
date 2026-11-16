@@ -54,48 +54,49 @@ export default async function HomeServiceMassagePage() {
 
   return (
     <>
-      <div className="sp-public">
+      <div className="sp-public min-h-screen bg-[#071A12] text-[#FAF5E9]">
         {/* Hero */}
-        <section className="relative overflow-hidden bg-[#10261D] pt-28 pb-16 text-[#FCFAF5] lg:pt-40 lg:pb-24">
+        <section className="relative overflow-hidden border-b border-[#D4B57A]/15 bg-[#05140E] pt-28 pb-16 text-[#FAF5E9] lg:pt-40 lg:pb-24">
           <div className="absolute inset-0">
             <Image
               src={heroBanner}
               alt="Home service massage setup in Bacolod"
               fill
-              priority
-              className="object-cover opacity-50"
+              preload
+              fetchPriority="high"
+              className="eg-hero-photo object-cover opacity-50"
               sizes="100vw"
             />
-            <div className="absolute inset-0 bg-[#10261D]/70" />
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(16,38,29,0.96)_0%,rgba(16,38,29,0.74)_52%,rgba(16,38,29,0.4)_100%)]" />
-            <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(0deg,#FCFAF5_0%,rgba(252,250,245,0)_100%)]" />
+            <div className="absolute inset-0 bg-[#05140E]/70" />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,20,14,0.96)_0%,rgba(5,20,14,0.78)_52%,rgba(5,20,14,0.4)_100%)]" />
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(0deg,#071A12_0%,rgba(7,26,18,0)_100%)]" />
           </div>
 
           <div className="relative mx-auto max-w-7xl px-6 lg:px-12">
             <div className="max-w-3xl">
-              <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#E8D5A3]">
+              <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#E5C98B]">
                 Home Service Wellness
               </p>
-              <h1 className="text-4xl font-medium leading-[1.04] text-[#FCFAF5] sm:text-5xl lg:text-6xl" style={{ fontFamily: "var(--sp-font-display)" }}>
+              <h1 className="text-4xl font-medium leading-[1.04] text-[#FAF5E9] sm:text-5xl lg:text-6xl" style={{ fontFamily: "var(--sp-font-display)" }}>
                 Home Service Massage in Bacolod
               </h1>
-              <p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#F7F3EB]/78 sm:text-base">
+              <p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#CBD6CD] sm:text-base">
                 Cradle Wellness Living brings professional massage and wellness therapy to your doorstep
                 in Bacolod. Book a calm, private session at home without the travel.
               </p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/book"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-[#C8A96B] px-7 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#10261D] transition hover:bg-[#E8D5A3]"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-8 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#071A12] shadow-[0_8px_24px_-8px_rgba(212,181,122,0.55)] transition hover:brightness-105"
                 >
                   Book Home Service
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
                 <a
                   href="tel:+639177077070"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#F7F3EB]/28 px-7 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#FCFAF5] transition hover:bg-white/10"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[#D4B57A]/40 bg-[#0D2E20]/70 px-8 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#FAF5E9] backdrop-blur-sm transition hover:border-[#E8D5A3]/75 hover:bg-[#14402E]"
                 >
-                  <Phone className="h-4 w-4" aria-hidden="true" />
+                  <Phone className="h-4 w-4 text-[#E5C98B]" aria-hidden="true" />
                   Call to Book
                 </a>
               </div>
@@ -104,20 +105,20 @@ export default async function HomeServiceMassagePage() {
         </section>
 
         {/* Why Home Service */}
-        <section className="bg-[#FCFAF5] py-20 lg:py-28">
+        <section className="bg-[#071A12] py-20 lg:py-28">
           <div className="mx-auto max-w-7xl px-6 lg:px-12">
-            <div className="grid gap-12 lg:grid-cols-2 items-center">
+            <div className="grid items-center gap-12 lg:grid-cols-2">
               <div>
-                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
+                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E5C98B]">
                   Wellness at Home
                 </p>
                 <h2
-                  className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
+                  className="text-3xl font-medium leading-tight text-[#FAF5E9] sm:text-4xl"
                   style={{ fontFamily: "var(--sp-font-display)" }}
                 >
                   Relax without leaving your space.
                 </h2>
-                <p className="mt-6 text-[15px] leading-7 text-[#6B7A6F]">
+                <p className="mt-6 text-[15px] leading-7 text-[#CBD6CD]">
                   Some days, the best spa is the one that comes to you. Our home service massage in Bacolod
                   is designed for guests who prefer comfort, privacy, and zero travel time.
                 </p>
@@ -128,14 +129,14 @@ export default async function HomeServiceMassagePage() {
                     "Flexible scheduling based on availability",
                     "Ideal for recovery, stress relief, or quiet self-care",
                   ].map((item) => (
-                    <li key={item} className="flex gap-3 text-[14px] text-[#5F6F63]">
-                      <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#B68A3C]" aria-hidden="true" />
+                    <li key={item} className="flex gap-3 text-[14px] text-[#CBD6CD]">
+                      <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#E5C98B]" aria-hidden="true" />
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               </div>
-              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl shadow-xl">
+              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-[#D4B57A]/25 shadow-2xl">
                 <Image
                   src={setupImage}
                   alt="Prepared home service massage setup in Bacolod"
@@ -149,14 +150,14 @@ export default async function HomeServiceMassagePage() {
         </section>
 
         {/* How It Works */}
-        <section className="bg-[#F7F3EB] py-20 lg:py-28">
+        <section className="border-t border-[#D4B57A]/15 bg-[#061810]/70 py-20 lg:py-28">
           <div className="mx-auto max-w-7xl px-6 lg:px-12">
-            <div className="text-center max-w-2xl mx-auto mb-16">
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
+            <div className="mx-auto mb-16 max-w-2xl text-center">
+              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E5C98B]">
                 Simple Booking
               </p>
               <h2
-                className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
+                className="text-3xl font-medium leading-tight text-[#FAF5E9] sm:text-4xl"
                 style={{ fontFamily: "var(--sp-font-display)" }}
               >
                 How Home Service Works
@@ -182,15 +183,15 @@ export default async function HomeServiceMassagePage() {
               ].map((card) => (
                 <div
                   key={card.step}
-                  className="rounded-[8px] border border-[#EDE4D3] bg-white p-8"
+                  className="eg-glass-card eg-glass-lift rounded-2xl p-8"
                 >
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#B68A3C]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#E5C98B]">
                     {card.step}
                   </p>
-                  <h3 className="mt-3 text-xl font-medium text-[#163A2B]" style={{ fontFamily: "var(--sp-font-display)" }}>
+                  <h3 className="mt-3 text-xl font-medium text-[#FAF5E9]" style={{ fontFamily: "var(--sp-font-display)" }}>
                     {card.title}
                   </h3>
-                  <p className="mt-3 text-[13px] leading-6 text-[#6B7A6F]">{card.desc}</p>
+                  <p className="mt-3 text-[13px] leading-6 text-[#CBD6CD]">{card.desc}</p>
                 </div>
               ))}
             </div>
@@ -198,31 +199,31 @@ export default async function HomeServiceMassagePage() {
         </section>
 
         {/* CTA */}
-        <section className="bg-[#10261D] py-20 text-[#FCFAF5] lg:py-28">
+        <section className="border-t border-[#D4B57A]/15 bg-[#05140E] py-20 text-[#FAF5E9] lg:py-28">
           <div className="mx-auto max-w-4xl px-6 text-center">
-            <Home className="mx-auto mb-6 h-8 w-8 text-[#E8D5A3]" aria-hidden="true" />
+            <Home className="mx-auto mb-6 h-8 w-8 text-[#E5C98B]" aria-hidden="true" />
             <h2
-              className="text-3xl font-medium leading-tight sm:text-4xl"
+              className="text-3xl font-medium leading-tight text-[#FAF5E9] sm:text-4xl"
               style={{ fontFamily: "var(--sp-font-display)" }}
             >
               Ready for a home massage in Bacolod?
             </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-7 text-[#F7F3EB]/68">
+            <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-7 text-[#CBD6CD]">
               Book in under two minutes. Choose your treatment, share your address, and let us bring
               the Cradle experience to your door.
             </p>
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
               <Link
                 href="/book"
-                className="inline-flex min-h-12 items-center justify-center rounded-[8px] bg-[#C8A96B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#10261D] transition hover:bg-[#E8D5A3]"
+                className="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-8 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#071A12] shadow-[0_8px_24px_-8px_rgba(212,181,122,0.55)] transition hover:brightness-105"
               >
                 Book Home Service
               </Link>
               <a
                 href="tel:+639177077070"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#F7F3EB]/24 px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-white/10"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[#D4B57A]/40 bg-[#0D2E20]/70 px-8 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FAF5E9] backdrop-blur-sm transition hover:border-[#E8D5A3]/75 hover:bg-[#14402E]"
               >
-                <Phone className="h-4 w-4" aria-hidden="true" />
+                <Phone className="h-4 w-4 text-[#E5C98B]" aria-hidden="true" />
                 Call 0917 707 7070
               </a>
             </div>
@@ -230,14 +231,14 @@ export default async function HomeServiceMassagePage() {
         </section>
 
         {/* FAQ */}
-        <section className="bg-[#FCFAF5] py-20 lg:py-28">
+        <section className="border-t border-[#D4B57A]/15 bg-[#071A12] py-20 lg:py-28">
           <div className="mx-auto max-w-4xl px-6">
-            <div className="text-center mb-12">
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
+            <div className="mb-12 text-center">
+              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E5C98B]">
                 Common Questions
               </p>
               <h2
-                className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
+                className="text-3xl font-medium leading-tight text-[#FAF5E9] sm:text-4xl"
                 style={{ fontFamily: "var(--sp-font-display)" }}
               >
                 Home Service Massage FAQ
@@ -247,10 +248,10 @@ export default async function HomeServiceMassagePage() {
               {faqs.map((faq) => (
                 <div
                   key={faq.question}
-                  className="rounded-[8px] border border-[#EDE4D3] bg-white p-6"
+                  className="eg-glass-card rounded-2xl p-6"
                 >
-                  <h3 className="text-[15px] font-semibold text-[#163A2B]">{faq.question}</h3>
-                  <p className="mt-2 text-[14px] leading-6 text-[#6B7A6F]">{faq.answer}</p>
+                  <h3 className="text-[15px] font-semibold text-[#FAF5E9]">{faq.question}</h3>
+                  <p className="mt-2 text-[14px] leading-6 text-[#CBD6CD]">{faq.answer}</p>
                 </div>
               ))}
             </div>

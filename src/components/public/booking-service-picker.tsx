@@ -65,15 +65,15 @@ type BookingServicePickerProps = {
 
 const WARM_HEADING_STYLE = {
   fontFamily: "var(--sp-font-display)",
-  color: "#10261D",
+  color: "#FAF5E9",
 } as const;
-const WARM_BODY_STYLE = { color: "#3E4C44" } as const;
-const WARM_MUTED_STYLE = { color: "#6B766F" } as const;
-const WARM_LABEL_STYLE = { color: "#8A6D3B" } as const;
+const WARM_BODY_STYLE = { color: "#CBD6CD" } as const;
+const WARM_MUTED_STYLE = { color: "#9FB1A6" } as const;
+const WARM_LABEL_STYLE = { color: "#E5C98B" } as const;
 const WARM_GLASS_CARD =
-  "border border-[#E5DEC9] bg-white shadow-xs";
+  "eg-glass-card";
 const WARM_SKELETON_CLS =
-  "bg-[#EDE4D3] after:via-white/60";
+  "bg-[#0F2F23]/80 after:via-[#D4B57A]/15";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-PH", {
@@ -137,10 +137,10 @@ function MobileServiceCard({
       onClick={onToggle}
       aria-pressed={isSelected}
       aria-label={`Select ${service.name}, ${durationLabel}, ${priceLabel}`}
-      className={`relative w-full min-w-0 max-w-full overflow-hidden rounded-2xl border bg-white shadow-xs transition active:scale-[0.98] ${
+      className={`relative w-full min-w-0 max-w-full overflow-hidden rounded-2xl border bg-[#0A2319] shadow-xs transition active:scale-[0.98] ${
         isSelected
-          ? "border-[#163A2B] ring-2 ring-[#163A2B]/35"
-          : "border-[#E5DEC9] hover:border-[#C8A96B]"
+          ? "border-[#D4B57A] ring-2 ring-[#D4B57A]/45 shadow-[0_10px_28px_-12px_rgba(212,181,122,0.5)]"
+          : "border-[#D4B57A]/22 hover:border-[#D4B57A]/60"
       }`}
     >
       <div className="relative aspect-[4/4.6] w-full overflow-hidden">
@@ -205,10 +205,10 @@ function ServiceImageCard({
       onClick={onToggle}
       aria-pressed={isSelected}
       aria-label={`Select ${service.name}, ${service.durationMinutes} min, ${formatCurrency(service.price)}`}
-      className={`group relative aspect-[4/5] overflow-hidden rounded-2xl transition-all duration-200 ${
+      className={`group relative aspect-[4/5] overflow-hidden rounded-2xl bg-[#0A2319] transition-all duration-200 ${
         isSelected
-          ? "ring-2 ring-[#163A2B] ring-offset-2 ring-offset-[#F7F3EB] shadow-md"
-          : "ring-1 ring-[#E5DEC9] hover:ring-[#C8A96B] hover:shadow-md"
+          ? "ring-2 ring-[#D4B57A] ring-offset-2 ring-offset-[#071A12] shadow-[0_16px_34px_-16px_rgba(212,181,122,0.5)]"
+          : "ring-1 ring-[#D4B57A]/22 hover:ring-[#D4B57A]/60 hover:shadow-lg"
       }`}
     >
       <ServiceImage
@@ -387,11 +387,11 @@ export function BookingServicePicker({
           {hasInlineDuration ? (
             <div className="w-full">
               {selected.map((service) => (
-                <div key={`${attendeeId}:${service.id}`} className={selected.length > 1 ? "mt-2 border-t border-[#E5DEC9] pt-2" : ""}>
+                <div key={`${attendeeId}:${service.id}`} className={selected.length > 1 ? "mt-2 border-t border-[#D4B57A]/20 pt-2" : ""}>
                   {selected.length > 1 ? (
-                    <div className="flex items-center justify-between gap-3 text-[12px] text-[#10261D]">
+                    <div className="flex items-center justify-between gap-3 text-[12px] text-[#FAF5E9]">
                       <span className="min-w-0 truncate font-medium">{service.name}</span>
-                      <span className="shrink-0 font-semibold text-[#163A2B]">{service.durationMinutes} min · {formatCurrency(service.price)}</span>
+                      <span className="shrink-0 font-semibold text-[#E5C98B]">{service.durationMinutes} min · {formatCurrency(service.price)}</span>
                     </div>
                   ) : null}
                   {service.durationPolicy === "extendable" ? (
@@ -412,9 +412,9 @@ export function BookingServicePicker({
         <div className="mb-4 space-y-2">
           {selected.filter((service) => service.durationPolicy === "extendable").map((service) => (
             <button key={service.id} type="button" onClick={() => onAdjust?.(service)}
-              className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-[#10261D] ${WARM_GLASS_CARD}`}>
+              className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-[#FAF5E9] ${WARM_GLASS_CARD}`}>
               <span className="min-w-0 truncate font-semibold">{service.name}</span>
-              <span className="shrink-0 text-xs font-semibold text-[#8A6D3B]">
+              <span className="shrink-0 text-xs font-semibold text-[#E5C98B]">
                 {service.durationAdjusted ? `${service.durationMinutes} min · ${formatCurrency(service.price)}` : `${service.durationMinutes} min+ · From ${formatCurrency(service.price)}`} · Adjust ›
               </span>
             </button>
@@ -436,8 +436,8 @@ export function BookingServicePicker({
                   onClick={() => setPreferredCategoryId(category.id)}
                   className={`min-h-9 shrink-0 whitespace-nowrap rounded-full border px-3 text-[12px] font-semibold transition-colors ${
                     isActive
-                      ? "border-[#163A2B] bg-[#163A2B] text-[#FAF5E9]"
-                      : "border-[#DDD4C2] bg-white text-[#3E4C44]"
+                      ? "border-[#D4B57A] bg-gradient-to-r from-[#D4B57A] to-[#E4C98E] text-[#071A12] shadow-sm"
+                      : "border-[#D4B57A]/28 bg-[#0A251B]/80 text-[#CBD6CD]"
                   }`}
                 >
                   {category.name}
@@ -451,7 +451,7 @@ export function BookingServicePicker({
         <div className="w-full max-w-full">
           {!activeCategory ? (
             <div
-              className="rounded-2xl border border-dashed border-[#D7CEBC] bg-[#FCFAF5] px-4 py-8 text-center text-[#55635B]"
+              className="rounded-2xl border border-dashed border-[#D4B57A]/28 bg-[#092118]/75 px-4 py-8 text-center text-[#9FB1A6]"
             >
               No services in this category yet.
             </div>
@@ -484,12 +484,12 @@ export function BookingServicePicker({
                   onClick={() => setPreferredCategoryId(category.id)}
                   className={`flex items-center justify-between rounded-full border px-4 py-2.5 text-left text-[12px] font-semibold transition-colors ${
                     isActive
-                      ? "border-[#163A2B] bg-[#163A2B] text-[#FAF5E9]"
-                      : "border-[#DDD4C2] bg-white text-[#3E4C44] hover:border-[#C8A96B]"
+                      ? "border-[#D4B57A] bg-gradient-to-r from-[#D4B57A] to-[#E4C98E] text-[#071A12] shadow-sm"
+                      : "border-[#D4B57A]/24 bg-[#0A251B]/75 text-[#CBD6CD] hover:border-[#D4B57A]/60 hover:text-[#FAF5E9]"
                   }`}
                 >
                   <span className="truncate">{category.name}</span>
-                  <span className={isActive ? "text-[#E8D5A3]" : "text-[#8A6D3B]"}>
+                  <span className={isActive ? "text-[#071A12]/80" : "text-[#E5C98B]"}>
                     {category.services.length}
                   </span>
                 </button>
@@ -500,7 +500,7 @@ export function BookingServicePicker({
           {/* Desktop image grid */}
           {!activeCategory ? (
             <div
-              className="rounded-2xl border border-dashed border-[#D7CEBC] bg-[#FCFAF5] px-4 py-8 text-center text-[#55635B]"
+              className="rounded-2xl border border-dashed border-[#D4B57A]/28 bg-[#092118]/75 px-4 py-8 text-center text-[#9FB1A6]"
             >
               No services in this category yet.
             </div>

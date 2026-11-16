@@ -222,16 +222,16 @@ export function ServiceCatalogClient({
                 if (tab.id === "home_only") setVisitModeFilter("home_service");
                 else if (visitModeFilter === "home_service") setVisitModeFilter("all");
               }}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-[#163A2B] ${
+              className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-[#E8D5A3] ${
                 active
-                  ? "border-[#163A2B] bg-[#163A2B] text-[#FAF5E9] shadow-xs"
-                  : "border-[#DDD4C2] bg-white text-[#2A3830] hover:border-[#C8A96B]"
+                  ? "border-[#D4B57A] bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] text-[#071A12] shadow-sm"
+                  : "eg-glass-pill text-[#FAF5E9] hover:border-[#E8D5A3]/60"
               }`}
             >
               {tab.id === "home_only" ? (
-                <Home className="h-3.5 w-3.5 text-[#C8A96B]" aria-hidden="true" />
+                <Home className={`h-3.5 w-3.5 ${active ? "text-[#071A12]" : "text-[#E5C98B]"}`} aria-hidden="true" />
               ) : (
-                <Flower2 className="h-3.5 w-3.5 text-[#C8A96B]" aria-hidden="true" />
+                <Flower2 className={`h-3.5 w-3.5 ${active ? "text-[#071A12]" : "text-[#E5C98B]"}`} aria-hidden="true" />
               )}
               <span>{tab.label}</span>
             </button>
@@ -242,15 +242,15 @@ export function ServiceCatalogClient({
       {/* Main Split: Filter Sidebar + Catalog */}
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-12">
         {/* Left Filter Sidebar */}
-        <aside className="rounded-2xl border border-[#E5DEC9] bg-white p-5 shadow-xs lg:col-span-3">
-          <div className="flex items-center justify-between border-b border-[#EFEAE0] pb-3">
-            <h2 className="text-sm font-semibold text-[#10261D]">
+        <aside className="eg-glass-card rounded-2xl p-5 lg:col-span-3">
+          <div className="flex items-center justify-between border-b border-[#D4B57A]/15 pb-3">
+            <h2 className="text-sm font-semibold text-[#FAF5E9]">
               Filter Services
             </h2>
             <button
               type="button"
               onClick={clearAllFilters}
-              className="text-xs font-medium text-[#8A6D3B] hover:text-[#163A2B] hover:underline"
+              className="text-xs font-medium text-[#E5C98B] hover:text-[#FAF5E9] hover:underline"
             >
               Clear All
             </button>
@@ -261,16 +261,16 @@ export function ServiceCatalogClient({
             <div>
               <label
                 htmlFor="catalog-branch-select"
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#10261D]"
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#FAF5E9]"
               >
-                <MapPin className="h-3.5 w-3.5 text-[#B68A3C]" aria-hidden="true" />
+                <MapPin className="h-3.5 w-3.5 text-[#E5C98B]" aria-hidden="true" />
                 <span>Branch</span>
               </label>
               <select
                 id="catalog-branch-select"
                 value={selectedBranchId}
                 onChange={(e) => setSelectedBranchId(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-[#DDD4C2] bg-[#FCFAF5] px-3 py-2 text-xs text-[#10261D]"
+                className="mt-2 w-full rounded-xl border border-[#D4B57A]/30 bg-[#071E15] px-3 py-2 text-xs text-[#FAF5E9]"
               >
                 <option value="all">All Branches</option>
                 {branches.map((b) => (
@@ -282,15 +282,15 @@ export function ServiceCatalogClient({
             </div>
 
             {/* Service Type Checkboxes */}
-            <div className="border-t border-[#EFEAE0] pt-4">
-              <p className="text-xs font-semibold text-[#10261D]">Service Type</p>
+            <div className="border-t border-[#D4B57A]/15 pt-4">
+              <p className="text-xs font-semibold text-[#FAF5E9]">Service Type</p>
               <div className="mt-2.5 space-y-2">
                 {Array.from(categoryCounts.entries()).map(([cat, count]) => {
                   const checked = checkedTypes.includes(cat);
                   return (
                     <label
                       key={cat}
-                      className="flex cursor-pointer items-center justify-between gap-2 text-xs text-[#3E4C44]"
+                      className="flex cursor-pointer items-center justify-between gap-2 text-xs text-[#CBD6CD]"
                     >
                       <span className="flex items-center gap-2">
                         <input
@@ -303,11 +303,11 @@ export function ServiceCatalogClient({
                                 : [...prev, cat],
                             )
                           }
-                          className="h-3.5 w-3.5 rounded border-[#C8BFA9] accent-[#163A2B]"
+                          className="h-3.5 w-3.5 rounded border-[#D4B57A]/40 accent-[#D4B57A]"
                         />
                         <span>{cat.replace(" Services", "")}</span>
                       </span>
-                      <span className="text-[11px] text-[#7A847D]">({count})</span>
+                      <span className="text-[11px] text-[#9CB0A3]">({count})</span>
                     </label>
                   );
                 })}
@@ -315,15 +315,15 @@ export function ServiceCatalogClient({
             </div>
 
             {/* Duration Buckets */}
-            <div className="border-t border-[#EFEAE0] pt-4">
-              <p className="text-xs font-semibold text-[#10261D]">Duration</p>
+            <div className="border-t border-[#D4B57A]/15 pt-4">
+              <p className="text-xs font-semibold text-[#FAF5E9]">Duration</p>
               <div className="mt-2.5 space-y-2">
                 {DURATION_BUCKETS.map((bucket) => {
                   const checked = checkedDurations.includes(bucket.id);
                   return (
                     <label
                       key={bucket.id}
-                      className="flex cursor-pointer items-center justify-between gap-2 text-xs text-[#3E4C44]"
+                      className="flex cursor-pointer items-center justify-between gap-2 text-xs text-[#CBD6CD]"
                     >
                       <span className="flex items-center gap-2">
                         <input
@@ -336,11 +336,11 @@ export function ServiceCatalogClient({
                                 : [...prev, bucket.id],
                             )
                           }
-                          className="h-3.5 w-3.5 rounded border-[#C8BFA9] accent-[#163A2B]"
+                          className="h-3.5 w-3.5 rounded border-[#D4B57A]/40 accent-[#D4B57A]"
                         />
                         <span>{bucket.label}</span>
                       </span>
-                      <span className="text-[11px] text-[#7A847D]">
+                      <span className="text-[11px] text-[#9CB0A3]">
                         ({durationCounts[bucket.id]})
                       </span>
                     </label>
@@ -350,15 +350,15 @@ export function ServiceCatalogClient({
             </div>
 
             {/* Price Range */}
-            <div className="border-t border-[#EFEAE0] pt-4">
+            <div className="border-t border-[#D4B57A]/15 pt-4">
               <div className="flex items-center justify-between">
                 <label
                   htmlFor="catalog-price-slider"
-                  className="text-xs font-semibold text-[#10261D]"
+                  className="text-xs font-semibold text-[#FAF5E9]"
                 >
                   Max Price
                 </label>
-                <span className="text-xs font-bold text-[#163A2B]">
+                <span className="text-xs font-bold text-[#E8D5A3] tabular-nums">
                   {formatPhp(maxPrice)}
                 </span>
               </div>
@@ -371,9 +371,9 @@ export function ServiceCatalogClient({
                 value={maxPrice}
                 aria-valuetext={`Up to ${formatPhp(maxPrice)}`}
                 onChange={(e) => setMaxPrice(Number(e.target.value))}
-                className="mt-2.5 w-full accent-[#B68A3C]"
+                className="mt-2.5 w-full accent-[#D4B57A]"
               />
-              <div className="mt-1 flex justify-between text-[10px] text-[#7A847D]">
+              <div className="mt-1 flex justify-between text-[10px] text-[#9CB0A3]">
                 <span>₱200</span>
                 <span>{formatPhp(catalogMaxPrice)}+</span>
               </div>
@@ -385,9 +385,9 @@ export function ServiceCatalogClient({
         <div className="space-y-6 lg:col-span-9">
           {/* Featured Service Card */}
           {featuredService && (
-            <div className="overflow-hidden rounded-3xl border border-[#E2D9C8] bg-white shadow-xs">
+            <div className="eg-glass-card overflow-hidden rounded-3xl">
               <div className="grid grid-cols-1 md:grid-cols-12">
-                <div className="relative min-h-[220px] bg-[#EDE4D3] md:col-span-5">
+                <div className="relative min-h-[220px] bg-[#0A251B] md:col-span-5">
                   <ServiceImage
                     src={featuredService.imageUrl}
                     alt={featuredService.imageAlt || featuredService.name}
@@ -396,31 +396,31 @@ export function ServiceCatalogClient({
                     sizes="(max-width: 768px) 100vw, 40vw"
                     className="object-cover"
                   />
-                  <span className="absolute top-3 left-3 rounded-full bg-[#163A2B]/90 px-3 py-1 text-[10px] font-semibold tracking-wider text-[#E8D5A3] uppercase">
+                  <span className="absolute top-3 left-3 rounded-full bg-[#D4B57A] px-3 py-1 text-[10px] font-bold tracking-wider text-[#071A12] uppercase">
                     Featured Service
                   </span>
                 </div>
                 <div className="flex flex-col justify-between p-6 md:col-span-7">
                   <div>
-                    <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#8A6D3B] uppercase">
+                    <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.2em] text-[#E5C98B] uppercase">
                       <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>{featuredService.categoryName}</span>
                     </p>
-                    <h2 className="mt-1.5 font-serif text-2xl font-medium text-[#10261D] [font-family:var(--sp-font-display)] lg:text-3xl">
+                    <h2 className="mt-1.5 font-serif text-2xl font-medium text-[#FAF5E9] [font-family:var(--sp-font-display)] lg:text-3xl">
                       {featuredService.name}
                     </h2>
-                    <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#4C5A52]">
+                    <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#CBD6CD]">
                       {featuredService.description}
                     </p>
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-[#F0EAE0] pt-4">
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-[#D4B57A]/15 pt-4">
                     <div className="flex items-center gap-4 text-sm">
-                      <span className="inline-flex items-center gap-1.5 text-[#4C5A52]">
-                        <Clock className="h-4 w-4 text-[#B68A3C]" aria-hidden="true" />
+                      <span className="inline-flex items-center gap-1.5 text-[#CBD6CD]">
+                        <Clock className="h-4 w-4 text-[#E5C98B]" aria-hidden="true" />
                         <span>{featuredService.durationText}</span>
                       </span>
-                      <span className="text-lg font-bold text-[#10261D]">
+                      <span className="text-lg font-bold text-[#E8D5A3] tabular-nums">
                         {featuredService.priceLabel}
                       </span>
                     </div>
@@ -428,13 +428,13 @@ export function ServiceCatalogClient({
                       <button
                         type="button"
                         onClick={() => setDetailService(featuredService)}
-                        className="rounded-full border border-[#D7CEBC] bg-[#FCFAF5] px-4 py-2 text-xs font-semibold text-[#10261D] transition hover:border-[#163A2B]"
+                        className="eg-glass-pill rounded-full px-4 py-2 text-xs font-semibold text-[#FAF5E9] transition hover:border-[#E8D5A3]"
                       >
                         View Details
                       </button>
                       <Link
                         href={buildBookingHref(featuredService)}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#163A2B] px-5 py-2 text-xs font-semibold text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-5 py-2 text-xs font-semibold text-[#071A12] transition hover:brightness-105"
                       >
                         <span>Book Now</span>
                         <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -447,10 +447,10 @@ export function ServiceCatalogClient({
           )}
 
           {/* Toolbar: Count + Search + Sort + Grid/List */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E5DEC9] bg-white px-4 py-3">
-            <p className="font-serif text-lg font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+          <div className="eg-glass-card flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
+            <p className="font-serif text-lg font-medium text-[#FAF5E9] [font-family:var(--sp-font-display)]">
               All Services{" "}
-              <span className="text-sm font-sans text-[#6B766F]">
+              <span className="text-sm font-sans text-[#CBD6CD]">
                 ({filteredServices.length})
               </span>
             </p>
@@ -458,7 +458,7 @@ export function ServiceCatalogClient({
             <div className="flex flex-1 flex-wrap items-center justify-end gap-2.5">
               <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
                 <Search
-                  className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-[#7A847D]"
+                  className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-[#9CB0A3]"
                   aria-hidden="true"
                 />
                 <input
@@ -467,14 +467,14 @@ export function ServiceCatalogClient({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search services..."
                   aria-label="Search services"
-                  className="w-full rounded-xl border border-[#DDD4C2] bg-[#FCFAF5] py-2 pr-8 pl-8 text-xs text-[#10261D] placeholder:text-[#7A847D]"
+                  className="w-full rounded-xl border border-[#D4B57A]/30 bg-[#071E15] py-2 pr-8 pl-8 text-xs text-[#FAF5E9] placeholder:text-[#96A89D]"
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
                     aria-label="Clear service search"
-                    className="absolute top-1/2 right-2 -translate-y-1/2 text-[#7A847D] hover:text-[#10261D]"
+                    className="absolute top-1/2 right-2 -translate-y-1/2 text-[#9CB0A3] hover:text-[#FAF5E9]"
                   >
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -485,7 +485,7 @@ export function ServiceCatalogClient({
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
                 aria-label="Sort services"
-                className="rounded-xl border border-[#DDD4C2] bg-[#FCFAF5] px-3 py-2 text-xs text-[#10261D]"
+                className="rounded-xl border border-[#D4B57A]/30 bg-[#071E15] px-3 py-2 text-xs text-[#FAF5E9]"
               >
                 <option value="recommended">Sort: Recommended</option>
                 <option value="price_asc">Price: Low to High</option>
@@ -493,7 +493,7 @@ export function ServiceCatalogClient({
                 <option value="duration_asc">Duration: Shortest</option>
               </select>
 
-              <div className="flex rounded-xl border border-[#DDD4C2] bg-[#FCFAF5] p-0.5">
+              <div className="flex rounded-xl border border-[#D4B57A]/30 bg-[#071E15] p-0.5">
                 <button
                   type="button"
                   onClick={() => setViewMode("grid")}
@@ -501,8 +501,8 @@ export function ServiceCatalogClient({
                   aria-pressed={viewMode === "grid"}
                   className={`flex h-7 w-7 items-center justify-center rounded-lg ${
                     viewMode === "grid"
-                      ? "bg-[#163A2B] text-[#FAF5E9]"
-                      : "text-[#58665E]"
+                      ? "bg-[#D4B57A] text-[#071A12]"
+                      : "text-[#CBD6CD]"
                   }`}
                 >
                   <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
@@ -514,8 +514,8 @@ export function ServiceCatalogClient({
                   aria-pressed={viewMode === "list"}
                   className={`flex h-7 w-7 items-center justify-center rounded-lg ${
                     viewMode === "list"
-                      ? "bg-[#163A2B] text-[#FAF5E9]"
-                      : "text-[#58665E]"
+                      ? "bg-[#D4B57A] text-[#071A12]"
+                      : "text-[#CBD6CD]"
                   }`}
                 >
                   <List className="h-3.5 w-3.5" aria-hidden="true" />
@@ -526,17 +526,17 @@ export function ServiceCatalogClient({
 
           {/* Empty State or Services Cards */}
           {gridServices.length === 0 ? (
-            <div className="rounded-2xl border border-[#E5DEC9] bg-white p-10 text-center">
-              <p className="font-serif text-xl font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+            <div className="eg-glass-card rounded-2xl p-10 text-center">
+              <p className="font-serif text-xl font-medium text-[#FAF5E9] [font-family:var(--sp-font-display)]">
                 No matching services found
               </p>
-              <p className="mt-1.5 text-sm text-[#58665E]">
+              <p className="mt-1.5 text-sm text-[#CBD6CD]">
                 Try broadening your duration, price range, or category filter.
               </p>
               <button
                 type="button"
                 onClick={clearAllFilters}
-                className="mt-4 rounded-full bg-[#163A2B] px-5 py-2 text-xs font-semibold text-[#FAF5E9]"
+                className="mt-4 rounded-full bg-[#D4B57A] px-5 py-2 text-xs font-semibold text-[#071A12]"
               >
                 Reset Filters
               </button>
@@ -546,9 +546,9 @@ export function ServiceCatalogClient({
               {gridServices.map((service) => (
                 <article
                   key={service.id}
-                  className="flex flex-col overflow-hidden rounded-2xl border border-[#E5DEC9] bg-white shadow-xs transition hover:border-[#C8A96B] hover:shadow-md"
+                  className="eg-glass-card eg-glass-lift flex flex-col overflow-hidden rounded-2xl"
                 >
-                  <div className="relative aspect-[16/10] w-full bg-[#EDE4D3]">
+                  <div className="relative aspect-[16/10] w-full bg-[#0A251B]">
                     <ServiceImage
                       src={service.imageUrl}
                       alt={service.imageAlt || service.name}
@@ -558,35 +558,35 @@ export function ServiceCatalogClient({
                       className="object-cover"
                     />
                     {service.availableHomeService && (
-                      <span className="absolute top-2.5 right-2.5 rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-semibold text-[#163A2B] shadow-xs">
+                      <span className="absolute top-2.5 right-2.5 rounded-full border border-[#D4B57A]/35 bg-[#071D15]/90 px-2.5 py-0.5 text-[10px] font-semibold text-[#E8D5A3] backdrop-blur-xs">
                         Home Service Ready
                       </span>
                     )}
                   </div>
                   <div className="flex flex-1 flex-col p-4">
-                    <p className="text-[10px] font-semibold tracking-wider text-[#8A6D3B] uppercase">
+                    <p className="text-[10px] font-semibold tracking-wider text-[#E5C98B] uppercase">
                       {service.categoryName}
                     </p>
-                    <h3 className="mt-1 font-serif text-base font-semibold text-[#10261D] [font-family:var(--sp-font-display)]">
+                    <h3 className="mt-1 font-serif text-base font-semibold text-[#FAF5E9] [font-family:var(--sp-font-display)]">
                       {service.name}
                     </h3>
-                    <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[#55635B]">
+                    <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-[#CBD6CD]">
                       {service.description}
                     </p>
                     <div className="mt-auto pt-4">
-                      <div className="flex items-center justify-between border-t border-[#F0EAE0] pt-3 text-xs">
-                        <span className="inline-flex items-center gap-1 text-[#55635B]">
-                          <Clock className="h-3.5 w-3.5 text-[#B68A3C]" aria-hidden="true" />
+                      <div className="flex items-center justify-between border-t border-[#D4B57A]/15 pt-3 text-xs">
+                        <span className="inline-flex items-center gap-1 text-[#CBD6CD]">
+                          <Clock className="h-3.5 w-3.5 text-[#E5C98B]" aria-hidden="true" />
                           <span>{service.durationText}</span>
                         </span>
-                        <span className="text-sm font-bold text-[#10261D]">
+                        <span className="text-sm font-bold text-[#E8D5A3] tabular-nums">
                           {service.priceLabel}
                         </span>
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <Link
                           href={buildBookingHref(service)}
-                          className="inline-flex items-center justify-center gap-1 rounded-full bg-[#163A2B] px-3 py-2 text-xs font-semibold text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+                          className="inline-flex items-center justify-center gap-1 rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-3 py-2 text-xs font-semibold text-[#071A12] transition hover:brightness-105"
                         >
                           <span>Book Now</span>
                           <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -594,7 +594,7 @@ export function ServiceCatalogClient({
                         <button
                           type="button"
                           onClick={() => setDetailService(service)}
-                          className="rounded-full border border-[#DDD4C2] bg-[#FCFAF5] px-3 py-2 text-xs font-semibold text-[#10261D] transition hover:border-[#163A2B]"
+                          className="eg-glass-pill rounded-full px-3 py-2 text-xs font-semibold text-[#FAF5E9] transition hover:border-[#E8D5A3]"
                         >
                           View Details
                         </button>
@@ -609,9 +609,9 @@ export function ServiceCatalogClient({
               {gridServices.map((service) => (
                 <article
                   key={service.id}
-                  className="flex flex-col gap-4 rounded-2xl border border-[#E5DEC9] bg-white p-4 shadow-xs sm:flex-row sm:items-center"
+                  className="eg-glass-card flex flex-col gap-4 rounded-2xl p-4 sm:flex-row sm:items-center"
                 >
-                  <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden rounded-xl bg-[#EDE4D3] sm:h-24 sm:w-32">
+                  <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden rounded-xl bg-[#0A251B] sm:h-24 sm:w-32">
                     <ServiceImage
                       src={service.imageUrl}
                       alt={service.imageAlt || service.name}
@@ -622,22 +622,22 @@ export function ServiceCatalogClient({
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold tracking-wider text-[#8A6D3B] uppercase">
+                    <p className="text-[10px] font-semibold tracking-wider text-[#E5C98B] uppercase">
                       {service.categoryName}
                     </p>
-                    <h3 className="font-serif text-base font-semibold text-[#10261D] [font-family:var(--sp-font-display)]">
+                    <h3 className="font-serif text-base font-semibold text-[#FAF5E9] [font-family:var(--sp-font-display)]">
                       {service.name}
                     </h3>
-                    <p className="mt-1 line-clamp-2 text-xs text-[#55635B]">
+                    <p className="mt-1 line-clamp-2 text-xs text-[#CBD6CD]">
                       {service.description}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-3 sm:flex-col sm:items-end">
                     <div className="text-left sm:text-right">
-                      <p className="text-sm font-bold text-[#10261D]">
+                      <p className="text-sm font-bold text-[#E8D5A3] tabular-nums">
                         {service.priceLabel}
                       </p>
-                      <p className="text-[11px] text-[#58665E]">
+                      <p className="text-[11px] text-[#CBD6CD]">
                         {service.durationText}
                       </p>
                     </div>
@@ -645,13 +645,13 @@ export function ServiceCatalogClient({
                       <button
                         type="button"
                         onClick={() => setDetailService(service)}
-                        className="rounded-full border border-[#DDD4C2] px-3.5 py-1.5 text-xs font-semibold text-[#10261D]"
+                        className="eg-glass-pill rounded-full px-3.5 py-1.5 text-xs font-semibold text-[#FAF5E9]"
                       >
                         Details
                       </button>
                       <Link
                         href={buildBookingHref(service)}
-                        className="inline-flex items-center gap-1 rounded-full bg-[#163A2B] px-4 py-1.5 text-xs font-semibold text-[#FAF5E9]"
+                        className="inline-flex items-center gap-1 rounded-full bg-[#D4B57A] px-4 py-1.5 text-xs font-semibold text-[#071A12]"
                       >
                         <span>Book</span>
                         <ArrowRight className="h-3 w-3" aria-hidden="true" />
@@ -666,16 +666,16 @@ export function ServiceCatalogClient({
       </div>
 
       {/* Choose Experience + Quick Book Bottom CTA */}
-      <div className="rounded-3xl border border-[#E2D9C8] bg-white p-6 shadow-xs lg:p-8">
+      <div className="eg-glass-card rounded-3xl p-6 lg:p-8">
         <div className="flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-center">
           <div>
-            <p className="text-[10px] font-semibold tracking-[0.2em] text-[#8A6D3B] uppercase">
+            <p className="text-[10px] font-semibold tracking-[0.2em] text-[#E5C98B] uppercase">
               Ready to Relax?
             </p>
-            <h2 className="mt-1 font-serif text-2xl font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+            <h2 className="mt-1 font-serif text-2xl font-medium text-[#FAF5E9] [font-family:var(--sp-font-display)]">
               Book Your Service Today
             </h2>
-            <p className="mt-1 text-sm text-[#55635B]">
+            <p className="mt-1 text-sm text-[#CBD6CD]">
               Choose your preferred Bacolod branch and schedule your appointment in
               minutes.
             </p>
@@ -686,7 +686,7 @@ export function ServiceCatalogClient({
                 value={quickBookBranchId}
                 onChange={(e) => setQuickBookBranchId(e.target.value)}
                 aria-label="Select Bacolod branch to book"
-                className="rounded-full border border-[#DDD4C2] bg-[#FCFAF5] px-4 py-2.5 text-xs font-medium text-[#10261D]"
+                className="rounded-full border border-[#D4B57A]/35 bg-[#071E15] px-4 py-2.5 text-xs font-medium text-[#FAF5E9]"
               >
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -701,9 +701,9 @@ export function ServiceCatalogClient({
                   ? `/book?branchId=${encodeURIComponent(quickBookBranchId)}`
                   : "/book"
               }
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#163A2B] px-6 py-2.5 text-xs font-semibold text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-6 py-2.5 text-xs font-semibold text-[#071A12] transition hover:brightness-105"
             >
-              <Calendar className="h-4 w-4 text-[#D4B57A]" aria-hidden="true" />
+              <Calendar className="h-4 w-4" aria-hidden="true" />
               <span>Book an Appointment</span>
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>

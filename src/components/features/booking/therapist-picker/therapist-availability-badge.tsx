@@ -14,11 +14,11 @@ export function TherapistAvailabilityBadge({
       className={cn(
         "inline-flex h-6 w-fit shrink-0 items-center rounded-full px-2.5 text-[10px] font-bold uppercase tracking-wide",
         tone === "recommended" &&
-          "border border-[#C8A96B]/45 bg-[#F5EFE3] text-[#7D5E29]",
+          "border border-[#D4B57A]/45 bg-[#D4B57A]/18 text-[#E5C98B]",
         tone === "available" &&
-          "border border-[#163A2B]/20 bg-[#EAF2ED] text-[#163A2B]",
+          "border border-emerald-400/35 bg-emerald-950/60 text-emerald-200",
         tone === "muted" &&
-          "border border-[#DDD4C2] bg-[#F7F3EB] text-[#6B766F]",
+          "border border-[#D4B57A]/22 bg-[#092118] text-[#9FB1A6]",
       )}
     >
       {children}

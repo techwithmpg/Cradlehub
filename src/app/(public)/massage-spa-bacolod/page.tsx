@@ -54,48 +54,49 @@ export default async function MassageSpaBacolodPage() {
 
   return (
     <>
-      <div className="sp-public">
+      <div className="sp-public min-h-screen bg-[#071A12] text-[#FAF5E9]">
         {/* Hero */}
-        <section className="relative overflow-hidden bg-[#10261D] pt-28 pb-16 text-[#FCFAF5] lg:pt-40 lg:pb-24">
+        <section className="relative overflow-hidden border-b border-[#D4B57A]/15 bg-[#05140E] pt-28 pb-16 text-[#FAF5E9] lg:pt-40 lg:pb-24">
           <div className="absolute inset-0">
             <Image
               src={heroBanner}
               alt="Massage spa experience in Bacolod at Cradle Wellness Living"
               fill
-              priority
-              className="object-cover opacity-50"
+              preload
+              fetchPriority="high"
+              className="eg-hero-photo object-cover opacity-50"
               sizes="100vw"
             />
-            <div className="absolute inset-0 bg-[#10261D]/70" />
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(16,38,29,0.96)_0%,rgba(16,38,29,0.74)_52%,rgba(16,38,29,0.4)_100%)]" />
-            <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(0deg,#FCFAF5_0%,rgba(252,250,245,0)_100%)]" />
+            <div className="absolute inset-0 bg-[#05140E]/70" />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,20,14,0.96)_0%,rgba(5,20,14,0.78)_52%,rgba(5,20,14,0.4)_100%)]" />
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(0deg,#071A12_0%,rgba(7,26,18,0)_100%)]" />
           </div>
 
           <div className="relative mx-auto max-w-7xl px-6 lg:px-12">
             <div className="max-w-3xl">
-              <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#E8D5A3]">
+              <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#E5C98B]">
                 Massage & Spa in Bacolod
               </p>
-              <h1 className="text-4xl font-medium leading-[1.04] text-[#FCFAF5] sm:text-5xl lg:text-6xl" style={{ fontFamily: "var(--sp-font-display)" }}>
+              <h1 className="text-4xl font-medium leading-[1.04] text-[#FAF5E9] sm:text-5xl lg:text-6xl" style={{ fontFamily: "var(--sp-font-display)" }}>
                 Massage Spa Bacolod
               </h1>
-              <p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#F7F3EB]/78 sm:text-base">
+              <p className="mt-6 max-w-2xl text-[15px] leading-7 text-[#CBD6CD] sm:text-base">
                 Cradle Wellness Living offers a calming massage spa experience in Bacolod City.
                 Visit our branches for in-spa treatments or book a convenient home service session.
               </p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/book"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-[#C8A96B] px-7 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#10261D] transition hover:bg-[#E8D5A3]"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-8 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#071A12] shadow-[0_8px_24px_-8px_rgba(212,181,122,0.55)] transition hover:brightness-105"
                 >
                   Book a Session
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
                 <a
                   href="tel:+639177077070"
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#F7F3EB]/28 px-7 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#FCFAF5] transition hover:bg-white/10"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[#D4B57A]/40 bg-[#0D2E20]/70 px-8 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#FAF5E9] backdrop-blur-sm transition hover:border-[#E8D5A3]/75 hover:bg-[#14402E]"
                 >
-                  <Phone className="h-4 w-4" aria-hidden="true" />
+                  <Phone className="h-4 w-4 text-[#E5C98B]" aria-hidden="true" />
                   Call to Reserve
                 </a>
               </div>
@@ -104,14 +105,14 @@ export default async function MassageSpaBacolodPage() {
         </section>
 
         {/* Services Overview */}
-        <section className="bg-[#FCFAF5] py-20 lg:py-28">
+        <section className="bg-[#071A12] py-20 lg:py-28">
           <div className="mx-auto max-w-7xl px-6 lg:px-12">
-            <div className="text-center max-w-2xl mx-auto mb-16">
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
+            <div className="mx-auto mb-16 max-w-2xl text-center">
+              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E5C98B]">
                 Our Menu
               </p>
               <h2
-                className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
+                className="text-3xl font-medium leading-tight text-[#FAF5E9] sm:text-4xl"
                 style={{ fontFamily: "var(--sp-font-display)" }}
               >
                 Treatments designed for rest and recovery.
@@ -146,18 +147,18 @@ export default async function MassageSpaBacolodPage() {
               ].map((service) => (
                 <div
                   key={service.title}
-                  className="rounded-[8px] border border-[#EDE4D3] bg-white p-8 transition hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(22,58,43,0.08)]"
+                  className="eg-glass-card eg-glass-lift rounded-2xl p-8"
                 >
-                  <Sparkles className="mb-5 h-5 w-5 text-[#B68A3C]" aria-hidden="true" />
-                  <h3 className="text-[16px] font-semibold text-[#163A2B]">{service.title}</h3>
-                  <p className="mt-2 text-[13px] leading-6 text-[#6B7A6F]">{service.desc}</p>
+                  <Sparkles className="mb-5 h-5 w-5 text-[#E5C98B]" aria-hidden="true" />
+                  <h3 className="text-[16px] font-semibold text-[#FAF5E9]">{service.title}</h3>
+                  <p className="mt-2 text-[13px] leading-6 text-[#CBD6CD]">{service.desc}</p>
                 </div>
               ))}
             </div>
             <div className="mt-10 text-center">
               <Link
                 href="/services"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] bg-[#163A2B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-[#1E4D3A]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-8 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#071A12] shadow-[0_8px_24px_-8px_rgba(212,181,122,0.55)] transition hover:brightness-105"
               >
                 Explore Full Menu
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -167,10 +168,10 @@ export default async function MassageSpaBacolodPage() {
         </section>
 
         {/* Branches */}
-        <section className="bg-[#F7F3EB] py-20 lg:py-28">
+        <section className="border-t border-[#D4B57A]/15 bg-[#061810]/70 py-20 lg:py-28">
           <div className="mx-auto max-w-7xl px-6 lg:px-12">
-            <div className="grid gap-12 lg:grid-cols-2 items-center">
-              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl shadow-xl">
+            <div className="grid items-center gap-12 lg:grid-cols-2">
+              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-[#D4B57A]/25 shadow-2xl">
                 <Image
                   src={storyImage}
                   alt="Cradle spa branch interior in Bacolod"
@@ -180,16 +181,16 @@ export default async function MassageSpaBacolodPage() {
                 />
               </div>
               <div>
-                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
+                <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E5C98B]">
                   Visit Us
                 </p>
                 <h2
-                  className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
+                  className="text-3xl font-medium leading-tight text-[#FAF5E9] sm:text-4xl"
                   style={{ fontFamily: "var(--sp-font-display)" }}
                 >
                   Two branches. One calm experience.
                 </h2>
-                <p className="mt-6 text-[15px] leading-7 text-[#6B7A6F]">
+                <p className="mt-6 text-[15px] leading-7 text-[#CBD6CD]">
                   Whether you are near SM City or along Lacson Street, a Cradle branch is within reach.
                   Both locations offer the same thoughtful service, clean spaces, and skilled therapists.
                 </p>
@@ -200,8 +201,8 @@ export default async function MassageSpaBacolodPage() {
                     "Daily availability through online booking",
                     "In-spa and home service options",
                   ].map((item) => (
-                    <li key={item} className="flex gap-3 text-[14px] text-[#5F6F63]">
-                      <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#B68A3C]" aria-hidden="true" />
+                    <li key={item} className="flex gap-3 text-[14px] text-[#CBD6CD]">
+                      <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#E5C98B]" aria-hidden="true" />
                       <span>{item}</span>
                     </li>
                   ))}
@@ -209,13 +210,13 @@ export default async function MassageSpaBacolodPage() {
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                   <Link
                     href="/branches"
-                    className="inline-flex min-h-11 items-center justify-center rounded-[8px] bg-[#163A2B] px-6 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-[#1E4D3A]"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#D4B57A]/40 bg-[#0D2E20]/70 px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FAF5E9] backdrop-blur-sm transition hover:border-[#E8D5A3]/75 hover:bg-[#14402E]"
                   >
                     View Branch Details
                   </Link>
                   <Link
                     href="/book"
-                    className="inline-flex min-h-11 items-center justify-center rounded-[8px] border border-[#163A2B] px-6 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#163A2B] transition hover:bg-[#163A2B] hover:text-[#FCFAF5]"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#071A12] shadow-[0_8px_24px_-8px_rgba(212,181,122,0.55)] transition hover:brightness-105"
                   >
                     Book Now
                   </Link>
@@ -226,30 +227,30 @@ export default async function MassageSpaBacolodPage() {
         </section>
 
         {/* CTA */}
-        <section className="bg-[#10261D] py-20 text-[#FCFAF5] lg:py-28">
+        <section className="border-t border-[#D4B57A]/15 bg-[#05140E] py-20 text-[#FAF5E9] lg:py-28">
           <div className="mx-auto max-w-4xl px-6 text-center">
             <h2
-              className="text-3xl font-medium leading-tight sm:text-4xl"
+              className="text-3xl font-medium leading-tight text-[#FAF5E9] sm:text-4xl"
               style={{ fontFamily: "var(--sp-font-display)" }}
             >
               Experience Bacolod&apos;s calmest massage spa.
             </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-7 text-[#F7F3EB]/68">
+            <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-7 text-[#CBD6CD]">
               Book online in under two minutes. Choose in-spa or home service, select your treatment,
               and let our team handle the rest.
             </p>
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
               <Link
                 href="/book"
-                className="inline-flex min-h-12 items-center justify-center rounded-[8px] bg-[#C8A96B] px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#10261D] transition hover:bg-[#E8D5A3]"
+                className="inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-8 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#071A12] shadow-[0_8px_24px_-8px_rgba(212,181,122,0.55)] transition hover:brightness-105"
               >
                 Book Appointment
               </Link>
               <a
                 href="tel:+639177077070"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[8px] border border-[#F7F3EB]/24 px-7 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FCFAF5] transition hover:bg-white/10"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[#D4B57A]/40 bg-[#0D2E20]/70 px-8 text-[12px] font-semibold uppercase tracking-[0.16em] text-[#FAF5E9] backdrop-blur-sm transition hover:border-[#E8D5A3]/75 hover:bg-[#14402E]"
               >
-                <Phone className="h-4 w-4" aria-hidden="true" />
+                <Phone className="h-4 w-4 text-[#E5C98B]" aria-hidden="true" />
                 Call 0917 707 7070
               </a>
             </div>
@@ -257,14 +258,14 @@ export default async function MassageSpaBacolodPage() {
         </section>
 
         {/* FAQ */}
-        <section className="bg-[#FCFAF5] py-20 lg:py-28">
+        <section className="border-t border-[#D4B57A]/15 bg-[#071A12] py-20 lg:py-28">
           <div className="mx-auto max-w-4xl px-6">
-            <div className="text-center mb-12">
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#B68A3C]">
+            <div className="mb-12 text-center">
+              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E5C98B]">
                 Common Questions
               </p>
               <h2
-                className="text-3xl font-medium leading-tight text-[#163A2B] sm:text-4xl"
+                className="text-3xl font-medium leading-tight text-[#FAF5E9] sm:text-4xl"
                 style={{ fontFamily: "var(--sp-font-display)" }}
               >
                 Massage Spa FAQ
@@ -274,10 +275,10 @@ export default async function MassageSpaBacolodPage() {
               {faqs.map((faq) => (
                 <div
                   key={faq.question}
-                  className="rounded-[8px] border border-[#EDE4D3] bg-white p-6"
+                  className="eg-glass-card rounded-2xl p-6"
                 >
-                  <h3 className="text-[15px] font-semibold text-[#163A2B]">{faq.question}</h3>
-                  <p className="mt-2 text-[14px] leading-6 text-[#6B7A6F]">{faq.answer}</p>
+                  <h3 className="text-[15px] font-semibold text-[#FAF5E9]">{faq.question}</h3>
+                  <p className="mt-2 text-[14px] leading-6 text-[#CBD6CD]">{faq.answer}</p>
                 </div>
               ))}
             </div>

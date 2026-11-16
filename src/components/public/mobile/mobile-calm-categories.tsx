@@ -54,15 +54,15 @@ export function MobileCalmCategories({
   categoryImages = {},
 }: MobileCalmCategoriesProps) {
   return (
-    <section className="bg-[#F7F3EB] px-4 pt-3 pb-7 text-[#10261D]">
+    <section className="px-4 pt-3 pb-7 text-[#FAF5E9]">
       <div className="mx-auto max-w-md">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-serif text-[21px] font-medium leading-tight text-[#10261D] [font-family:var(--sp-font-display)]">
+          <h2 className="font-serif text-[21px] font-medium leading-tight text-[#FAF5E9] [font-family:var(--sp-font-display)]">
             Our Signature Treatments
           </h2>
           <Link
             href="/services"
-            className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#163A2B]"
+            className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#E8D5A3]"
           >
             <span>View All</span>
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -81,7 +81,7 @@ export function MobileCalmCategories({
                 href={cat.href}
                 className="group flex flex-col items-center text-center"
               >
-                <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-[#C8A96B]/65 bg-[#EDE4D3] shadow-xs transition group-hover:border-[#163A2B]">
+                <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-[#D4B57A]/65 bg-[#0A251B] shadow-md transition group-hover:border-[#E8D5A3]">
                   <img
                     src={img}
                     alt={cat.label}
@@ -89,7 +89,7 @@ export function MobileCalmCategories({
                     className="h-full w-full object-cover"
                   />
                 </div>
-                <span className="mt-1.5 text-[11px] font-medium leading-tight text-[#24342B]">
+                <span className="mt-1.5 text-[11px] font-medium leading-tight text-[#FAF5E9]">
                   {cat.label}
                 </span>
               </Link>

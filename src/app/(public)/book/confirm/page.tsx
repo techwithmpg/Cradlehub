@@ -1,29 +1,29 @@
 import Link from "next/link";
+import { EmeraldAtmosphere, EmeraldSectionEyebrow, EG_SURFACE } from "@/components/public/emerald-glass";
 
 export default function BookingConfirmationGuidePage() {
   return (
-    <div className="min-h-[70vh] bg-[#F7F3EB] text-[#10261D]">
-      <div className="mx-auto flex min-h-[70vh] max-w-4xl items-center justify-center px-6 py-24 text-center">
-        <div className="rounded-3xl border border-[#E5DEC9] bg-white p-8 shadow-xs sm:p-12">
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#8A6D3B]">
-            Cradle Booking
-          </p>
-          <h1 className="mt-4 font-serif text-3xl font-medium tracking-tight text-[#10261D] [font-family:var(--sp-font-display)] sm:text-4xl">
+    <div className="sp-public relative min-h-[75vh] overflow-hidden bg-[#071A12] text-[#FAF5E9]">
+      <EmeraldAtmosphere subtle />
+      <div className="relative mx-auto flex min-h-[75vh] max-w-4xl items-center justify-center px-6 py-24 text-center">
+        <div className="eg-glass-card rounded-3xl p-8 sm:p-12">
+          <EmeraldSectionEyebrow centered>Cradle Booking</EmeraldSectionEyebrow>
+          <h1 className={`mt-4 text-3xl sm:text-4xl ${EG_SURFACE.heading}`}>
             Your appointment starts with the guided booking flow.
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-[#526058]">
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-[#CBD6CD]">
             Choose your branch, visit type, service, schedule, and therapist so the Cradle team can prepare your visit with care.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Link
               href="/book"
-              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#163A2B] px-6 text-sm font-semibold text-[#FAF5E9] shadow-xs transition hover:bg-[#1E4D3A]"
+              className={`min-h-11 px-6 text-sm ${EG_SURFACE.goldButton}`}
             >
               Book Appointment
             </Link>
             <Link
               href="/contact"
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#163A2B]/30 bg-[#FCFAF5] px-6 text-sm font-semibold text-[#163A2B] transition hover:border-[#163A2B]"
+              className={`min-h-11 px-6 text-sm ${EG_SURFACE.ghostButton}`}
             >
               Contact Front Desk
             </Link>

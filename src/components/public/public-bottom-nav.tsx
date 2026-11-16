@@ -25,7 +25,7 @@ export function PublicBottomNav() {
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-[max(0.625rem,env(safe-area-inset-bottom))] lg:hidden">
       <nav
         aria-label="Mobile quick navigation"
-        className="pointer-events-auto grid w-full max-w-md grid-cols-5 items-center rounded-2xl border border-[#C8A96B]/25 bg-[#10261D]/95 px-1.5 py-1.5 shadow-[0_12px_32px_-8px_rgba(16,38,29,0.55)] backdrop-blur-md"
+        className="pointer-events-auto grid w-full max-w-md grid-cols-5 items-center rounded-2xl border border-[#D4B57A]/30 bg-[#061C14]/88 px-1.5 py-1.5 shadow-[0_12px_32px_-8px_rgba(2,10,7,0.8)] backdrop-blur-md"
       >
         {BOTTOM_NAV_ITEMS.map((item) => {
           const active =
