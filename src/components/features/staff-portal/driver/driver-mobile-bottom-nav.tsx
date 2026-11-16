@@ -18,43 +18,41 @@ export function getDriverBottomNavItems(
     effectiveMode === "canonical"
       ? "/staff/driver"
       : effectiveMode === "driver"
-      ? "/driver"
-      : "/staff-portal";
+        ? "/driver"
+        : "/staff-portal";
 
   const tripsHref =
     effectiveMode === "canonical"
       ? "/staff/driver/trips"
       : effectiveMode === "driver"
-      ? "/driver/dispatch"
-      : "/staff-portal/dispatch";
+        ? "/driver/dispatch"
+        : "/staff-portal/dispatch";
 
-  const scanHref =
-    effectiveMode === "canonical"
-      ? "/staff/scan"
-      : "/scan";
+  const scanHref = effectiveMode === "canonical" ? "/staff/scan" : "/scan";
 
   const mapHref =
     effectiveMode === "canonical"
       ? "/staff/driver/map"
       : effectiveMode === "driver"
-      ? "/driver/map"
-      : "/staff-portal/map";
+        ? "/driver/map"
+        : "/staff-portal/map";
 
   const moreHref =
     effectiveMode === "canonical"
       ? "/staff/driver/more"
       : effectiveMode === "driver"
-      ? "/driver/more"
-      : "/staff-portal/more";
+        ? "/driver/more"
+        : "/staff-portal/more";
 
   // Canonical driver reuses the shared staff PWA navigation, not a new shell.
   // Legacy driver/portal routes are intentionally unchanged.
-  if (effectiveMode === "canonical") return [
-    { key: "trips", label: "Trips", href: homeHref, icon: Truck },
-    { key: "scan", label: "QR Scanner", href: scanHref, icon: QrCode, isScan: true },
-    { key: "navigation", label: "Navigation", href: mapHref, icon: Map },
-    { key: "more", label: "More", href: moreHref, icon: MoreHorizontal },
-  ];
+  if (effectiveMode === "canonical")
+    return [
+      { key: "trips", label: "Trips", href: homeHref, icon: Truck },
+      { key: "navigation", label: "Navigate", href: mapHref, icon: Map },
+      { key: "scan", label: "Scan", href: scanHref, icon: QrCode, documentNavigation: true },
+      { key: "more", label: "More", href: moreHref, icon: MoreHorizontal },
+    ];
 
   return [
     {
@@ -91,26 +89,26 @@ export function getDriverBottomNavItems(
   ];
 }
 
-export function DriverMobileBottomNav({
-  isProfileOpen = false,
-  onProfileOpen,
-  mode,
-}: DriverMobileBottomNavProps) {
+export function DriverMobileBottomNav({ mode }: DriverMobileBottomNavProps) {
   const pathname = usePathname();
   const effectiveMode =
     mode ??
     (pathname?.startsWith("/staff")
       ? "canonical"
       : pathname?.startsWith("/driver")
-      ? "driver"
-      : "staff_portal");
+        ? "driver"
+        : "staff_portal");
 
   const items = getDriverBottomNavItems(effectiveMode);
 
   return (
     <StaffBottomNav
       items={items}
-      activeKey={effectiveMode === "canonical" && pathname?.startsWith("/staff/driver/trips") ? "trips" : undefined}
+      activeKey={
+        effectiveMode === "canonical" && pathname?.startsWith("/staff/driver/trips")
+          ? "trips"
+          : undefined
+      }
       ariaLabel="Driver portal navigation"
     />
   );

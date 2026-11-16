@@ -118,6 +118,30 @@ export function StaffBottomNav({
             );
           }
 
+          if (item.documentNavigation)
+            return (
+              <a
+                key={item.key}
+                href={item.href}
+                aria-label={item.label === "Scan" ? "Scan QR code" : item.label}
+                aria-current={active ? "page" : undefined}
+                className="relative flex h-full min-h-12 flex-col items-center justify-center rounded-xl text-[#61728A] focus-visible:outline-2 focus-visible:outline-[#C8A96B]"
+              >
+                <Icon
+                  size={20}
+                  aria-hidden="true"
+                  className={active ? "text-[#0D5C43]" : "text-[#61728A]"}
+                />
+                <span className="mt-1 text-[10.5px] leading-none">{item.label}</span>
+                {active && (
+                  <span
+                    className="absolute bottom-1 h-[3px] w-6 rounded-full bg-[#0D5C43]"
+                    aria-hidden="true"
+                  />
+                )}
+              </a>
+            );
+
           return (
             <Link
               key={item.key}

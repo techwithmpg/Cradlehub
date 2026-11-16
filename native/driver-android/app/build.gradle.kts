@@ -73,6 +73,16 @@ android {
   }
 
   buildTypes {
+    getByName("debug") {
+      val origin=providers.gradleProperty("CRADLE_DRIVER_DEBUG_ORIGIN").orElse("https://www.cradlewellnessliving.com").get()
+      require(origin in setOf("https://www.cradlewellnessliving.com","http://localhost:7100")) { "Debug origin must be the accepted host or USB-only localhost:7100." }
+      buildConfigField("String","DRIVER_WEB_ORIGIN","\"$origin\"")
+      if(providers.gradleProperty("CRADLE_DRIVER_LOCAL_TEST").orNull == "true") {
+        require(origin=="http://localhost:7100") { "LOCAL TEST cannot target a remote host." }
+        applicationIdSuffix=".localtest"
+        versionNameSuffix="-local-test"
+      }
+    }
     getByName("release") {
       isMinifyEnabled = false // preserve accepted native baseline
     }

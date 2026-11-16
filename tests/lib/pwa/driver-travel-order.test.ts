@@ -16,7 +16,9 @@ vi.mock("react", async (importOriginal) => ({
     },
   ],
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: harness.refresh }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: harness.navigate, refresh: harness.refresh }),
+}));
 vi.mock("@/app/(dashboard)/staff-portal/actions", () => ({
   updateBookingProgressAction: harness.transition,
 }));
@@ -42,7 +44,8 @@ describe("Driver Start Travel ordering", () => {
     expect(harness.navigate).not.toHaveBeenCalled();
     complete({ ok: true });
     await harness.pending;
-    expect(harness.navigate).toHaveBeenCalledTimes(1);
+    expect(harness.navigate).toHaveBeenCalledExactlyOnceWith("/staff/driver/map?bookingId=job");
+    expect(harness.refresh).toHaveBeenCalledOnce();
   });
   it.each(["denied", "network"])(
     "does not navigate or claim success after %s failure",

@@ -1,0 +1,14 @@
+{
+  "target": "LOCAL TEST 127.0.0.1:55439 / disposable driver_unified_test_* database",
+  "expectedDataDirectorySuffix": "/web-attendance-v2/.tmp/attendance-v2-pgdata",
+  "expectedVersion": "PostgreSQL 17.x",
+  "scope": "Create one disposable synthetic database, install these exact candidate/test contracts, enable its private test control, run synthetic scenarios, and drop only that newly created database. No remote access, real staff, production, migration-ledger or scheduled job changes.",
+  "executionStatus": "NOT EXECUTED; separate owner approval required",
+  "files": {
+    "supabase/operations/driver-unified-journeys.sql": "a7cc06bb7c53286381e1e439b5172625079993f1b7168a6f945f84d3585c6eeb",
+    "tests/database/driver-unified-fixture.sql": "b0408e4b0821f3767293bed48e0999ad8242937daee5e275b03bbdc8688a714d",
+    "tests/database/driver-unified-local-test.mjs": "f85732ba1de568efae233f3bf2b4a133fc91cc1e074edfeca9a82f3f29dfe987",
+    "supabase/migrations/20261011020713_p0_booking_security_forward.sql": "f46f9b6d09adb6a7408f0d24c490318a1350ad7954273c6fb012e4e73d487982",
+    "supabase/migrations/20261013003850_staff_pwa_progress_actor_guard.sql": "eaf6f26f8abf4bd0d40b77bd6945752e20abc957837fb3810e618063c3dabaf4"
+  }
+}

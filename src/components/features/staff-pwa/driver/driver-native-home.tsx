@@ -1,13 +1,19 @@
 import Link from "next/link";
+import { DriverConnectivity } from "./driver-connectivity";
+import { DriverJourneyTasks } from "./driver-journey-tasks";
+import type { DriverJourney } from "@/lib/driver/journey";
 import { ArrowRight, ChevronRight, Clock3, MapPinned, QrCode, Route } from "lucide-react";
 import {
-  StaffCard, StaffEmptyState, StaffScreen,
+  StaffCard,
+  StaffEmptyState,
+  StaffScreen,
 } from "@/components/features/staff-pwa/native-foundation";
 import { StaffSnapshotRecorder } from "@/components/features/staff-pwa/safe-memory";
 import { DriverTripRow } from "./driver-trip-row";
 import { DriverTripAlerts } from "./driver-trip-alerts";
 import {
-  getDriverPrimaryTrip, getDriverProgressLabel, getDriverTripSummary,
+  getDriverPrimaryTrip,
+  getDriverTripSummary,
   isDriverTripClosed,
 } from "@/lib/staff-pwa/driver-ui-model";
 import { formatTime12h } from "@/lib/utils/time-format";
@@ -21,38 +27,67 @@ import { StaffAttendanceClockOut } from "@/components/features/staff-portal/staf
  * separate collapsed shift section; never use its QR scan as a trip action.
  */
 export function DriverNativeHome({
-  staff, items, businessDate, attendanceData,
+  staff,
+  items,
+  businessDate,
+  attendanceData,
+  journeys = [],
+  journeyError,
+  verifiedAt,
 }: {
   staff: StaffPortalStaff;
   items: RealDispatchItem[];
   businessDate: string;
   attendanceData: StaffAttendanceData | null;
+  journeys?: DriverJourney[];
+  journeyError?: string;
+  verifiedAt?: string;
 }) {
   const name = staff.nickname?.trim() || staff.full_name?.trim() || "Driver";
   const summary = getDriverTripSummary(items);
   const primary = getDriverPrimaryTrip(items);
-  const later = items.filter(item => item.id !== primary?.id && !isDriverTripClosed(item))
-    .sort((a, b) => `${a.bookingDate}T${a.startTime}`.localeCompare(`${b.bookingDate}T${b.startTime}`));
+  const later = items
+    .filter((item) => item.id !== primary?.id && !isDriverTripClosed(item))
+    .sort((a, b) =>
+      `${a.bookingDate}T${a.startTime}`.localeCompare(`${b.bookingDate}T${b.startTime}`)
+    );
 
   return (
     <StaffScreen>
-      <StaffSnapshotRecorder snapshot={{
-        screen: "driverToday", label: "Driver today",
-        counts: [
-          { label: "Today", value: summary.today },
-          { label: "Completed", value: summary.completed },
-          { label: "Remaining", value: summary.remaining },
-        ],
-      }} />
-      <header className="rounded-[24px] bg-[linear-gradient(145deg,#174332,#092c20)] px-5 py-6 text-white">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#e3d09f]">CradleHub Driver</p>
-        <h1 className="mt-2 text-2xl font-bold">Your next trip</h1>
-        <p className="mt-1 text-sm text-white/80">Hello, {name.split(" ")[0]}. Your route is ready when you are.</p>
+      <StaffSnapshotRecorder
+        snapshot={{
+          screen: "driverToday",
+          label: "Driver today",
+          counts: [
+            { label: "Today", value: summary.today },
+            { label: "Completed", value: summary.completed },
+            { label: "Remaining", value: summary.remaining },
+          ],
+        }}
+      />
+      <header className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold text-[#65746b]">
+            CradleHub Driver · {items[0]?.branchName ?? journeys[0]?.branchName ?? "Your branch"}
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-[#163a2b]">Hello, {name.split(" ")[0]}</h1>
+          <p className="mt-1 text-xs text-[#65746b]">
+            Shift: {attendanceData?.currentClockState.replaceAll("_", " ") ?? "status unavailable"}
+          </p>
+        </div>
+        <Link
+          href="/staff/driver/more"
+          className="flex min-h-12 items-center px-2 text-sm font-semibold text-[#19563c]"
+        >
+          Account
+        </Link>
       </header>
+      <DriverConnectivity verifiedAt={verifiedAt} />
+      <DriverJourneyTasks journeys={journeys} error={journeyError} />
 
       <DriverTripAlerts />
 
-      {primary ? (
+      {primary && !journeys.some((j) => j.bookingId === primary.id) ? (
         <StaffCard className="mt-4 rounded-3xl p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-[#76501a]">
             {primary.bookingProgressStatus === "travel_started" ? "En route" : "Assigned trip"}
@@ -60,6 +95,8 @@ export function DriverNativeHome({
           <h2 className="mt-2 text-xl font-bold text-[#163a2b]">{primary.customerName}</h2>
           <p className="mt-1 text-sm text-[#65746b]">{primary.serviceName}</p>
           <div className="mt-4 space-y-3 text-sm text-[#526358]">
+            <p>Therapist: {primary.therapistName ?? "Assigned provider"}</p>
+            <p>Pickup: {primary.branchName ?? "Assigned branch"}</p>
             <p className="flex items-center gap-2">
               <Clock3 size={18} aria-hidden="true" /> {formatTime12h(primary.startTime)}
             </p>
@@ -68,31 +105,40 @@ export function DriverNativeHome({
               <span>{primary.formattedAddress ?? primary.area ?? "Destination pending"}</span>
             </p>
           </div>
-          <a href={`/staff/driver/map?bookingId=${encodeURIComponent(primary.id)}&launch=native`}
-            className="mt-6 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl bg-[#0d6548] px-4 text-lg font-bold text-white">
+          <a
+            href={`/staff/driver/map?bookingId=${encodeURIComponent(primary.id)}&launch=native`}
+            className="mt-6 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl bg-[#0d6548] px-4 text-lg font-bold text-white"
+          >
             <Route size={23} aria-hidden="true" />
             {primary.bookingProgressStatus === "travel_started" ? "Resume navigation" : "Navigate"}
             <ArrowRight size={20} aria-hidden="true" />
           </a>
- 
         </StaffCard>
-      ) : (
+      ) : !journeys.length && !journeyError ? (
         <div className="mt-4">
-          <StaffEmptyState icon={<Route size={20} />}
-            title="No assigned trips" description="New Home Service assignments will appear here." />
+          <StaffEmptyState
+            icon={<Route size={20} />}
+            title="No assigned trips"
+            description="New Home Service assignments will appear here."
+          />
         </div>
-      )}
+      ) : null}
 
       {later.length ? (
         <section className="mt-6" aria-label="Later trips">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-[#163a2b]">After this trip</h2>
-            <Link href="/staff/driver/trips" className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[#19563c]">
+            <Link
+              href="/staff/driver/trips"
+              className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[#19563c]"
+            >
               All trips <ChevronRight size={17} />
             </Link>
           </div>
           <StaffCard className="mt-2 overflow-hidden">
-            {later.slice(0, 3).map(item => <DriverTripRow key={item.id} item={item} />)}
+            {later.slice(0, 3).map((item) => (
+              <DriverTripRow key={item.id} item={item} />
+            ))}
           </StaffCard>
         </section>
       ) : null}
@@ -101,12 +147,20 @@ export function DriverNativeHome({
         <summary className="cursor-pointer py-2 text-sm font-semibold text-[#526358]">
           Attendance and shift
         </summary>
-        <p className="mt-2 text-xs text-[#68776d]">Attendance scanning is separate from driver trips.</p>
+        <p className="mt-2 text-xs text-[#68776d]">
+          Attendance scanning is separate from driver trips.
+        </p>
         <div className="mt-3 flex flex-wrap gap-3">
-          <Link href="/staff/scan" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#19563c]">
+          <Link
+            href="/staff/scan"
+            className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#19563c]"
+          >
             <QrCode size={17} /> Scan attendance
           </Link>
-          <Link href="/staff/attendance" className="inline-flex min-h-11 items-center text-sm font-semibold text-[#19563c] underline">
+          <Link
+            href="/staff/attendance"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-[#19563c] underline"
+          >
             Attendance records
           </Link>
         </div>
@@ -118,10 +172,14 @@ export function DriverNativeHome({
         {attendanceData?.currentClockState === "clocked_in" && attendanceData.portalClockOut ? (
           <StaffAttendanceClockOut
             availability={attendanceData.portalClockOut}
-            timezone={attendanceData.todayState.timezone} />
+            timezone={attendanceData.todayState.timezone}
+          />
         ) : null}
       </details>
-      <Link href="/staff/driver/trips" className="mt-4 block py-2 text-center text-xs text-[#65746b] underline">
+      <Link
+        href="/staff/driver/trips"
+        className="mt-4 block py-2 text-center text-xs text-[#65746b] underline"
+      >
         View all assigned trips for {businessDate}
       </Link>
     </StaffScreen>

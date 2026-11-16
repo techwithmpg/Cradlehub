@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  android:layout_width="match_parent"
-  android:layout_height="match_parent">
-  <!-- PWA owns trip actions; native Android only takes over AFTER Start. -->
-  <WebView android:id="@+id/driverWeb"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent" />
-</FrameLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/driverRoot" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F7F3EB">
+ <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+  <WebView android:id="@+id/driverWeb" android:layout_width="match_parent" android:layout_height="match_parent" />
+  <LinearLayout android:id="@+id/driverNavigationPane" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:visibility="gone">
+   <fragment android:id="@+id/navigation_fragment" android:name="com.google.android.libraries.navigation.NavigationFragment" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+   <TextView android:id="@+id/navigationStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:padding="12dp" android:text="Choose an assigned trip from Trips" android:textColor="#163A2B" android:textSize="14sp" android:accessibilityLiveRegion="polite"/>
+   <Button android:id="@+id/pauseNavigation" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginHorizontal="12dp" android:text="Pause guidance" android:textAllCaps="false" android:visibility="gone"/>
+   <Button android:id="@+id/startNavigation" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginHorizontal="12dp" android:layout_marginBottom="8dp" android:backgroundTint="#185D40" android:text="Start navigation" android:textColor="#FFFFFF" android:textAllCaps="false" android:enabled="false"/>
+  </LinearLayout>
+ </FrameLayout>
+ <LinearLayout android:id="@+id/driverTabs" android:layout_width="match_parent" android:layout_height="64dp" android:orientation="horizontal" android:background="#FFFFFF" android:visibility="gone">
+  <Button android:id="@+id/tabTrips" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="Trips" style="@style/DriverTab"/>
+  <Button android:id="@+id/tabNavigate" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="Navigate" style="@style/DriverTab"/>
+  <Button android:id="@+id/tabScan" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="Scan" style="@style/DriverTab"/>
+  <Button android:id="@+id/tabMore" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="More" style="@style/DriverTab"/>
+ </LinearLayout>
+</LinearLayout>

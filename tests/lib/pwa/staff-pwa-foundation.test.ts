@@ -473,7 +473,7 @@ describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
       await import("@/components/features/staff-portal/driver/driver-mobile-bottom-nav");
     const canonicalItems = getDriverBottomNavItems("canonical");
 
-    expect(canonicalItems.length).toBe(5);
+    expect(canonicalItems.map(item=>item.label)).toEqual(["Trips", "Navigate", "Scan", "More"]);
     for (const item of canonicalItems) {
       expect(item.href).toMatch(/^\/staff\//);
       expect(item.href).not.toMatch(/^\/driver(\/|$)/);
@@ -481,10 +481,9 @@ describe("PWA-C5: Canonical Staff Runtime Scope Containment", () => {
       expect(item.href).not.toBe("/scan");
     }
 
-    expect(canonicalItems.find((i) => i.key === "today")?.href).toBe("/staff/driver");
-    expect(canonicalItems.find((i) => i.key === "trips")?.href).toBe("/staff/driver/trips");
+    expect(canonicalItems.find((i) => i.key === "trips")?.href).toBe("/staff/driver");
     expect(canonicalItems.find((i) => i.key === "scan")?.href).toBe("/staff/scan");
-    expect(canonicalItems.find((i) => i.key === "map")?.href).toBe("/staff/driver/map");
+    expect(canonicalItems.find((i) => i.key === "navigation")?.href).toBe("/staff/driver/map");
     expect(canonicalItems.find((i) => i.key === "more")?.href).toBe("/staff/driver/more");
   });
 
