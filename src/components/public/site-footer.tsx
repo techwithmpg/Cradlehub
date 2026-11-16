@@ -72,7 +72,7 @@ export function SiteFooter({
     "Open daily · SM City Bacolod & Lacson Street";
 
   return (
-    <footer className="public-site-footer border-t border-[#C8A96B]/20 bg-[#10261D] text-[#E5E2D7]">
+    <footer className="public-site-footer border-t border-[#D4B57A]/20 bg-[#05140E] text-[#E5E2D7]">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-12 md:items-start">
           {/* Brand Column */}
@@ -154,7 +154,7 @@ export function SiteFooter({
                 {branches.slice(0, 3).map((branch) => (
                   <div
                     key={branch.id}
-                    className="rounded-xl border border-white/10 bg-[#163A2B]/60 p-3 text-xs"
+                    className="eg-glass-card rounded-xl p-3 text-xs"
                   >
                     <p className="flex items-center gap-1.5 font-semibold text-[#FAF5E9]">
                       <MapPin className="h-3.5 w-3.5 text-[#D4B57A]" aria-hidden="true" />

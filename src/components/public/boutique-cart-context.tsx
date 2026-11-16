@@ -334,12 +334,12 @@ export function BoutiqueCartProvider({
         onClick={(e) => {
           if (e.target === cartDialogRef.current) closeCart();
         }}
-        className="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-dvh w-full max-w-md border-l border-[#E2D9C8] bg-[#FCFAF5] p-0 text-[#10261D] shadow-2xl backdrop:bg-[#10261D]/55 backdrop:backdrop-blur-xs open:flex open:flex-col"
+        className="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-dvh w-full max-w-md border-l border-[#D4B57A]/30 bg-[#082117]/95 p-0 text-[#FAF5E9] shadow-2xl backdrop-blur-lg backdrop:bg-[#03100B]/70 backdrop:backdrop-blur-xs open:flex open:flex-col"
       >
-        <div className="flex items-center justify-between border-b border-[#E5DEC9] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-[#D4B57A]/20 px-5 py-4">
           <div className="flex items-center gap-2.5">
-            <ShoppingBag className="h-5 w-5 text-[#163A2B]" aria-hidden="true" />
-            <h2 className="font-serif text-lg font-semibold text-[#10261D] [font-family:var(--sp-font-display)]">
+            <ShoppingBag className="h-5 w-5 text-[#E5C98B]" aria-hidden="true" />
+            <h2 className="font-serif text-lg font-semibold text-[#FAF5E9] [font-family:var(--sp-font-display)]">
               Your Cart ({totalCount})
             </h2>
           </div>
@@ -347,7 +347,7 @@ export function BoutiqueCartProvider({
             type="button"
             onClick={closeCart}
             aria-label="Close cart drawer"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E2D9C8] text-[#4E5A53] transition hover:bg-[#EDE4D3] hover:text-[#10261D] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163A2B]"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#D4B57A]/30 text-[#CBD6CD] transition hover:bg-[#14402E] hover:text-[#FAF5E9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E8D5A3]"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -356,20 +356,20 @@ export function BoutiqueCartProvider({
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#EDE4D3] text-[#163A2B]">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-[#D4B57A]/30 bg-[#0D3223] text-[#E5C98B]">
                 <ShoppingBag className="h-6 w-6" aria-hidden="true" />
               </div>
-              <p className="font-serif text-lg font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+              <p className="font-serif text-lg font-medium text-[#FAF5E9] [font-family:var(--sp-font-display)]">
                 Your wellness bag is empty
               </p>
-              <p className="mt-1.5 max-w-xs text-sm text-[#5B665F]">
+              <p className="mt-1.5 max-w-xs text-sm text-[#CBD6CD]">
                 Explore botanical massage oils, calming linen mists, and spa gift
                 certificates available at our Bacolod branches.
               </p>
               <Link
                 href="/products"
                 onClick={closeCart}
-                className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#163A2B] px-5 py-2.5 text-sm font-medium text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#D4B57A] px-5 py-2.5 text-sm font-semibold text-[#071A12] transition hover:brightness-105"
               >
                 Explore Boutique
               </Link>
@@ -379,9 +379,9 @@ export function BoutiqueCartProvider({
               {items.map((item) => (
                 <div
                   key={item.key}
-                  className="flex items-center gap-3 rounded-xl border border-[#E5DEC9] bg-white p-3 shadow-xs"
+                  className="eg-glass-card flex items-center gap-3 rounded-xl p-3"
                 >
-                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#F5EFE3]">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#0A251B]">
                     <Image
                       src={item.image}
                       alt={item.name}
@@ -391,34 +391,34 @@ export function BoutiqueCartProvider({
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-[#10261D]">
+                    <p className="truncate text-sm font-semibold text-[#FAF5E9]">
                       {item.name}
                     </p>
-                    <p className="truncate text-xs text-[#5B665F]">
+                    <p className="truncate text-xs text-[#CBD6CD]">
                       {item.optionLabel || item.subtitle}
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-[#163A2B]">
+                    <p className="mt-1 text-sm font-semibold text-[#E8D5A3] tabular-nums">
                       {formatPhp(item.price * item.quantity)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div className="flex items-center rounded-lg border border-[#DDD4C2] bg-[#FAF7F0]">
+                    <div className="flex items-center rounded-lg border border-[#D4B57A]/25 bg-[#071E15]">
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.key, item.quantity - 1)}
                         aria-label={`Decrease ${item.name} quantity`}
-                        className="flex h-7 w-7 items-center justify-center text-[#3D4A42] transition hover:text-[#10261D]"
+                        className="flex h-7 w-7 items-center justify-center text-[#CBD6CD] transition hover:text-[#FAF5E9]"
                       >
                         <Minus className="h-3 w-3" aria-hidden="true" />
                       </button>
-                      <span className="w-6 text-center text-xs font-medium text-[#10261D]">
+                      <span className="w-6 text-center text-xs font-medium text-[#FAF5E9]">
                         {item.quantity}
                       </span>
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.key, item.quantity + 1)}
                         aria-label={`Increase ${item.name} quantity`}
-                        className="flex h-7 w-7 items-center justify-center text-[#3D4A42] transition hover:text-[#10261D]"
+                        className="flex h-7 w-7 items-center justify-center text-[#CBD6CD] transition hover:text-[#FAF5E9]"
                       >
                         <Plus className="h-3 w-3" aria-hidden="true" />
                       </button>
@@ -427,7 +427,7 @@ export function BoutiqueCartProvider({
                       type="button"
                       onClick={() => removeItem(item.key)}
                       aria-label={`Remove ${item.name}`}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[#7A847D] transition hover:bg-red-50 hover:text-red-700"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[#CBD6CD] transition hover:bg-red-950/50 hover:text-rose-200"
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -436,11 +436,11 @@ export function BoutiqueCartProvider({
               ))}
 
               {reservationOpen && !reservationSubmitted && (
-                <div className="mt-4 rounded-xl border border-[#C8A96B]/45 bg-[#F5EFE3] p-4">
-                  <p className="text-xs font-semibold tracking-wider text-[#8C6D32] uppercase">
-                    In-Spa Pickup & Concierge Request
+                <div className="eg-glass-card mt-4 rounded-xl p-4">
+                  <p className="text-xs font-semibold tracking-wider text-[#E5C98B] uppercase">
+                    In-Spa Pickup &amp; Concierge Request
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-[#4A554E]">
+                  <p className="mt-1 text-xs leading-relaxed text-[#CBD6CD]">
                     Online payment checkout is not processed on the website yet. Save
                     your pickup preference below and present this summary at our
                     branch front desk, or include these items when booking your
@@ -448,13 +448,13 @@ export function BoutiqueCartProvider({
                   </p>
                   <div className="mt-3 space-y-2.5">
                     <label className="block">
-                      <span className="text-xs font-medium text-[#2A3830]">
+                      <span className="text-xs font-medium text-[#FAF5E9]">
                         Preferred Branch
                       </span>
                       <select
                         value={reservationBranch}
                         onChange={(e) => setReservationBranch(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-[#D7CEBC] bg-white px-3 py-2 text-xs text-[#10261D]"
+                        className="mt-1 w-full rounded-lg border border-[#D4B57A]/30 bg-[#071E15] px-3 py-2 text-xs text-[#FAF5E9]"
                       >
                         {resolvedBranches.map((branch) => (
                           <option key={branch} value={branch}>
@@ -464,7 +464,7 @@ export function BoutiqueCartProvider({
                       </select>
                     </label>
                     <label className="block">
-                      <span className="text-xs font-medium text-[#2A3830]">
+                      <span className="text-xs font-medium text-[#FAF5E9]">
                         Your Name
                       </span>
                       <input
@@ -472,11 +472,11 @@ export function BoutiqueCartProvider({
                         value={guestName}
                         onChange={(e) => setGuestName(e.target.value)}
                         placeholder="Full name for pickup tag"
-                        className="mt-1 w-full rounded-lg border border-[#D7CEBC] bg-white px-3 py-2 text-xs text-[#10261D]"
+                        className="mt-1 w-full rounded-lg border border-[#D4B57A]/30 bg-[#071E15] px-3 py-2 text-xs text-[#FAF5E9] placeholder:text-[#96A89D]"
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs font-medium text-[#2A3830]">
+                      <span className="text-xs font-medium text-[#FAF5E9]">
                         Mobile Number
                       </span>
                       <input
@@ -484,13 +484,13 @@ export function BoutiqueCartProvider({
                         value={guestPhone}
                         onChange={(e) => setGuestPhone(e.target.value)}
                         placeholder="09XX XXX XXXX"
-                        className="mt-1 w-full rounded-lg border border-[#D7CEBC] bg-white px-3 py-2 text-xs text-[#10261D]"
+                        className="mt-1 w-full rounded-lg border border-[#D4B57A]/30 bg-[#071E15] px-3 py-2 text-xs text-[#FAF5E9] placeholder:text-[#96A89D]"
                       />
                     </label>
                     <button
                       type="button"
                       onClick={() => setReservationSubmitted(true)}
-                      className="w-full rounded-lg bg-[#163A2B] px-4 py-2.5 text-xs font-semibold text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+                      className="w-full rounded-lg bg-[#D4B57A] px-4 py-2.5 text-xs font-semibold text-[#071A12] transition hover:brightness-105"
                     >
                       Prepare In-Spa Pickup Summary
                     </button>
@@ -499,24 +499,24 @@ export function BoutiqueCartProvider({
               )}
 
               {reservationSubmitted && (
-                <div className="mt-4 rounded-xl border border-[#163A2B]/25 bg-[#EAF2ED] p-4 text-xs text-[#10261D]">
+                <div className="mt-4 rounded-xl border border-[#D4B57A]/35 bg-[#0F3827] p-4 text-xs text-[#FAF5E9]">
                   <div className="flex items-start gap-2">
                     <CheckCircle2
-                      className="mt-0.5 h-4 w-4 shrink-0 text-[#163A2B]"
+                      className="mt-0.5 h-4 w-4 shrink-0 text-[#E5C98B]"
                       aria-hidden="true"
                     />
                     <div>
                       <p className="font-semibold">
                         In-Spa Pickup Summary Ready
                       </p>
-                      <p className="mt-1 text-[#3D4C43]">
+                      <p className="mt-1 text-[#CBD6CD]">
                         Show this list at <strong>{reservationBranch}</strong> or
                         mention it when booking your session. Items total{" "}
                         <strong>{formatPhp(subtotal)}</strong> (settled in person at
                         the spa).
                       </p>
                       {guestName && (
-                        <p className="mt-1 text-[#4E5E54]">
+                        <p className="mt-1 text-[#E8D5A3]">
                           Prepared for: {guestName}
                           {guestPhone ? ` · ${guestPhone}` : ""}
                         </p>
@@ -530,14 +530,14 @@ export function BoutiqueCartProvider({
         </div>
 
         {items.length > 0 && (
-          <div className="border-t border-[#E5DEC9] bg-white px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="border-t border-[#D4B57A]/20 bg-[#061810] px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-medium text-[#4A554E]">Estimated Total</span>
-              <span className="text-lg font-bold text-[#10261D]">
+              <span className="font-medium text-[#CBD6CD]">Estimated Total</span>
+              <span className="text-lg font-bold text-[#E8D5A3] tabular-nums">
                 {formatPhp(subtotal)}
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-[#66726A]">
+            <p className="mt-1 text-[11px] text-[#9CB0A3]">
               Fulfilled for in-spa pickup or front-desk coordination in Bacolod.
             </p>
             <div className="mt-3 space-y-2">
@@ -545,7 +545,7 @@ export function BoutiqueCartProvider({
                 <button
                   type="button"
                   onClick={() => setReservationOpen(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#163A2B] px-4 py-3 text-sm font-semibold text-[#FAF5E9] transition hover:bg-[#1E4D3A]"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-4 py-3 text-sm font-semibold text-[#071A12] transition hover:brightness-105"
                 >
                   Request In-Spa Pickup →
                 </button>
@@ -553,7 +553,7 @@ export function BoutiqueCartProvider({
                 <Link
                   href="/book"
                   onClick={closeCart}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#D4B57A] px-4 py-3 text-sm font-semibold text-[#10261D] transition hover:bg-[#E0C38A]"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#D4B57A] px-4 py-3 text-sm font-semibold text-[#071A12] transition hover:brightness-105"
                 >
                   Pair with Spa Booking →
                 </Link>
@@ -561,7 +561,7 @@ export function BoutiqueCartProvider({
               <button
                 type="button"
                 onClick={closeCart}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#DDD4C2] bg-[#FCFAF5] px-4 py-2.5 text-xs font-medium text-[#2A3830] transition hover:bg-[#EDE4D3]"
+                className="eg-glass-pill flex w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-medium text-[#FAF5E9]"
               >
                 ← Continue Shopping
               </button>
@@ -578,23 +578,23 @@ export function BoutiqueCartProvider({
         onClick={(e) => {
           if (e.target === searchDialogRef.current) closeSearch();
         }}
-        className="m-auto w-[min(92vw,34rem)] rounded-2xl border border-[#DDD4C2] bg-[#FCFAF5] p-0 text-[#10261D] shadow-2xl backdrop:bg-[#10261D]/60 backdrop:backdrop-blur-xs"
+        className="m-auto w-[min(92vw,34rem)] rounded-2xl border border-[#D4B57A]/35 bg-[#082218]/95 p-0 text-[#FAF5E9] shadow-2xl backdrop-blur-lg backdrop:bg-[#03100B]/70 backdrop:backdrop-blur-xs"
       >
-        <div className="flex items-center gap-2.5 border-b border-[#E5DEC9] px-4 py-3">
-          <Search className="h-4 w-4 text-[#6B766F]" aria-hidden="true" />
+        <div className="flex items-center gap-2.5 border-b border-[#D4B57A]/20 px-4 py-3">
+          <Search className="h-4 w-4 text-[#E5C98B]" aria-hidden="true" />
           <input
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search boutique oils, linen spray, or jump to services..."
             aria-label="Search boutique or services"
-            className="w-full bg-transparent text-sm text-[#10261D] placeholder:text-[#7A847D] focus:outline-none"
+            className="w-full bg-transparent text-sm text-[#FAF5E9] placeholder:text-[#96A89D] focus:outline-none"
           />
           <button
             type="button"
             onClick={closeSearch}
             aria-label="Close search"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[#5B665F] hover:bg-[#EDE4D3]"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#CBD6CD] hover:bg-[#14402E]"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -608,9 +608,9 @@ export function BoutiqueCartProvider({
                   : "/services"
               }
               onClick={closeSearch}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#163A2B] px-3.5 py-1.5 text-xs font-medium text-[#FAF5E9]"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#D4B57A] px-3.5 py-1.5 text-xs font-semibold text-[#071A12]"
             >
-              <Sparkles className="h-3.5 w-3.5 text-[#D4B57A]" aria-hidden="true" />
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               {searchQuery.trim()
                 ? `Search "${searchQuery.trim()}" in Services`
                 : "Browse All Spa Services"}
@@ -618,9 +618,9 @@ export function BoutiqueCartProvider({
             <Link
               href="/branches"
               onClick={closeSearch}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#D7CEBC] bg-white px-3.5 py-1.5 text-xs font-medium text-[#10261D]"
+              className="eg-glass-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium text-[#FAF5E9]"
             >
-              <MapPin className="h-3.5 w-3.5 text-[#B68A3C]" aria-hidden="true" />
+              <MapPin className="h-3.5 w-3.5 text-[#E5C98B]" aria-hidden="true" />
               Bacolod Branches
             </Link>
             {BOUTIQUE_CATEGORIES.filter((c) => c.id !== "all").map((cat) => (
@@ -628,7 +628,7 @@ export function BoutiqueCartProvider({
                 key={cat.id}
                 href={`/products?category=${cat.id}`}
                 onClick={closeSearch}
-                className="rounded-full border border-[#E5DEC9] bg-[#F5EFE3] px-3 py-1.5 text-xs font-medium text-[#3B4840] hover:border-[#C8A96B]"
+                className="eg-glass-pill rounded-full px-3 py-1.5 text-xs font-medium text-[#CBD6CD] hover:border-[#E8D5A3]"
               >
                 {cat.label}
               </Link>
@@ -636,7 +636,7 @@ export function BoutiqueCartProvider({
           </div>
 
           <div>
-            <p className="mb-2 text-[11px] font-semibold tracking-wider text-[#7A6B4F] uppercase">
+            <p className="mb-2 text-[11px] font-semibold tracking-wider text-[#E5C98B] uppercase">
               Boutique Essentials
             </p>
             <div className="space-y-2">
@@ -645,9 +645,9 @@ export function BoutiqueCartProvider({
                   key={product.id}
                   href={`/products?category=${product.category}`}
                   onClick={closeSearch}
-                  className="flex items-center gap-3 rounded-xl border border-[#E5DEC9] bg-white p-2.5 transition hover:border-[#C8A96B]"
+                  className="eg-glass-card flex items-center gap-3 rounded-xl p-2.5"
                 >
-                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[#F5EFE3]">
+                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[#0A251B]">
                     <Image
                       src={product.image}
                       alt={product.imageAlt}
@@ -657,14 +657,14 @@ export function BoutiqueCartProvider({
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-[#10261D]">
+                    <p className="truncate text-sm font-semibold text-[#FAF5E9]">
                       {product.name}
                     </p>
-                    <p className="truncate text-xs text-[#5B665F]">
+                    <p className="truncate text-xs text-[#CBD6CD]">
                       {product.subtitle}
                     </p>
                   </div>
-                  <span className="text-xs font-semibold text-[#163A2B]">
+                  <span className="text-xs font-semibold text-[#E8D5A3] tabular-nums">
                     {product.priceLabel}
                   </span>
                 </Link>

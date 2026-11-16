@@ -25,20 +25,20 @@ export function SelectedTherapistPreview({
   if (!option || option.isAnyProvider) return null;
 
   return (
-    <section className="rounded-2xl border border-[#E2D9C8] bg-white p-4 shadow-xs">
+    <section className="eg-glass-card rounded-2xl p-4">
       <div className="flex items-center gap-3">
-        <Avatar className="size-12 border border-[#D4B57A]/45 bg-[#163A2B] shadow-xs">
+        <Avatar className="size-12 border border-[#D4B57A]/45 bg-[#0A251A] shadow-xs">
           {option.avatarUrl ? (
             <AvatarImage src={option.avatarUrl} alt={option.displayName} />
           ) : null}
-          <AvatarFallback className="bg-[#163A2B] text-sm font-bold text-[#E8D5A3]">
+          <AvatarFallback className="bg-[#0A251A] text-sm font-bold text-[#E5C98B]">
             {option.initials}
           </AvatarFallback>
         </Avatar>
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h3 className="truncate text-[15px] font-semibold text-[#10261D]">
+            <h3 className="truncate text-[15px] font-semibold text-[#FAF5E9]">
               {option.displayName}
             </h3>
             {option.isRecommended ? (
@@ -47,7 +47,7 @@ export function SelectedTherapistPreview({
               </TherapistAvailabilityBadge>
             ) : null}
           </div>
-          <p className="mt-1 truncate text-[12px] text-[#55635B]">
+          <p className="mt-1 truncate text-[12px] text-[#9FB1A6]">
             {getTherapistSubLabel(option)}
           </p>
         </div>
@@ -57,7 +57,7 @@ export function SelectedTherapistPreview({
         <Button
           type="button"
           variant="outline"
-          className="h-9 rounded-full border-[#D7CEBC] bg-[#FCFAF5] text-[#10261D] hover:border-[#163A2B] hover:bg-[#F5EFE3]"
+          className="h-9 rounded-full border-[#D4B57A]/40 bg-[#0D2E20]/75 text-[#FAF5E9] hover:border-[#E5C98B] hover:bg-[#14402E]"
           onClick={onChange}
         >
           <RotateCcw className="size-3.5" />
@@ -66,7 +66,7 @@ export function SelectedTherapistPreview({
         <Button
           type="button"
           variant="ghost"
-          className="h-9 rounded-full text-[#55635B] hover:bg-[#EDE4D3] hover:text-[#10261D]"
+          className="h-9 rounded-full text-[#CBD6CD] hover:bg-[#0E2F22] hover:text-[#FAF5E9]"
           onClick={onClear}
         >
           <X className="size-3.5" />

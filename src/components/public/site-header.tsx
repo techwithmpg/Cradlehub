@@ -125,7 +125,7 @@ export function SiteHeader({ primaryPhone, logoUrl, logoAlt }: SiteHeaderProps) 
     : "A WELLNESS SANCTUARY";
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-[#C8A96B]/20 bg-[#10261D]/95 text-[#FAF5E9] backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-[#D4B57A]/20 bg-[#061810]/82 text-[#FAF5E9] shadow-[0_8px_32px_-16px_rgba(2,10,7,0.75)] backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-[74px] lg:px-8">
         {/* Mobile Left Menu Trigger + Brand */}
         <div className="flex min-w-0 items-center gap-2.5">
@@ -216,19 +216,19 @@ export function SiteHeader({ primaryPhone, logoUrl, logoAlt }: SiteHeaderProps) 
                   {servicesOpen && (
                     <div
                       id="desktop-services-submenu"
-                      className="absolute top-full left-0 z-50 mt-3 w-72 rounded-2xl border border-[#C8A96B]/25 bg-[#10261D] p-2.5 shadow-2xl"
+                      className="absolute top-full left-0 z-50 mt-3 w-72 rounded-2xl border border-[#D4B57A]/30 bg-[#082016]/95 p-2.5 shadow-2xl backdrop-blur-md"
                     >
                       {SERVICE_SUBMENU_LINKS.map((sub) => (
                         <Link
                           key={sub.href}
                           href={sub.href}
                           onClick={() => setServicesOpen(false)}
-                          className="block rounded-xl px-3.5 py-2.5 transition hover:bg-[#1E4D3A]/80 focus-visible:outline-2 focus-visible:outline-[#D4B57A]"
+                          className="block rounded-xl px-3.5 py-2.5 transition hover:bg-[#14402E]/85 focus-visible:outline-2 focus-visible:outline-[#D4B57A]"
                         >
                           <p className="text-[13px] font-semibold text-[#FAF5E9]">
                             {sub.label}
                           </p>
-                          <p className="text-[11px] text-[#B7C2B9]">
+                          <p className="text-[11px] text-[#C2D0C7]">
                             {sub.description}
                           </p>
                         </Link>

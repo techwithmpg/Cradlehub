@@ -105,22 +105,22 @@ export function PublicMobileServices({
   const featured = visibleServices[0] || safeServices[0] || null;
 
   return (
-    <div className="w-full bg-[#F7F3EB] text-[#10261D] md:hidden">
+    <div className="w-full bg-[#071A12] text-[#FAF5E9] md:hidden">
       {/* Dark Forest Mobile Header & Category Scroller */}
-      <section className="relative overflow-hidden bg-[#10261D] px-4 pt-6 pb-8 text-[#FAF5E9]">
+      <section className="relative overflow-hidden border-b border-[#D4B57A]/20 bg-[#05140E] px-4 pt-6 pb-8 text-[#FAF5E9]">
         {bannerImage && (
           <img
             src={bannerImage}
             alt="Our Spa Services"
             fetchPriority="high"
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20"
+            className="eg-hero-photo pointer-events-none absolute inset-0 h-full w-full object-cover opacity-25"
           />
         )}
         <div className="relative z-10 mx-auto max-w-md">
           <h1 className="font-serif text-3xl font-medium text-[#E8D5A3] [font-family:var(--sp-font-display)]">
             Our Services
           </h1>
-          <p className="mt-1.5 text-xs leading-relaxed text-[#CFD9D1]">
+          <p className="mt-1.5 text-xs leading-relaxed text-[#CBD6CD]">
             Expert care, premium treatments, and a peaceful escape — crafted for
             your total well-being.
           </p>
@@ -135,13 +135,13 @@ export function PublicMobileServices({
               <span
                 className={`flex h-14 w-14 items-center justify-center rounded-full border-2 text-xs font-semibold ${
                   selectedCategory === "all"
-                    ? "border-[#D4B57A] bg-[#D4B57A] text-[#10261D]"
-                    : "border-white/25 bg-[#163A2B] text-[#FAF5E9]"
+                    ? "border-[#D4B57A] bg-[#D4B57A] text-[#071A12]"
+                    : "border-[#D4B57A]/30 bg-[#0D2E20] text-[#FAF5E9]"
                 }`}
               >
                 All
               </span>
-              <span className="mt-1.5 text-[11px] font-medium text-[#E5E2D7]">
+              <span className="mt-1.5 text-[11px] font-medium text-[#FAF5E9]">
                 All Menu
               </span>
             </button>
@@ -156,7 +156,7 @@ export function PublicMobileServices({
                 >
                   <div
                     className={`relative h-14 w-14 overflow-hidden rounded-full border-2 ${
-                      active ? "border-[#D4B57A] ring-2 ring-[#D4B57A]/40" : "border-white/30"
+                      active ? "border-[#D4B57A] ring-2 ring-[#D4B57A]/40" : "border-[#D4B57A]/30"
                     }`}
                   >
                     <img
@@ -168,7 +168,7 @@ export function PublicMobileServices({
                   </div>
                   <span
                     className={`mt-1.5 text-[11px] font-medium ${
-                      active ? "text-[#E8D5A3]" : "text-[#CFD9D1]"
+                      active ? "text-[#E8D5A3]" : "text-[#CBD6CD]"
                     }`}
                   >
                     {cat.label}
@@ -184,7 +184,7 @@ export function PublicMobileServices({
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               aria-label="Filter category"
-              className="rounded-full border border-[#C8A96B]/35 bg-[#163A2B] px-3 py-2 text-[11px] text-[#FAF5E9]"
+              className="rounded-full border border-[#D4B57A]/35 bg-[#0C291D] px-3 py-2 text-[11px] text-[#FAF5E9]"
             >
               <option value="all">All Services</option>
               <option value="Massage Services">Massage</option>
@@ -198,9 +198,9 @@ export function PublicMobileServices({
             <button
               type="button"
               onClick={() => setShowFilters((p) => !p)}
-              className="inline-flex items-center justify-center gap-1 rounded-full border border-[#C8A96B]/35 bg-[#163A2B] px-3 py-2 text-[11px] text-[#FAF5E9]"
+              className="eg-glass-pill inline-flex items-center justify-center gap-1 rounded-full px-3 py-2 text-[11px] text-[#FAF5E9]"
             >
-              <SlidersHorizontal className="h-3 w-3 text-[#D4B57A]" aria-hidden="true" />
+              <SlidersHorizontal className="h-3 w-3 text-[#E5C98B]" aria-hidden="true" />
               <span>Filter</span>
             </button>
 
@@ -210,7 +210,7 @@ export function PublicMobileServices({
                 setSortBy(e.target.value as "popular" | "price_asc" | "duration")
               }
               aria-label="Sort treatments"
-              className="rounded-full border border-[#C8A96B]/35 bg-[#163A2B] px-3 py-2 text-[11px] text-[#FAF5E9]"
+              className="rounded-full border border-[#D4B57A]/35 bg-[#0C291D] px-3 py-2 text-[11px] text-[#FAF5E9]"
             >
               <option value="popular">Sort: Popular</option>
               <option value="price_asc">Price ↑</option>
@@ -220,13 +220,13 @@ export function PublicMobileServices({
 
           {/* Optional Quick Mode Drawer */}
           {showFilters && (
-            <div className="mt-3 flex gap-2 rounded-2xl border border-[#C8A96B]/30 bg-[#163A2B] p-2.5 text-xs">
+            <div className="eg-glass-card mt-3 flex gap-2 rounded-2xl p-2.5 text-xs">
               <button
                 type="button"
                 onClick={() => setExperienceChoice("in_spa")}
                 className={`flex-1 rounded-xl py-2 font-medium ${
                   experienceChoice === "in_spa"
-                    ? "bg-[#D4B57A] text-[#10261D]"
+                    ? "bg-[#D4B57A] text-[#071A12]"
                     : "text-[#FAF5E9]"
                 }`}
               >
@@ -237,7 +237,7 @@ export function PublicMobileServices({
                 onClick={() => setExperienceChoice("home_service")}
                 className={`flex-1 rounded-xl py-2 font-medium ${
                   experienceChoice === "home_service"
-                    ? "bg-[#D4B57A] text-[#10261D]"
+                    ? "bg-[#D4B57A] text-[#071A12]"
                     : "text-[#FAF5E9]"
                 }`}
               >
@@ -248,9 +248,9 @@ export function PublicMobileServices({
 
           {/* Featured Treatment Spotlight Card */}
           {featured && (
-            <div className="mt-5 overflow-hidden rounded-2xl border border-[#C8A96B]/40 bg-[#163A2B] p-3.5 shadow-md">
+            <div className="eg-glass-card mt-5 overflow-hidden rounded-2xl p-3.5">
               <div className="flex items-start gap-3">
-                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-[#10261D]">
+                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-[#0A251B]">
                   <ServiceImage
                     src={featured.imageUrl}
                     alt={featured.imageAlt || featured.name}
@@ -261,23 +261,23 @@ export function PublicMobileServices({
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[#D4B57A] px-2.5 py-0.5 text-[9px] font-bold tracking-wider text-[#10261D] uppercase">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[#D4B57A] px-2.5 py-0.5 text-[9px] font-bold tracking-wider text-[#071A12] uppercase">
                     <Star className="h-2.5 w-2.5" aria-hidden="true" />
                     Featured Treatment
                   </span>
                   <h2 className="mt-1.5 truncate font-serif text-lg font-medium text-[#FAF5E9] [font-family:var(--sp-font-display)]">
                     {featured.name}
                   </h2>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-[#D0DBD2]">
+                  <div className="mt-1 flex items-center gap-2 text-xs text-[#CBD6CD]">
                     <span>{featured.durationText}</span>
                     <span>|</span>
-                    <span className="font-semibold text-[#E8D5A3]">
+                    <span className="font-semibold text-[#E8D5A3] tabular-nums">
                       {featured.priceLabel}
                     </span>
                   </div>
                   <Link
                     href={`/book?serviceId=${encodeURIComponent(featured.id)}&visitType=${experienceChoice}`}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#D4B57A] px-4 py-1.5 text-xs font-semibold text-[#10261D]"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#D4B57A] px-4 py-1.5 text-xs font-semibold text-[#071A12]"
                   >
                     <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Book Now →</span>
@@ -289,17 +289,17 @@ export function PublicMobileServices({
         </div>
       </section>
 
-      {/* Scrollable Horizontal Treatment Cards on Cream Surface */}
+      {/* Emerald Glass Treatment Cards */}
       <section className="mx-auto max-w-md space-y-3 px-4 py-6">
         {visibleServices.map((service) => {
           const liked = wishlistIds.includes(service.id);
           return (
             <div
               key={service.id}
-              className="rounded-2xl border border-[#E5DEC9] bg-white p-3.5 shadow-xs"
+              className="eg-glass-card rounded-2xl p-3.5"
             >
               <div className="flex gap-3">
-                <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[#EDE4D3]">
+                <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[#0A251B]">
                   <ServiceImage
                     src={service.imageUrl}
                     alt={service.imageAlt || service.name}
@@ -311,31 +311,31 @@ export function PublicMobileServices({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="truncate font-serif text-base font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+                    <h3 className="truncate font-serif text-base font-medium text-[#FAF5E9] [font-family:var(--sp-font-display)]">
                       {service.name}
                     </h3>
                     <button
                       type="button"
                       onClick={() => toggleWishlist(service.id)}
                       aria-label={liked ? `Remove ${service.name} from saved` : `Save ${service.name}`}
-                      className="shrink-0 text-[#8A6D3B]"
+                      className="shrink-0 text-[#E5C98B]"
                     >
                       <Heart
-                        className={`h-4 w-4 ${liked ? "fill-[#B68A3C] text-[#B68A3C]" : ""}`}
+                        className={`h-4 w-4 ${liked ? "fill-[#D4B57A] text-[#D4B57A]" : ""}`}
                         aria-hidden="true"
                       />
                     </button>
                   </div>
-                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[#55635B]">
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[#CBD6CD]">
                     {service.description}
                   </p>
                   <div className="mt-2.5 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-xs text-[#3E4C44]">
+                    <div className="flex items-center gap-2 text-xs text-[#CBD6CD]">
                       <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-[#B68A3C]" aria-hidden="true" />
+                        <Clock className="h-3 w-3 text-[#E5C98B]" aria-hidden="true" />
                         <span>{service.durationText}</span>
                       </span>
-                      <span className="font-bold text-[#10261D]">
+                      <span className="font-bold text-[#E8D5A3] tabular-nums">
                         {service.priceLabel}
                       </span>
                     </div>
@@ -343,13 +343,13 @@ export function PublicMobileServices({
                       <button
                         type="button"
                         onClick={() => setDetailService(service)}
-                        className="text-[11px] font-semibold text-[#163A2B] underline-offset-2 hover:underline"
+                        className="text-[11px] font-semibold text-[#E8D5A3] underline-offset-2 hover:underline"
                       >
                         View Details
                       </button>
                       <Link
                         href={`/book?serviceId=${encodeURIComponent(service.id)}&visitType=${experienceChoice}`}
-                        className="inline-flex items-center gap-1 rounded-full bg-[#163A2B] px-3 py-1.5 text-[11px] font-semibold text-[#FAF5E9]"
+                        className="inline-flex items-center gap-1 rounded-full bg-[#D4B57A] px-3 py-1.5 text-[11px] font-semibold text-[#071A12]"
                       >
                         <Calendar className="h-3 w-3" aria-hidden="true" />
                         <span>Book</span>
@@ -364,7 +364,7 @@ export function PublicMobileServices({
 
         {/* Choose Your Service Experience Selector */}
         <div className="pt-4">
-          <h2 className="font-serif text-lg font-medium text-[#10261D] [font-family:var(--sp-font-display)]">
+          <h2 className="font-serif text-lg font-medium text-[#FAF5E9] [font-family:var(--sp-font-display)]">
             Choose Your Service Experience
           </h2>
           <div className="mt-3 grid grid-cols-2 gap-2.5">
@@ -373,18 +373,16 @@ export function PublicMobileServices({
               onClick={() => setExperienceChoice("in_spa")}
               className={`rounded-2xl border p-3.5 text-left transition ${
                 experienceChoice === "in_spa"
-                  ? "border-[#163A2B] bg-[#163A2B] text-[#FAF5E9]"
-                  : "border-[#E5DEC9] bg-white text-[#10261D]"
+                  ? "border-[#D4B57A] bg-[#14422F] text-[#FAF5E9]"
+                  : "eg-glass-card text-[#FAF5E9]"
               }`}
             >
               <Flower2
-                className={`h-4 w-4 ${experienceChoice === "in_spa" ? "text-[#D4B57A]" : "text-[#B68A3C]"}`}
+                className="h-4 w-4 text-[#E5C98B]"
                 aria-hidden="true"
               />
               <p className="mt-2 text-xs font-semibold">In-Spa Experience</p>
-              <p
-                className={`mt-0.5 text-[10px] ${experienceChoice === "in_spa" ? "text-[#CFD9D1]" : "text-[#58665E]"}`}
-              >
+              <p className="mt-0.5 text-[10px] text-[#CBD6CD]">
                 Visit SM Bacolod or Lacson suite
               </p>
             </button>
@@ -394,18 +392,16 @@ export function PublicMobileServices({
               onClick={() => setExperienceChoice("home_service")}
               className={`rounded-2xl border p-3.5 text-left transition ${
                 experienceChoice === "home_service"
-                  ? "border-[#163A2B] bg-[#163A2B] text-[#FAF5E9]"
-                  : "border-[#E5DEC9] bg-white text-[#10261D]"
+                  ? "border-[#D4B57A] bg-[#14422F] text-[#FAF5E9]"
+                  : "eg-glass-card text-[#FAF5E9]"
               }`}
             >
               <Home
-                className={`h-4 w-4 ${experienceChoice === "home_service" ? "text-[#D4B57A]" : "text-[#B68A3C]"}`}
+                className="h-4 w-4 text-[#E5C98B]"
                 aria-hidden="true"
               />
               <p className="mt-2 text-xs font-semibold">Home Service</p>
-              <p
-                className={`mt-0.5 text-[10px] ${experienceChoice === "home_service" ? "text-[#CFD9D1]" : "text-[#58665E]"}`}
-              >
+              <p className="mt-0.5 text-[10px] text-[#CBD6CD]">
                 Spa comfort at your door
               </p>
             </button>
@@ -413,9 +409,9 @@ export function PublicMobileServices({
 
           <Link
             href={`/book?visitType=${experienceChoice}`}
-            className="mt-4 flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#10261D] px-5 py-3 text-sm font-semibold text-[#FAF5E9] shadow-sm"
+            className="mt-4 flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-5 py-3 text-sm font-semibold text-[#071A12] shadow-sm"
           >
-            <Calendar className="h-4 w-4 text-[#D4B57A]" aria-hidden="true" />
+            <Calendar className="h-4 w-4" aria-hidden="true" />
             <span>Book an Appointment</span>
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
