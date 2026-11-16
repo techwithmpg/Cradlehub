@@ -18,7 +18,7 @@ export function HeroSection() {
           src={SPA_IMAGES.hero}
           alt="Calming Cradle spa treatment room"
           fill
-          priority
+          preload
           className="object-cover"
           sizes="100vw"
         />

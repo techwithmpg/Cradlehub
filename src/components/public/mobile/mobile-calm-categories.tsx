@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { PublicCatalogService } from "@/lib/queries/services";
@@ -82,11 +83,13 @@ export function MobileCalmCategories({
                 className="group flex flex-col items-center text-center"
               >
                 <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-[#D4B57A]/65 bg-[#0A251B] shadow-md transition group-hover:border-[#E8D5A3]">
-                  <img
+                  <Image
                     src={img}
                     alt={cat.label}
+                    fill
+                    sizes="64px"
                     loading="lazy"
-                    className="h-full w-full object-cover"
+                    className="object-cover"
                   />
                 </div>
                 <span className="mt-1.5 text-[11px] font-medium leading-tight text-[#FAF5E9]">

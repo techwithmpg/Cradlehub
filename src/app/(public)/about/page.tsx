@@ -18,9 +18,8 @@ import {
 } from "lucide-react";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd } from "@/components/seo/structured-data";
-import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { getPublicSiteSectionsCached } from "@/lib/public/public-site-cached";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
-import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 
 const experiencePillars = [
   { label: "Rest & Relaxation", icon: Flower2 },
@@ -60,14 +59,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function AboutPage() {
-  let managedSections: Awaited<ReturnType<typeof getPublicSiteSections>> = [];
-
-  try {
-    managedSections = await getPublicSiteSections({ includeDisabled: false });
-  } catch (error) {
-    if (!isPublicReadTransportFailure(error)) throw error;
-    managedSections = [];
-  }
+  const managedSections = await getPublicSiteSectionsCached({ includeDisabled: false });
 
   const resolved = resolvePublicSiteSections(managedSections);
   const storyImage =

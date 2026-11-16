@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { ArrowRight, Clock } from "lucide-react";
+import { ServiceImage } from "@/components/public/service-image";
 import type { PublicCatalogService } from "@/lib/queries/services";
 
 type MobileMostLovedTreatmentsProps = {
@@ -41,11 +42,13 @@ export function MobileMostLovedTreatments({
               className="eg-glass-card flex items-center gap-3 rounded-2xl p-3"
             >
               <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[#0A251B]">
-                <img
+                <ServiceImage
                   src={service.imageUrl}
                   alt={service.imageAlt || service.name}
+                  fill
+                  sizes="96px"
                   loading="lazy"
-                  className="h-full w-full object-cover"
+                  className="object-cover"
                 />
               </div>
               <div className="min-w-0 flex-1">

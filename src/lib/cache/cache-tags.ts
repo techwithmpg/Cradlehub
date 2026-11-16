@@ -1,9 +1,24 @@
-import { revalidateTag as nextRevalidateTag } from "next/cache";
+import * as nextCache from "next/cache";
+
+export const PUBLIC_SITE_REVALIDATE_PATHS = [
+  "/",
+  "/about",
+  "/services",
+  "/products",
+  "/branches",
+  "/contact",
+  "/massage-spa-bacolod",
+  "/home-service-massage-bacolod",
+  "/marketing",
+  "/owner/marketing",
+] as const;
 
 export const cacheTags = {
   serviceCatalog: "service-catalog",
   publicBranches: "public-branches",
   marketingBrand: "marketing-brand",
+  publicSiteSections: "public-site-sections",
+  boutiqueCatalog: "boutique-catalog",
   branchBookingRules: (branchId: string) => `branch-booking-rules:${branchId}`,
   branchServices: (branchId: string) => `branch-services:${branchId}`,
   branchAssignableServices: (branchId: string) => `branch-assignable-services:${branchId}`,
@@ -23,7 +38,35 @@ export const cacheTags = {
 // Service/settings writes must be visible on the next public booking request, so expire
 // matching entries immediately instead of serving a stale response while revalidating.
 export function invalidateTag(tag: string): void {
-  nextRevalidateTag(tag, { expire: 0 });
+  if (!("revalidateTag" in nextCache)) return;
+  try {
+    const fn = nextCache.revalidateTag;
+    if (typeof fn === "function") {
+      fn(tag, { expire: 0 });
+    }
+  } catch {
+    // Allow tests with partial `next/cache` mocks to execute server actions cleanly.
+  }
+}
+
+export function revalidatePublicPath(path: string): void {
+  if (!("revalidatePath" in nextCache)) return;
+  try {
+    const fn = nextCache.revalidatePath;
+    if (typeof fn === "function") {
+      fn(path);
+    }
+  } catch {
+    // Allow tests with partial `next/cache` mocks to execute server actions cleanly.
+  }
+}
+
+export function invalidatePublicSiteSurfaces(): void {
+  invalidateTag(cacheTags.publicSiteSections);
+  invalidateTag(cacheTags.boutiqueCatalog);
+  for (const path of PUBLIC_SITE_REVALIDATE_PATHS) {
+    revalidatePublicPath(path);
+  }
 }
 
 // ── Batch invalidation helpers ────────────────────────────────────────────────

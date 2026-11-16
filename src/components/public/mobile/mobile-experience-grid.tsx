@@ -6,9 +6,8 @@ type MobileExperienceGridProps = {
   siteImages?: Record<string, string>;
 };
 
-export function MobileExperienceGrid({
-  siteImages: _siteImages,
-}: MobileExperienceGridProps = {}) {
+export function MobileExperienceGrid(props: MobileExperienceGridProps = {}) {
+  void props;
   return (
     <section className="px-4 py-6 text-[#FAF5E9]">
       <div className="mx-auto max-w-md">

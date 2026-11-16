@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -109,11 +110,14 @@ export function PublicMobileServices({
       {/* Dark Forest Mobile Header & Category Scroller */}
       <section className="relative overflow-hidden border-b border-[#D4B57A]/20 bg-[#05140E] px-4 pt-6 pb-8 text-[#FAF5E9]">
         {bannerImage && (
-          <img
+          <Image
             src={bannerImage}
             alt="Our Spa Services"
+            fill
+            sizes="100vw"
+            loading="eager"
             fetchPriority="high"
-            className="eg-hero-photo pointer-events-none absolute inset-0 h-full w-full object-cover opacity-25"
+            className="eg-hero-photo pointer-events-none object-cover opacity-25"
           />
         )}
         <div className="relative z-10 mx-auto max-w-md">
@@ -159,11 +163,13 @@ export function PublicMobileServices({
                       active ? "border-[#D4B57A] ring-2 ring-[#D4B57A]/40" : "border-[#D4B57A]/30"
                     }`}
                   >
-                    <img
+                    <Image
                       src={cat.image}
                       alt={cat.label}
+                      fill
+                      sizes="56px"
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      className="object-cover"
                     />
                   </div>
                   <span

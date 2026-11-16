@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import type { createAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/types/supabase";
 import {
   PUBLIC_CATALOG_CATEGORY_NAMES,
@@ -160,8 +161,14 @@ export async function getServiceById(serviceId: string) {
   return data;
 }
 
-export async function getPublicServiceCatalog(): Promise<PublicCatalogService[]> {
-  const supabase = await createClient();
+export type PublicCatalogQueryClient =
+  | Awaited<ReturnType<typeof createClient>>
+  | ReturnType<typeof createAdminClient>;
+
+export async function getPublicServiceCatalog(
+  providedClient?: PublicCatalogQueryClient
+): Promise<PublicCatalogService[]> {
+  const supabase = providedClient ?? (await createClient());
   const [servicesResult, branchServicesResult, branchesResult] = await Promise.all([
     supabase
       .from("services")

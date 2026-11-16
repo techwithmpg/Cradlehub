@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
 import { PublicMobileContact } from "@/components/public/mobile/public-mobile-contact";
-import { getPublicBranches } from "@/lib/queries/branches";
+import { getPublicBranchesSafeCached } from "@/lib/public/public-site-cached";
 import { Phone, MapPin, Clock, MessageSquare } from "lucide-react";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd, LocalBusinessJsonLd } from "@/components/seo/structured-data";
@@ -33,7 +33,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function ContactPage() {
-  const branches = await getPublicBranches();
+  const branches = await getPublicBranchesSafeCached();
   const primaryBranch = branches[0];
   const primaryPhone = primaryBranch?.phone ?? "";
   const secondaryPhone = primaryBranch?.secondary_phone ?? "";

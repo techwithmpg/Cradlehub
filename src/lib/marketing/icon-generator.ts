@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logError } from "@/lib/logger";
 import { getMediaContract } from "@/lib/marketing/media-contracts";
 import { validateMediaBuffer } from "@/lib/marketing/media-contracts-server";
+import { DEFAULT_PUBLIC_IMAGE_CACHE_CONTROL } from "@/lib/public/public-image-resolver";
 
 export type GeneratedSiteIconPackage = {
   version: string;
@@ -170,6 +171,7 @@ export async function generateSiteIconPackageFromBuffer({
           .from(PUBLIC_MEDIA_BUCKET)
           .upload(storagePath, variantBuffer, {
             contentType: "image/png",
+            cacheControl: DEFAULT_PUBLIC_IMAGE_CACHE_CONTROL,
             upsert: true,
           });
 

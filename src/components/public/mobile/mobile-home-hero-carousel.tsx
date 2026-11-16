@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Calendar } from "lucide-react";
 import type { NormalizedHeroSection } from "@/lib/public/normalized-sections";
@@ -40,7 +41,7 @@ export function MobileHomeHeroCarousel({
       SPA_IMAGES.aromatherapy,
     siteImages?.mobile_hero_tertiary || SPA_IMAGES.hotStone,
   ];
-  const currentImage = slideImages[activeSlide] || slideImages[0];
+  const currentImage = slideImages[activeSlide] || slideImages[0] || SPA_IMAGES.heroPortrait;
 
   return (
     <section className="relative overflow-hidden bg-[#05140E] pt-6 text-[#FAF5E9]">
@@ -54,15 +55,18 @@ export function MobileHomeHeroCarousel({
         {/* Circular Gold-Framed Sanctuary Portrait */}
         <div className="mx-auto mb-6 flex justify-center">
           <div className="relative h-56 w-56 overflow-hidden rounded-full border-2 border-[#D4B57A]/75 bg-[#0A251B] shadow-[0_18px_40px_-10px_rgba(0,0,0,0.7)]">
-            <img
+            <Image
               src={currentImage}
               alt={
                 hero?.mobileImageAltText ||
                 hero?.imageAltText ||
                 "Cradle Wellness Living signature treatment"
               }
+              fill
+              sizes="224px"
+              loading="eager"
               fetchPriority="high"
-              className="eg-hero-photo h-full w-full object-cover"
+              className="eg-hero-photo object-cover"
               style={{
                 objectPosition: hero?.mobileImagePosition || "50% 35%",
               }}

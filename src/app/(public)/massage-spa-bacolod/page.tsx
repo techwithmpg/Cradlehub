@@ -3,9 +3,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, MapPin, Phone, Sparkles } from "lucide-react";
 import { SPA_IMAGES } from "@/constants/spa-images";
-import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { getPublicSiteSectionsCached } from "@/lib/public/public-site-cached";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
-import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { ServiceJsonLd, BreadcrumbJsonLd, FAQPageJsonLd } from "@/components/seo/structured-data";
 
@@ -40,13 +39,7 @@ const faqs = [
 ];
 
 export default async function MassageSpaBacolodPage() {
-  let managedSections: Awaited<ReturnType<typeof getPublicSiteSections>> = [];
-  try {
-    managedSections = await getPublicSiteSections({ includeDisabled: false });
-  } catch (error) {
-    if (!isPublicReadTransportFailure(error)) throw error;
-    managedSections = [];
-  }
+  const managedSections = await getPublicSiteSectionsCached({ includeDisabled: false });
 
   const resolved = resolvePublicSiteSections(managedSections);
   const heroBanner = resolved.siteImages?.landing_spa_banner || SPA_IMAGES.ctaBanner;
