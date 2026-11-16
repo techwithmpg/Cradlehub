@@ -34,7 +34,9 @@ import {
   DollarSign,
   User,
   ClipboardCheck,
+  ShoppingBag,
 } from "lucide-react";
+import { canManageBoutique } from "@/lib/auth/crm-permissions";
 import {
   NAV_CONFIG,
   resolveCrmNavKeyFromRole,
@@ -85,6 +87,7 @@ const ICON_MAP: Record<
   DollarSign,
   User,
   ClipboardCheck,
+  ShoppingBag,
 };
 
 const WORKSPACE_META: Record<
@@ -499,7 +502,11 @@ function SidebarContent({
                 ))}
               </div>
             ))
-          : visibleNavItems(nav.items ?? [], canReviewMasterSheet).map((item: NavItem) => (
+          : visibleNavItems(
+              nav.items ?? [],
+              canReviewMasterSheet,
+              canManageBoutique(role)
+            ).map((item: NavItem) => (
               <NavLink
                 key={item.href}
                 item={item}

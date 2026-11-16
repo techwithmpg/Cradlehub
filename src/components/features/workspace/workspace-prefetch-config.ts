@@ -15,6 +15,7 @@ export const CRM_PREFETCH: WorkspacePrefetchConfig = {
     "/crm/cash-flow",
     "/crm/attendance",
     "/crm/dispatch",
+    "/crm/boutique",
     "/crm/staff",
   ],
   hover: [

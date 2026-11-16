@@ -5,6 +5,7 @@ import {
   canAccessCrmWorkspace,
   canConfirmPayments,
   canManageBookings,
+  canManageBoutique,
   canManageCrmSetup,
   canManageCustomers,
   canManageDispatch,
@@ -25,13 +26,14 @@ import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 type BranchRelation = { name: string | null } | { name: string | null }[] | null;
 
 export type FrontDeskDestination = {
-  key: "front_desk" | "schedule" | "customers" | "dispatch" | "admin_setup";
+  key: "front_desk" | "schedule" | "customers" | "dispatch" | "boutique" | "admin_setup";
   label: string;
   href: string;
 };
 
 export type FrontDeskCapabilities = {
   canManageCrmSetup: boolean;
+  canManageBoutique: boolean;
   canManageServices: boolean;
   canManageBookings: boolean;
   canConfirmPayments: boolean;
@@ -62,6 +64,7 @@ function branchNameFromRelation(branches: BranchRelation): string {
 function buildFrontDeskCapabilities(role: string): FrontDeskCapabilities {
   return {
     canManageCrmSetup: canManageCrmSetup(role),
+    canManageBoutique: canManageBoutique(role),
     canManageServices: canManageServices(role),
     canManageBookings: canManageBookings(role),
     canConfirmPayments: canConfirmPayments(role),
@@ -83,6 +86,14 @@ function buildAllowedFrontDeskDestinations(role: string): FrontDeskDestination[]
     { key: "customers", label: "Customers", href: "/crm/customers" },
     { key: "dispatch", label: "Dispatch", href: "/crm/dispatch" },
   ];
+
+  if (canManageBoutique(role)) {
+    destinations.push({
+      key: "boutique",
+      label: "Boutique Management",
+      href: "/crm/boutique",
+    });
+  }
 
   if (canManageCrmSetup(role)) {
     destinations.push({ key: "admin_setup", label: "Admin & Setup", href: "/crm/setup" });
