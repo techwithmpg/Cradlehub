@@ -9,6 +9,8 @@ Branch: `stage/web-attendance-v2-automation-20261116`.
 Isolated worktree: `E:/cradlehub/.worktrees/web-attendance-v2`.
 Verified fetched `origin/main`, remote `refs/heads/main`, and initial HEAD:
 `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`.
+Accepted main later advanced to `6c5380e96290edd93077b1c6a318e537f89453e3`;
+that accepted history was merged into the isolated branch before final checks.
 
 The owner's Attendance V2 brief authorizes controlled repository implementation
 and LOCAL/TEST verification, subject to investigation, policy freeze and review.
