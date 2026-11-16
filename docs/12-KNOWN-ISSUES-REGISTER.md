@@ -3,8 +3,8 @@
 ## Attendance V2 release gates — 2026-11-16
 
 - **ATT-V2-R1 / OPEN:** Native PostgreSQL LOCAL TEST with synthetic schema does not establish installed Supabase functions, grants, notification recipient policies, Auth, PostgREST, Vault or pg_net parity. Verify exact prerequisites without replaying historical local-only migrations.
-- **ATT-V2-R2 / OPEN:** Affected scanner/UI regression failures reproduce on the accepted base; timing-sensitive mobile assertions also vary by run. Preserve the baseline evidence and finish scanner/device acceptance before release.
-- **ATT-V2-R3 / OPEN:** Actual phone display, authenticated installed-PWA operation, production payroll reconciliation, independent review, owner release approval and separately approved Cron ownership transition remain unverified. V2 controls are inactive. [Current handoff](reports/ATTENDANCE-V2-HANDOFF-2026-11-16.md).
+- **ATT-V2-R2 / RESOLVED LOCALLY:** Remaining scanner/UI/query/Cron test failures corrected; final 90 files / 671 tests pass. Independent re-review found no remaining actionable P0/P1/P2 defect. Simulated browser smoke passes; physical installed-device acceptance remains under R3.
+- **ATT-V2-R3 / OPEN:** Actual phone display, authenticated installed-PWA operation, payroll acceptance, owner release approval and separately approved Cron ownership transition remain unverified. V2 controls are inactive. [Current handoff](reports/ATTENDANCE-V2-HANDOFF-2026-11-16.md).
 
 
 > **SMS-001 (P1 operational communications, 2026-11-08):** Customer booking SMS foundation is code-only and DISABLED pending verified consent capture, Philippine sender registration, reviewed new migration/isolated DB, scheduler and real Twilio tests, authorized status visibility, full repo quality gates and owner release approval. No customer SMS is currently verified. See reports/CUSTOMER-SMS-FOUNDATION-HANDOFF-2026-11-08.md.

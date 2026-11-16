@@ -1,183 +1,123 @@
 # Attendance V2 handoff — 2026-11-16
 
-**Recommendation: CORRECTION REQUIRED FOR RELEASE.** This is an inactive review
-candidate, not a production release or operational sign-off.
+**LOCAL IMPLEMENTATION AND INDEPENDENT REVIEW: PASS. RELEASE ACCEPTANCE PENDING.**
+The review candidate remains inactive; no production release or operational
+sign-off is claimed.
 
-## Repository, authority and policy
+## Authority, branch and policy
 
-- Repository: `https://github.com/techwithmpg/Cradlehub.git`, Web only.
+- Owner authorized remaining test corrections and independent review, explicitly
+  retaining one-scan 120-minute early arrival and stopping before production.
+- Worktree: `E:/cradlehub/.worktrees/web-attendance-v2`.
 - Branch: `stage/web-attendance-v2-automation-20261116`.
-- Initial fetched/remote-verified base: `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`.
-- Final reconciliation target: `6c5380e96290edd93077b1c6a318e537f89453e3`.
-- Implementation commit: `947da17e6aa6ff0b4d86a9b3c0679e70267826cd`.
-- Accepted-main integration head: `0126d1472fa310eacca14de0292cc00af9a87414`.
-- Final validated implementation head: `fc4901c93908a2ee8ffc0c6088ee3777bd89dda7`.
-- The final documentation/test closeout head is reported in the final response;
-  no branch push was performed.
-- Latest owner policy: one scan up to 120 minutes early, actual arrival retained,
-  credited start at scheduled shift start, no second scan. Earlier second-scan
-  wording is superseded. Earlier work needs separate auditable authorization.
-- No production data/schema execution, RLS/Auth changes, migration ledger repair,
-  Cron activation, notification send, deployment, push or main merge authorized.
+- Original verified base: `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`.
+- Reconciled accepted `origin/main`: `6c5380e96290edd93077b1c6a318e537f89453e3`;
+  refetched at closeout, already an ancestor, no further integration needed.
+- Final implementation: `e0ba79671f8966b29f9d950c1f987e98a5251478`.
+- Documentation closeout commit is reported in the final response. No push.
 
-Read the [audit and contract](ATTENDANCE-V2-AUDIT-AND-CONTRACT-2026-11-16.md) for
-the dependency map, baseline defects, frozen semantics and release constraints.
-Prior live statements in older reports are **REPOSITORY-RECORDED PRODUCTION
-EVIDENCE**, not live verification by this task. Owner-supplied November 16
-aggregate findings were not re-queried. No production query was performed.
+An 11:54 arrival for 13:00–20:00 is retained as 11:54; credit begins at 13:00
+and totals 420 minutes after verified 20:00 departure. Late arrivals credit from
+actual arrival; departure before shift start credits zero. **No second scan.**
+Two-device limits and historical unenrolled records are preserved. Read the
+[audit/contract](ATTENDANCE-V2-AUDIT-AND-CONTRACT-2026-11-16.md) and
+[independent review](ATTENDANCE-V2-INDEPENDENT-REVIEW-2026-11-16.md).
 
-## Candidate behavior
+## Result and corrections
 
-An 11:54 arrival for 13:00–20:00 is retained as 11:54, starts credit at 13:00,
-and produces 420 ordinary credited minutes after a verified 20:00 clock-out.
-Late arrival starts credit at actual arrival; departure before shift start
-credits zero. The database independently enforces bounded eligibility and the
-credited-time contract for enrolled V2 rows. The two-device limit is unchanged.
+The V2 snapshot keeps arrival, credited bounds, actual departure, revision and
+preliminary/final/review state distinct. Payroll Export rejects preliminary,
+disputed, malformed or inconsistent V2 credit from approved payable minutes.
+Recent feed now compares credited duration while retaining raw arrival/out.
+Clock-in-only review preserves actual QR departure provenance; manual
+confirmation of a provisional close remains explicitly manual.
 
-The existing session, scan transaction and correction audit remain authoritative.
-An additive V2 snapshot separates credited time, actual departure, state and
-revision. Payroll Export excludes preliminary/unconfirmed/disputed credit from
-approved payable minutes. Fixed-monthly payroll is unchanged. Open counters are
-bounded and do not accrue merely because clock-out is null.
+Due work reuses authorized schedules, dynamic assignments, platform completion,
+cleanup/return buffers and Front Desk cash custody/close/handover evidence.
+Business-day and observed-time bounds isolate cash evidence. Effective branch
+authority supports temporary/cross-branch staff. Active duties defer reminders
+and midnight closure. Unknown evidence goes to review; no historical backfill.
+Training scans use 120-minute eligibility/credit but enroll no real automation.
 
-Due work reuses dynamic assignments, verified completion, configured cleanup and
-return buffers, and existing Front Desk cash custody/close/handover evidence.
-Active duties defer reminders and closure; completed service alone does not
-clock out staff. Ordinary expired shifts can be provisionally closed at local
-midnight/catch-up without a QR departure event; genuine overnight duty stays
-open. Unknown evidence goes to review; historical rows are not backfilled.
+Eligible reminders begin at end+5 minutes and repeat every five minutes.
+Renewed duties or changed deadlines retire old notices/deliveries; fresh
+server validation runs immediately before dispatch. Push retains per-endpoint
+attempt evidence, uses zero provider TTL and stable session collapse identity.
+Provider acceptance remains distinct from phone receipt; exactly-once delivery
+across a network crash is not promised. In-app notices remain durable.
 
-Reminders start at eligible end +5 minutes, repeat every five minutes, dedupe by
-deadline generation/interval, stop at completion and resolve in-app state.
-Durable push leases and per-endpoint attempt evidence reuse existing transport.
-Provider acceptance is distinguished from phone receipt. Exactly-once network
-delivery is not promised across a crash after provider acceptance and before
-durable acknowledgment; stable IDs and endpoint dedupe mitigate that boundary.
+Original eight test failures are resolved. Accepted UI, fast-path timing and
+Attendance-only Cron expectations were corrected; query mocks include the
+existing parallel rule-version read. Settings errors fail closed before default
+creation. Scanner backgrounding stops active/pending acquisition, cancels decode
+and requires an explicit Resume Camera tap after foreground return.
 
-Canonical staff/row/advisory locks prevent competing opens and close/correction
-races. Identity-bound replay, cross-device rapid retries, closed-shift no-ops and
-older-revision suppression provide deterministic recovery. Focused Today,
-History, Staff PWA and export changes retain the four existing module tabs and
-recover known shift labels from captured scan metadata.
+## Targets and inactive operations
 
-## Database and scheduler state
+The candidate migration `20261116094630_attendance_v2_automation.sql` was run
+only in new disposable **LOCAL TEST** PostgreSQL databases. It remains
+**UNAPPLIED to PRODUCTION/Supabase**, with no migration-history marking.
+No old migration was edited/replayed and no RLS/Auth policy was changed.
+Application activation defaults false; database activation defaults null.
 
-`supabase/migrations/20261116094630_attendance_v2_automation.sql` is a forward
-candidate executed only in newly created **LOCAL TEST** PostgreSQL databases.
-It is **UNAPPLIED to PRODUCTION/Supabase**, and no migration-history version was
-marked applied. No historical migration file changed or historical chain replayed.
+`supabase/operations/enable-attendance-v2.sql` remains **NOT EXECUTED**. It
+proposes a separate Vault-backed one-minute Supabase Cron caller; reminder
+due intervals remain five minutes. Four existing Closing job definitions remain
+unchanged; V2 ownership handoff requires separate approval and target checks.
+No competing Attendance Vercel job was introduced.
 
-It creates private activation/due/delivery state, storage/audit triggers and
-service-only processors, and forward canonical scan/Closing/correction/
-reconciliation definitions. The default database activation is null and the
-application switch defaults false. It changes no existing RLS/Auth policy.
-Prerequisites include the exact dynamic/insert guard/reminder-helper schema;
-verify actual installed definitions before proposing any target execution.
+The native harness targets only `127.0.0.1:55439` and validates address, port,
+worktree data directory and PostgreSQL 17 before creating a synthetic test DB.
+It never reads `.env`, remote DSNs or linked project credentials. Exact accepted
+policy, branch resolver, scan/correction/reconcile and booking-lock/lifecycle
+functions are loaded against a synthetic schema. This proves LOCAL behavior,
+not installed Supabase ACL/Auth/RLS/PostgREST parity. No production query or
+mutation was performed. No production environment file was copied.
 
-`supabase/operations/enable-attendance-v2.sql` is **INACTIVE / NOT EXECUTED**.
-It proposes a separately reviewed, Vault-backed Supabase Cron owner invoking the
-protected POST once per minute; due-time logic supplies five-minute reminder
-intervals. The four existing Closing job names/schedules/commands are unchanged.
-The guarded Closing function excludes V2 rows only after explicit ownership
-handoff. An existing active hourly reminder job causes activation preflight to
-stop. Do not apply the older hourly proposal or its RLS edits wholesale.
+## Verification
 
-## Verification and limits
+Node 24.14.0 and pnpm 10.33.2; package/lock files unchanged. All commands run
+under `fnm exec --using=24.14.0` in the isolated worktree.
 
-Accepted toolchain: Node 24.14.0, pnpm 10.33.2. The isolated lockfile dependency
-tree was installed from the offline cache; package and lock files are unchanged.
-Test-only PostgreSQL 17.11 binaries and pg 8.16.3 live under ignored `.tmp/`.
-No production environment file was copied.
-
-The native cluster is classified **LOCAL TEST**, bound to `127.0.0.1:55439`,
-with data under this worktree's `.tmp/attendance-v2-pgdata`. The harness checks
-address, port, data directory and server version before creating a new test DB.
-It never reads `.env`, linked project credentials or a remote DSN. Its synthetic
-schema loads exact accepted dynamic, canonical scan/correction/reconciliation,
-and booking-lifecycle/locking SQL; these are not mocked policy resolvers.
-This does not establish Supabase Auth, RLS, PostgREST or live grant parity.
-
-Exact commands and final results are in the closeout below. Initial broad
-Attendance regression found baseline scanner/test failures. The exact accepted
-base was archived into a disposable fixture and the failure categories repeated;
-that temporary copy was then removed. Baseline-only evidence is not a waiver for
-release. Mobile component tests are simulations, not real installed-device or
-authenticated end-to-end browser acceptance. No real phone push or actual payroll
-payment/reconciliation was tested.
-
-## Release and rollback gate
-
-Next permitted work: independent review and corrections on this branch; compare
-the exact installed schema, functions, privileges and four-job catalog; verify
-on classified Supabase TEST; complete real browser/device/push/payroll acceptance.
-Production migration, Cron activation, merge/deploy and operational sign-off
-need separate owner release approval after those gates pass.
-
-Rollback planning must preserve evidence and V2 payable-finalization gates.
-Stop the verified new job and disable activation before application rollback.
-Do not drop snapshots/delivery audit, restore raw-duration pay for enrolled
-records, or hand open V2 work back to legacy Closing without reviewed
-reconciliation. Schema removal, ownership reversal and any data correction
-require separate reviewed operations. No rollback was executed.
-
-## Final closeout
-
-Accepted `origin/main` advanced during implementation. Its seven commits were
-inspected and merged locally into the review branch without conflicts. The
-accepted integration target `6c5380e96290edd93077b1c6a318e537f89453e3` is an
-ancestor of the candidate. The main worktree and other branches were not edited.
-No production merge or push was performed.
-
-All commands below used `fnm exec --using=24.14.0` in this isolated worktree:
-
-| Command / target | Actual final result |
+| Check | Result |
 | --- | --- |
-| `node tests/database/attendance-v2-local-test.mjs` | **PASS**, 30 scenario groups; assertions cover stored minutes, raw/credited timestamps, audit, request replay, distinct connections, due interval uniqueness, duty buffers, midnight, manual correction and service-completion races, retained legacy Closing reminder and failed delivery evidence. Largest measured bounded batch: **26.80 ms** in this small synthetic fixture, not a production benchmark. |
-| `node node_modules/vitest/vitest.mjs run tests/lib/attendance/v2-policy.test.ts tests/lib/attendance/v2-processor.test.ts tests/app/attendance/automation-route.test.ts tests/components/attendance/attendance-v2-credit-details.test.tsx tests/lib/attendance/attendance-workspace-realtime-merge.test.ts --maxWorkers=4` | **PASS**, 5 files / 41 tests. |
-| `node node_modules/vitest/vitest.mjs run tests/lib/attendance src/lib/attendance tests/lib/staff-portal/attendance.test.ts tests/lib/notifications/push-delivery-targeting.test.ts tests/components/attendance tests/app/attendance --maxWorkers=4` | **NOT PASS**, 85 files passed / 5 failed; **646 tests passed / 8 failed**. See baseline comparison below. |
-| `node node_modules/eslint/bin/eslint.js <changed .ts/.tsx/.mjs paths>` | **PASS**, scoped to candidate changes relative to accepted main. |
-| `node node_modules/next/dist/bin/next build --webpack` | **PASS** after reconciliation. Compiled, type-checked and prerendered with explicitly LOCAL unavailable placeholders (`127.0.0.1:65499`, verified no listener), `DEV_AUTH_BYPASS=false`, production-mode bypass protection and V2 false. Expected local fetch failures were logged; this is compilation/build evidence, not connected runtime acceptance. |
-| `pnpm type-check` | **PASS**, executed serially after the completed build. An earlier concurrent attempt raced `.next/types`; that result is not counted as a source-code failure or a pass. |
-| `git diff --check` / changed-path, UTF-8 and link audit | **PASS**; 65 relative Markdown links resolved, added text checked for credential patterns, UTF-8 verified, only one new migration and one new activation operation relative to accepted main. |
+| `node node_modules/vitest/vitest.mjs run tests/lib/attendance src/lib/attendance tests/lib/staff-portal/attendance.test.ts tests/lib/notifications/push-delivery-targeting.test.ts tests/components/attendance tests/app/attendance tests/lib/staff-pwa --maxWorkers=2` | **PASS: 90 files / 671 tests**, final source. |
+| `node tests/database/attendance-v2-local-test.mjs` | **PASS: 39 scenario groups**. Includes one-scan early/late/zero credit, concurrency, buffers, midnight, real-vs-manual provenance, training, temporary branch, cash-day isolation, queued/fresh dispatch and replay identity. Largest bounded batch 31.99 ms in this small fixture, not a production benchmark. |
+| Scoped ESLint on changed `.ts/.tsx/.mjs` | **PASS**, no warnings/errors. |
+| `pnpm type-check` | **PASS** on final source and serially after the completed build. |
+| `node node_modules/next/dist/bin/next build --webpack` | **PASS**, compiled/type-checked/prerendered with unavailable LOCAL `127.0.0.1:65499` placeholders, both authorization bypasses false and V2 inactive. Transient TLS fetch retries were logged; no connected runtime acceptance claimed. |
+| `git diff --check` | **PASS**. |
+| Separate read-only review | **PASS**, no remaining actionable P0/P1/P2 finding; independently 111 tests, then 48 overlapping scanner tests after final hook delta. |
+| Browser smoke | **PASS for LOCAL simulation only**: actual scanner, mocked actions and generated MediaStream; mobile 390×844 and desktop 1280×800; hide stopped track, foreground did not reacquire, Resume reacquired; no action resolution/navigation, no horizontal overflow, zero current-page console errors/warnings. Screenshots inspected. |
 
-The accepted-base reproduction used the original verified SHA
-`a9ff58e9da53bc10a71a714839ce6d77dc895bb0`, the same dependency tree and Node
-24, and six implicated test files (73 tests). Nine assertions failed there,
-including one varying mobile assertion. The final eight failures occur in:
+Browser plugin was unavailable; regular Playwright was used. The harness is
+outside the repo under the Codex visualization workspace. Screenshots/logs stay
+ignored under worktree `.tmp/`; no app API/database mutation was possible.
+The first harness load had a harmless missing-favicon 404; after adding an inline
+favicon the final page had zero errors/warnings. This is not installed-device
+camera, OS backgrounding or authenticated attendance acceptance.
 
-- `tests/components/attendance/public-scan-processor.test.tsx` (1);
-- `tests/components/attendance/staff-scan-location-readiness.test.tsx` (3);
-- `tests/lib/attendance/crm-closing-policy-migration.test.ts` (1; broad global
-  five-minute Vercel assertion also matches the accepted unrelated booking job);
-- `tests/lib/attendance/public-scan-simplification-contract.test.ts` (1; stale
-  minimum-duration source expectation); and
-- `tests/lib/attendance/scan-error-paths.test.ts` (2; settings mocks lack the
-  accepted rule-version query chain).
+Prior baseline reproduction (eight failures, 646 passes) is preserved in Git
+history; it is superseded by the final green suite. Original governance and
+main worktrees remain unchanged. No real phone push, actual staff/customer
+mutation or payroll payment/reconciliation was attempted.
 
-These categories reproduce on the accepted base. They remain release issues;
-no scanner runtime behavior was changed to make stale tests pass. Two related
-Closing/dynamic schedule tests touched by this work now scope their scheduler
-assertions to Attendance instead of forbidding unrelated accepted booking Cron.
-The roster regression introduced during development was fixed and its tests
-passed. A build-discovered source encoding issue was corrected to UTF-8 before
-the final successful build.
+## Remaining release gates and next action
 
-Payroll evidence is synthetic: 66 early minutes excluded (486 raw vs 420
-credited), on-time 420, 15-minute late arrival 405, and departure before start
-zero; preliminary/review credit is excluded from approved export. No real
-payroll/customer/staff record was reconciled. Notification transport assertions
-use mocks; native SQL verifies durable failed attempt records, not phone receipt.
-The LOCAL TEST cluster was stopped after verification; synthetic files and logs
-remain ignored under `.tmp/`. No external Supabase execution or ledger entry.
+The requested local corrections/review are complete. Next release verification
+requires separately authorized classified Supabase TEST parity and authenticated
+browser/installed-PWA, actual push/receipt and payroll acceptance. Platform
+`auto_due` completion is policy evidence; physical work completion/driver return
+cannot be inferred from the synthetic test. Owner release approval remains
+required before any production execution, Cron ownership change, push, merge or
+deployment. Do not query/alter an unknown target or replay historical migrations.
 
-The final SQL-only correction also verifies that a successful retry automatically resolves its own unreviewed transient evidence issue while preserving the original issue and resolution audit. Explicit human review remains intact. The application build/type results are unchanged by this SQL correction, which is covered by the final native database run.
-
-Independent review: **NOT PERFORMED**. Browser/device/actual-push, installed
-Supabase parity and production payroll acceptance: **NOT VERIFIED**. The
-recommendation remains **CORRECTION REQUIRED FOR RELEASE**.
+Rollback planning must first stop the verified new job and disable activation,
+retain snapshots/delivery/correction evidence and payable-finalization guards,
+and reconcile open V2 sessions before changing Closing ownership. No rollback
+or activation was executed. Temporary LOCAL services are stopped at closeout.
 
 ### Changed files relative to reconciled accepted main
-
 
 - `.env.example`
 - `AI_CONTEXT.md`
@@ -187,23 +127,27 @@ recommendation remains **CORRECTION REQUIRED FOR RELEASE**.
 - `docs/20-CHATGPT-LIVE-CONTEXT.md`
 - `docs/reports/ATTENDANCE-V2-AUDIT-AND-CONTRACT-2026-11-16.md`
 - `docs/reports/ATTENDANCE-V2-HANDOFF-2026-11-16.md`
+- `docs/reports/ATTENDANCE-V2-INDEPENDENT-REVIEW-2026-11-16.md`
 - `src/app/api/attendance/automation/route.ts`
 - `src/components/features/attendance/history/attendance-history-view.tsx`
 - `src/components/features/attendance/records/attendance-records-tab.tsx`
 - `src/components/features/attendance/shared/attendance-credit-details.tsx`
 - `src/components/features/attendance/shared/live-shift-clock.tsx`
 - `src/components/features/attendance/today/attendance-today-view.tsx`
+- `src/components/features/scanner/use-staff-scanner.ts`
 - `src/components/features/staff-portal/staff-attendance-history.tsx`
 - `src/lib/attendance/attendance-intent-engine.ts`
 - `src/lib/attendance/attendance-workspace-realtime-merge.ts`
 - `src/lib/attendance/clock-in-authority.ts`
 - `src/lib/attendance/crm-review.ts`
 - `src/lib/attendance/day-model.ts`
+- `src/lib/attendance/queries.ts`
 - `src/lib/attendance/recent-scan-event.ts`
 - `src/lib/attendance/recent-scans-map.ts`
 - `src/lib/attendance/recent-scans.ts`
 - `src/lib/attendance/reports.ts`
 - `src/lib/attendance/scan-engine.ts`
+- `src/lib/attendance/scan-feed.ts`
 - `src/lib/attendance/scan-shift-label.ts`
 - `src/lib/attendance/staff-diagnostics.ts`
 - `src/lib/attendance/time.ts`
@@ -211,15 +155,25 @@ recommendation remains **CORRECTION REQUIRED FOR RELEASE**.
 - `src/lib/attendance/v2-policy.ts`
 - `src/lib/attendance/v2-processor.ts`
 - `src/lib/attendance/v2-server.ts`
+- `src/lib/notifications/push/delivery.ts`
 - `src/lib/staff-portal/attendance.ts`
 - `supabase/migrations/20261116094630_attendance_v2_automation.sql`
 - `supabase/operations/enable-attendance-v2.sql`
 - `tests/app/attendance/automation-route.test.ts`
 - `tests/components/attendance/attendance-v2-credit-details.test.tsx`
+- `tests/components/attendance/public-scan-processor.test.tsx`
+- `tests/components/attendance/staff-scan-location-readiness.test.tsx`
 - `tests/database/attendance-v2-fixture.sql`
 - `tests/database/attendance-v2-local-test.mjs`
 - `tests/lib/attendance/attendance-workspace-realtime-merge.test.ts`
+- `tests/lib/attendance/crm-closing-policy-migration.test.ts`
 - `tests/lib/attendance/hybrid-closing-automation.test.ts`
+- `tests/lib/attendance/public-scan-simplification-contract.test.ts`
+- `tests/lib/attendance/pure-attendance-reader.test.ts`
+- `tests/lib/attendance/reports.test.ts`
+- `tests/lib/attendance/scan-error-paths.test.ts`
+- `tests/lib/attendance/scan-feed.test.ts`
 - `tests/lib/attendance/smart-dynamic-clock-out.test.ts`
 - `tests/lib/attendance/v2-policy.test.ts`
 - `tests/lib/attendance/v2-processor.test.ts`
+- `tests/lib/notifications/push-delivery-targeting.test.ts`

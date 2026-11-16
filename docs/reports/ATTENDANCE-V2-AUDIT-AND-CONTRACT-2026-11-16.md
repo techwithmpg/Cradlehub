@@ -1,6 +1,6 @@
 # Attendance V2 — truth audit and policy contract
 
-Date: 2026-11-16. Status: **ISOLATED IMPLEMENTATION / CORRECTION REQUIRED FOR RELEASE**.
+Date: 2026-11-16. Status: **LOCAL IMPLEMENTATION / INDEPENDENT REVIEW PASS; RELEASE ACCEPTANCE PENDING**.
 
 ## Authorization and baseline
 
@@ -233,14 +233,12 @@ coverage. Reconnect uses existing resilience tests and an added delayed-revision
 merge test. No authenticated browser submission, installed PWA, actual phone
 push, real payroll reconciliation or production Cron execution was performed.
 
-Independent review has not been performed. Before release: verify exact installed
+The subsequent [independent re-review](ATTENDANCE-V2-INDEPENDENT-REVIEW-2026-11-16.md) passed after test/reliability corrections; final 671 affected tests and 39 LOCAL database scenarios pass. See the current [handoff](ATTENDANCE-V2-HANDOFF-2026-11-16.md). Before release: verify exact installed
 function/trigger/index/grant prerequisites (including prior reminder helper
 schema) without replaying historical migrations; verify current branch timezones,
 four Closing jobs and no competing hourly owner; test the migration and ownership
 transition on classified Supabase TEST with actual role/recipient access; finish
-authenticated browser, device, notification and payroll acceptance; resolve the
-baseline scanner-test failures; obtain independent review and owner release
-approval. No production migration, marked-applied change, backfill, Cron
+authenticated browser, device, notification and payroll acceptance; retain the corrected scanner contract and obtain owner release approval. No production migration, marked-applied change, backfill, Cron
 activation, push, merge or deployment is authorized by completion of this pass.
 
 Rollback must stop the new job and disable its database/application activation
