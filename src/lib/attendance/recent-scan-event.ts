@@ -1,6 +1,8 @@
+import { readAttendanceCredit } from "@/lib/attendance/v2-policy";
 import { rootAttendanceOperationId } from "@/lib/attendance/recent-scan-grouping";
 import type { PublicScanResult, RecentAttendanceScan } from "@/lib/attendance/types";
 import type { Database } from "@/types/supabase";
+import { scanShiftLabel } from "@/lib/attendance/scan-shift-label";
 
 type QrScanEventRow = Database["public"]["Tables"]["qr_scan_events"]["Row"];
 
@@ -20,7 +22,7 @@ export type AttendanceRealtimeScanRow = Pick<
   | "created_at"
   | "scan_type"
   | "is_test"
->;
+> & { metadata?: QrScanEventRow["metadata"] };
 
 export type CompleteAttendanceRealtimeScanRow = Omit<
   AttendanceRealtimeScanRow,
@@ -105,12 +107,14 @@ export function mapStoredAttendanceScan(
     message: result.message || row.message,
     occurredAt,
     timezone: attendance?.branchTimezone ?? context.timezone,
-    shiftType: attendance?.shiftLabel ?? null,
+    shiftType: scanShiftLabel(attendance?.shiftLabel, row.metadata),
     attendanceStatus:
       attendance?.action === "clock_in" && result.outcome === "success" ? "on_time" : null,
     workedMinutes: typeof attendance?.workedMinutes === "number" ? attendance.workedMinutes : null,
     clockInAt: attendance?.sessionStartedAt ?? null,
     clockOutAt: attendance?.action === "clock_out" ? attendance.occurredAt : null,
+    credit: readAttendanceCredit({ v2: result.credit }),
+    creditInvalid: "credit" in result && !readAttendanceCredit({ v2: result.credit }),
     sourceLabel: null,
     operationId,
     rootOperationId: rootAttendanceOperationId(operationId, row.request_id, row.id),

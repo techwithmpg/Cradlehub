@@ -1,5 +1,6 @@
 import { BRANCH_TIMEZONE, getBranchBusinessDate, getBranchTime } from "@/lib/engine/slot-time";
 import { timeToMinutes } from "@/lib/utils/time-format";
+import type { AttendanceCredit } from "@/lib/attendance/v2-policy";
 
 const MANILA_OFFSET = "+08:00";
 const DEFAULT_BRANCH_TIMEZONE = "Asia/Manila";
@@ -13,6 +14,9 @@ export type AttendanceMetricInput = {
   latestNormalClockOutAt?: string | null;
   lateGraceMinutes: number;
   earlyLeaveGraceMinutes: number;
+  /** Server-authorized V2 window. Legacy callers retain their existing contract. */
+  credit?: Pick<AttendanceCredit, "creditedStartAt" | "authorizedEndAt">;
+  asOf?: string;
 };
 
 export type AttendanceMetricResult = {
@@ -43,17 +47,13 @@ function localEpoch(parts: {
   minute: number;
   second: number;
 }): number {
-  return Date.UTC(
-    parts.year,
-    parts.month - 1,
-    parts.day,
-    parts.hour,
-    parts.minute,
-    parts.second
-  );
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
 }
 
-function localPartsForInstant(instant: Date, timezone: string): {
+function localPartsForInstant(
+  instant: Date,
+  timezone: string
+): {
   year: number;
   month: number;
   day: number;
@@ -82,7 +82,10 @@ function localPartsForInstant(instant: Date, timezone: string): {
   };
 }
 
-function parseBranchDateTime(date: string, time: string): {
+function parseBranchDateTime(
+  date: string,
+  time: string
+): {
   year: number;
   month: number;
   day: number;
@@ -161,7 +164,10 @@ export function getBranchNow(now: Date = new Date()): {
   };
 }
 
-export function minutesBetween(startIso: string | null | undefined, endIso: string | null | undefined): number {
+export function minutesBetween(
+  startIso: string | null | undefined,
+  endIso: string | null | undefined
+): number {
   if (!startIso || !endIso) return 0;
   const start = new Date(startIso).getTime();
   const end = new Date(endIso).getTime();
@@ -172,7 +178,21 @@ export function minutesBetween(startIso: string | null | undefined, endIso: stri
 export function computeAttendanceMetrics(input: AttendanceMetricInput): AttendanceMetricResult {
   const hasClockOut = Boolean(input.checkedOutAt);
   const end = input.checkedOutAt ?? null;
-  const workedMinutes = hasClockOut ? minutesBetween(input.checkedInAt, end) : 0;
+  const creditEnd = input.credit?.authorizedEndAt;
+  const observedEnd = input.checkedOutAt ?? input.asOf;
+  const workedMinutes = input.credit
+    ? creditEnd &&
+      observedEnd &&
+      Number.isFinite(Date.parse(creditEnd)) &&
+      Number.isFinite(Date.parse(observedEnd))
+      ? minutesBetween(
+          input.credit.creditedStartAt,
+          new Date(Math.min(Date.parse(creditEnd), Date.parse(observedEnd))).toISOString()
+        )
+      : 0
+    : hasClockOut
+      ? minutesBetween(input.checkedInAt, end)
+      : 0;
   const clockIn = new Date(input.checkedInAt).getTime();
   const clockOut = end ? new Date(end).getTime() : NaN;
   const scheduledStart = input.scheduledStartAt ? new Date(input.scheduledStartAt).getTime() : NaN;
@@ -195,9 +215,10 @@ export function computeAttendanceMetrics(input: AttendanceMetricInput): Attendan
       ? clockOut < earliestNormalClockOut
         ? Math.round((earliestNormalClockOut - clockOut) / 60000)
         : 0
-      : Number.isFinite(scheduledEnd) && clockOut < scheduledEnd - input.earlyLeaveGraceMinutes * 60000
-          ? Math.round((scheduledEnd - clockOut) / 60000)
-          : 0;
+      : Number.isFinite(scheduledEnd) &&
+          clockOut < scheduledEnd - input.earlyLeaveGraceMinutes * 60000
+        ? Math.round((scheduledEnd - clockOut) / 60000)
+        : 0;
 
   const overtimeMinutes = !hasClockOut
     ? 0
@@ -206,8 +227,8 @@ export function computeAttendanceMetrics(input: AttendanceMetricInput): Attendan
         ? Math.round((clockOut - latestNormalClockOut) / 60000)
         : 0
       : Number.isFinite(scheduledEnd) && clockOut > scheduledEnd
-          ? Math.round((clockOut - scheduledEnd) / 60000)
-          : 0;
+        ? Math.round((clockOut - scheduledEnd) / 60000)
+        : 0;
 
   let attendanceStatus: AttendanceMetricResult["attendanceStatus"] = "present";
   if (lateMinutes > 0) attendanceStatus = "late";
@@ -220,7 +241,8 @@ export function computeAttendanceMetrics(input: AttendanceMetricInput): Attendan
     earlyLeaveMinutes,
     overtimeMinutes,
     attendanceStatus,
-    exceptionState: lateMinutes > 0 || earlyLeaveMinutes > 0 || overtimeMinutes > 0 ? "open" : "none",
+    exceptionState:
+      lateMinutes > 0 || earlyLeaveMinutes > 0 || overtimeMinutes > 0 ? "open" : "none",
   };
 }
 

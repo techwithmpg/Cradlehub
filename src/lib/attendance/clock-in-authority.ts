@@ -1,5 +1,6 @@
 import type { AttendanceScheduleSelection } from "@/lib/attendance/attendance-intent-engine";
 import type { ResolvedStaffSchedule } from "@/lib/schedule/resolve-staff-schedule";
+import { EARLY_ARRIVAL_LIMIT_MINUTES } from "@/lib/attendance/v2-policy";
 
 /** Owner policy: earliest ordinary clock-in is exactly 60 minutes before shift start. */
 export const EARLIEST_CLOCK_IN_MINUTES = 60;
@@ -8,6 +9,7 @@ export function mayOpenScheduledAttendance(input: {
   scanIso: string;
   schedule: AttendanceScheduleSelection;
   resolvedSchedule: ResolvedStaffSchedule;
+  attendanceV2?: boolean;
 }): boolean {
   const { schedule, resolvedSchedule } = input;
   if (
@@ -32,7 +34,8 @@ export function mayOpenScheduledAttendance(input: {
 
   // Late first scans during an authorized shift retain existing review behavior.
   // Established clock-outs and last-service extensions are NOT gated here.
-  return scan >= start - EARLIEST_CLOCK_IN_MINUTES * 60_000 && scan < end;
+  const earlyMinutes = input.attendanceV2 ? EARLY_ARRIVAL_LIMIT_MINUTES : EARLIEST_CLOCK_IN_MINUTES;
+  return scan >= start - earlyMinutes * 60_000 && scan < end;
 }
 
 /** A still-open shift at the same branch and business date is for clock-out, not next-day clock-in. */

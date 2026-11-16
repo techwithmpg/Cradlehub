@@ -219,7 +219,7 @@ describe("Staff QR camera handoff", () => {
     document.dispatchEvent(new Event("visibilitychange"));
     await waitFor(() => expect(screen.getByText(/Camera paused/)).toBeTruthy());
     expect(getUserMedia).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: /Scan again/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume Camera" }));
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
   });
 
@@ -274,8 +274,8 @@ describe("Staff QR camera handoff", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(20_100);
     });
-    expect(screen.getByText("Camera unavailable")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Scan again/i })).toBeTruthy();
+    expect(screen.getByText("Camera didn't start in time")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open Camera" })).toBeTruthy();
     vi.useRealTimers();
   });
 
@@ -331,5 +331,58 @@ describe("Staff QR camera handoff", () => {
     expect(getUserMedia).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Resume camera" }));
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+  });
+
+  it("stops a late camera stream after backgrounding without silently restarting", async () => {
+    let resolveStream!: (value: MediaStream) => void;
+    const stop = vi.fn();
+    const stream = { getTracks: () => [{ stop }] } as unknown as MediaStream;
+    const getUserMedia = vi.fn().mockReturnValue(new Promise<MediaStream>((resolve) => { resolveStream = resolve; }));
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia } });
+    render(<StaffQrScanner returnHref="/staff" locationRequired />);
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      Object.defineProperty(document, "hidden", { configurable: true, value: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+      resolveStream(stream);
+    });
+    expect(stop).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      Object.defineProperty(document, "hidden", { configurable: true, value: false });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(screen.getByText(/Camera paused/)).toBeTruthy();
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["hide", "unmount"] as const)("cancels pending decoded navigation on %s", async (event) => {
+    vi.useFakeTimers();
+    const stop = vi.fn();
+    const stream = { getTracks: () => [{ stop }] } as unknown as MediaStream;
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true,
+      value: { getUserMedia: vi.fn().mockResolvedValue(stream) } });
+    Object.defineProperty(HTMLMediaElement.prototype, "play", { configurable: true, value: vi.fn().mockResolvedValue(undefined) });
+    vi.stubGlobal("BarcodeDetector", class { detect = vi.fn().mockResolvedValue([{ rawValue: "TEST-QR" }]); });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 0));
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => window.clearTimeout(id));
+    const view = render(<StaffQrScanner returnHref="/staff" />);
+    await act(async () => { await Promise.resolve(); });
+    const video = screen.getByRole("img", { name: "QR code viewfinder" }).querySelector("video")!;
+    await act(async () => {
+      fireEvent.loadedMetadata(video);
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.getByText("QR Code Locked!")).toBeTruthy();
+    await act(async () => {
+      if (event === "unmount") view.unmount();
+      else {
+        Object.defineProperty(document, "hidden", { configurable: true, value: true });
+        document.dispatchEvent(new Event("visibilitychange"));
+      }
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(scanner.resolveTarget).not.toHaveBeenCalled();
+    expect(scanner.push).not.toHaveBeenCalled();
+    expect(stop).toHaveBeenCalled();
   });
 });

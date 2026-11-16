@@ -1,5 +1,6 @@
 import type { AttendanceDayStaffState } from "@/lib/attendance/day-model";
 import { presentAttendanceIssue } from "@/lib/attendance/issue-presenter";
+import { attendanceV2Status } from "@/lib/attendance/v2-policy";
 import type { AttendanceIssuePresentation } from "@/lib/attendance/issue-presentation-types";
 import type {
   AttendanceDeviceRegistryEntry,
@@ -24,6 +25,7 @@ export type AttendanceStaffStatus =
   | "not_expected";
 
 export type AttendanceStaffDiagnostic = {
+  creditStatusLabel?: string | null;
   staff: AttendanceDayStaffState;
   status: AttendanceStaffStatus;
   statusLabel: string;
@@ -128,10 +130,23 @@ export function buildAttendanceStaffDiagnostics(
       );
       const needsHelp =
         Boolean(issue) || ["needs_review", "scan_captured"].includes(staff.operationalStatus);
+      const record = data.records?.find((record) => record.id === staff.attendanceRecordId);
+      const v2Status = record
+        ? attendanceV2Status({
+            checkedInAt: record.checked_in_at,
+            checkedOutAt: record.checked_out_at,
+            scheduledStartAt: record.scheduled_start_at,
+            scheduledEndAt: record.scheduled_end_at,
+            snapshot: record.attendance_policy_snapshot,
+            provisionalAutoClosedAt: record.provisional_auto_closed_at,
+            now: new Date().toISOString(),
+          })
+        : null;
       return {
         staff,
         status,
-        statusLabel: STATUS_LABELS[status],
+        statusLabel: v2Status ?? STATUS_LABELS[status],
+        creditStatusLabel: v2Status,
         needsHelp,
         working: ["clocked_in", "on_service"].includes(staff.operationalStatus) && !needsHelp,
         notScannedIn: expected && !staff.clockInAt,

@@ -379,6 +379,8 @@ export type RecentAttendanceScan = {
   sourceLabel: string | null;
   operationId?: string | null;
   rootOperationId?: string;
+  credit?: import("@/lib/attendance/v2-policy").AttendanceCredit | null;
+  creditInvalid?: boolean;
 };
 
 export type AttendanceScanFeedData = {
@@ -465,6 +467,7 @@ export type PublicScanResult = {
   scanEventId?: string;
   operationId?: string;
   recoverable?: boolean;
+  credit?: import("@/types/supabase").Json;
   resolution?: import("@/lib/attendance/scan-resolution").AttendanceScanResolution;
   nextHref?: string;
   deviceConnection?: "registered_device" | "auto_registered_from_session";
@@ -483,6 +486,7 @@ export type PublicScanResult = {
     occurredAt: string;
     sessionStartedAt: string;
     workedMinutes?: number;
+    creditedStartAt?: string;
   };
   countdown?: {
     bookingId: string;

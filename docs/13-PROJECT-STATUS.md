@@ -1,5 +1,13 @@
 # Project Status
 
+## Attendance V2 Web review candidate — 2026-11-16
+
+- Owner-authorized isolated branch `stage/web-attendance-v2-automation-20261116` from fetched main `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`; unrelated worktrees preserved.
+- Latest approved policy: one scan, maximum 120 minutes early, actual arrival retained, credited start at scheduled start. No second scan and no device-limit change.
+- Candidate includes authoritative credited storage, bounded reminders/delivery audit, provisional midnight reconciliation, concurrency controls and focused Today/History/export updates. Application/database activation remains off; no scheduler activated.
+- **LOCAL IMPLEMENTATION / INDEPENDENT REVIEW PASS; RELEASE ACCEPTANCE PENDING**: 90 files / 671 tests, 39 LOCAL database scenarios, scoped lint/type checks and simulated scanner browser smoke pass. Classified Supabase TEST parity, authenticated devices/actual push/payroll acceptance and owner release approval remain gates. See [handoff](reports/ATTENDANCE-V2-HANDOFF-2026-11-16.md).
+- Owner explicitly authorizes integration into local `main` only. No production mutation, historical migration replay/ledger repair, RLS/Auth change, remote push, deployment or Attendance activation.
+
 
 ## Customer SMS Web slice — 2026-11-08
 

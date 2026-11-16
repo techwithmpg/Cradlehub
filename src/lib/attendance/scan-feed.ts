@@ -117,7 +117,7 @@ function timestampMs(value: string | null): number | null {
 }
 
 export function attendanceCompletedDurationNeedsReview(
-  scan: Pick<RecentAttendanceScan, "eventType" | "workedMinutes" | "clockInAt" | "clockOutAt">
+  scan: Pick<RecentAttendanceScan, "eventType" | "workedMinutes" | "clockInAt" | "clockOutAt" | "credit" | "creditInvalid">
 ): boolean {
   if (scan.eventType !== "clock_out") return false;
 
@@ -127,13 +127,15 @@ export function attendanceCompletedDurationNeedsReview(
     if (scan.workedMinutes > MAX_COMPLETED_SHIFT_MINUTES) return true;
   }
 
-  const clockInMs = timestampMs(scan.clockInAt);
-  const clockOutMs = timestampMs(scan.clockOutAt);
+  if (scan.creditInvalid) return true;
+  if (scan.credit && (scan.credit.state !== "final" || !scan.credit.creditedEndAt || !scan.credit.authorizedEndAt)) return true;
+  const clockInMs = timestampMs(scan.credit?.creditedStartAt ?? scan.clockInAt);
+  const clockOutMs = timestampMs(scan.credit?.creditedEndAt ?? scan.clockOutAt);
   if (clockInMs === null || clockOutMs === null) return false;
-  if (clockOutMs < clockInMs) return true;
+  if (clockOutMs < clockInMs && !scan.credit) return true;
 
   if (scan.workedMinutes === null) return false;
-  const clockDurationMinutes = Math.round((clockOutMs - clockInMs) / 60000);
+  const clockDurationMinutes = Math.max(0, Math.round((clockOutMs - clockInMs) / 60000));
   return Math.abs(clockDurationMinutes - scan.workedMinutes) > CLOCK_DIFF_TOLERANCE_MINUTES;
 }
 

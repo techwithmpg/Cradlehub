@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import {
+  attendancePushTransport,
   ownerPreferenceAllows,
   pushFailureOutcome,
   subscriptionMatchesNotification,
@@ -65,6 +66,24 @@ function staff(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Web Push recipient targeting", () => {
+  const reminder = { ...notification, type: "attendance_clock_out_reminder", entity_type: "attendance_record",
+    entity_id: "session-1", recipient_staff_id: "staff-1", metadata: { attendanceVersion: 2 } };
+  it("uses zero TTL and one session collapse identity for V2 reminders only", () => {
+    const transport = attendancePushTransport(reminder as never)!;
+    expect(transport.TTL).toBe(0);
+    expect(transport.topic).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    expect(attendancePushTransport({ ...reminder, id: "notice-2" } as never)).toEqual(transport);
+    expect(attendancePushTransport(notification as never)).toBeUndefined();
+  });
+  it("allows only a freshly validated personal V2 recipient across assigned branches", () => {
+    const sub = subscription({ branch_id: "home" }) as never;
+    const person = staff({ branch_id: "home" }) as never;
+    expect(subscriptionMatchesNotification(sub, reminder as never, person, "all")).toBe(false);
+    expect(subscriptionMatchesNotification(sub, reminder as never, person, "all", "staff-1")).toBe(true);
+    expect(subscriptionMatchesNotification(sub, reminder as never, person, "all", "staff-2")).toBe(false);
+    expect(subscriptionMatchesNotification(sub, notification as never, person, "all", "staff-1")).toBe(false);
+    expect(subscriptionMatchesNotification(sub, reminder as never, staff({ auth_user_id: "other" }) as never, "all", "staff-1")).toBe(false);
+  });
   it("sends CRM notifications only to the same current branch", () => {
     expect(
       subscriptionMatchesNotification(

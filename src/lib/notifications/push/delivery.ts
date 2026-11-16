@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { staffNotificationWorkspace, staffNoticeHref, isCurrentNotice, safeAttendanceNoticeCopy } from "@/lib/staff-pwa/notice-policy";
 
 import webpush from "web-push";
@@ -111,7 +112,8 @@ export function subscriptionMatchesNotification(
   subscription: PushSubscriptionRow,
   notification: WorkspaceNotification,
   staff: StaffScope | undefined,
-  ownerPreference: OwnerBookingPreference
+  ownerPreference: OwnerBookingPreference,
+  validatedAttendanceRecipient?: string
 ) {
   if (!isCurrentNotice(notification) || !workspaceMatchesStaff(subscription, staff)) return false;
 
@@ -123,10 +125,13 @@ export function subscriptionMatchesNotification(
   }
 
   if (subscription.workspace !== notification.target_workspace) return false;
-  if (!notification.branch_id || subscription.branch_id !== notification.branch_id) {
+  const validatedPersonalAttendance = isV2AttendanceReminder(notification) &&
+    validatedAttendanceRecipient === notification.recipient_staff_id &&
+    validatedAttendanceRecipient === subscription.staff_id && validatedAttendanceRecipient === staff?.id;
+  if (!validatedPersonalAttendance && (!notification.branch_id || subscription.branch_id !== notification.branch_id)) {
     return false;
   }
-  if (staff?.branch_id !== subscription.branch_id) return false;
+  if (!validatedPersonalAttendance && staff?.branch_id !== subscription.branch_id) return false;
   if (
     notification.recipient_staff_id &&
     notification.recipient_staff_id !== subscription.staff_id
@@ -191,6 +196,23 @@ function safeActionHref(
   );
 }
 
+function isV2AttendanceReminder(notification: WorkspaceNotification) {
+  const metadata = notification.metadata;
+  return notification.type === "attendance_clock_out_reminder" && notification.entity_type === "attendance_record" &&
+    Boolean(notification.entity_id && notification.recipient_staff_id) && metadata && typeof metadata === "object" &&
+    !Array.isArray(metadata) && metadata.attendanceVersion === 2;
+}
+
+/** Zero TTL prevents provider-queued attendance bursts after an offline period. */
+export function attendancePushTransport(notification: WorkspaceNotification) {
+  if (!isV2AttendanceReminder(notification)) return undefined;
+  return {
+    TTL: 0,
+    topic: createHash("sha256").update(`attendance:${notification.entity_id}`).digest("base64url").slice(0, 32),
+    tag: `cradlehub-attendance:${notification.entity_id}`,
+  };
+}
+
 function pushPayload(
   notification: WorkspaceNotification,
   subscription: PushSubscriptionRow
@@ -201,7 +223,7 @@ function pushPayload(
     title: safeAttendanceNoticeCopy(notification).title.slice(0, 120),
     body: (safeAttendanceNoticeCopy(notification).body ?? "Open CradleHub to view this update.").slice(0, 280),
     actionHref: safeActionHref(notification, subscription.workspace),
-    tag: `cradlehub-notification:${notification.id}`,
+    tag: attendancePushTransport(notification)?.tag ?? `cradlehub-notification:${notification.id}`,
     priority: notification.priority,
     icon: "/icon.png",
     badge: "/icon.png",
@@ -259,6 +281,7 @@ export async function sendWebPushToSubscription(input: {
   subscription: PushSubscriptionRow;
   payload: string;
   priority: WorkspaceNotification["priority"];
+  attendanceTransport?: ReturnType<typeof attendancePushTransport>;
 }) {
   const config = getWebPushConfiguration();
   return webpush.sendNotification(
@@ -271,7 +294,8 @@ export async function sendWebPushToSubscription(input: {
     },
     input.payload,
     {
-      TTL: input.priority === "critical" ? 86_400 : 3_600,
+      TTL: input.attendanceTransport?.TTL ?? (input.priority === "critical" ? 86_400 : 3_600),
+      ...(input.attendanceTransport ? { topic: input.attendanceTransport.topic } : {}),
       urgency:
         input.priority === "critical"
           ? "high"
@@ -290,7 +314,7 @@ export async function sendWebPushToSubscription(input: {
 
 export async function deliverWorkspaceNotificationPush(
   notification: WorkspaceNotification,
-  options?: { skipSubscriptionIds?: ReadonlySet<string>; eligibleStaffIds?: ReadonlySet<string> }
+  options?: { skipSubscriptionIds?: ReadonlySet<string>; eligibleStaffIds?: ReadonlySet<string>; validatedAttendanceRecipient?: string }
 ): Promise<PushDeliveryResult> {
   const result: PushDeliveryResult = {
     attempted: 0,
@@ -360,7 +384,8 @@ export async function deliverWorkspaceNotificationPush(
           ? staffById.get(subscription.staff_id)
           : undefined,
         ownerPreferences.get(subscription.auth_user_id) ??
-          "home_service_and_urgent"
+          "home_service_and_urgent",
+        options?.validatedAttendanceRecipient
       ) && !options?.skipSubscriptionIds?.has(subscription.id) &&
       (!options?.eligibleStaffIds || (Boolean(subscription.staff_id) && options.eligibleStaffIds.has(subscription.staff_id!)))
     );
@@ -373,6 +398,7 @@ export async function deliverWorkspaceNotificationPush(
             subscription,
             payload: pushPayload(notification, subscription),
             priority: notification.priority,
+            attendanceTransport: attendancePushTransport(notification),
           });
           result.delivered += 1;
           result.deliveredSubscriptionIds.push(subscription.id);

@@ -73,6 +73,7 @@ export function useStaffScanner({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const startupTimerRef = useRef<number | null>(null);
+  const decodeTimerRef = useRef<number | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const lockedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -96,6 +97,8 @@ export function useStaffScanner({
     setTorchSupported(false);
     if (startupTimerRef.current !== null) window.clearTimeout(startupTimerRef.current);
     startupTimerRef.current = null;
+    if (decodeTimerRef.current !== null) window.clearTimeout(decodeTimerRef.current);
+    decodeTimerRef.current = null;
     if (animFrameRef.current !== null) cancelAnimationFrame(animFrameRef.current);
     animFrameRef.current = null;
     stopStream(streamRef.current);
@@ -109,6 +112,11 @@ export function useStaffScanner({
 
   const startScan = useCallback(async () => {
     if (!mountedRef.current) return;
+    if (document.hidden) {
+      stopScan();
+      setState("paused");
+      return;
+    }
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setState("camera_unavailable");
       return;
@@ -229,7 +237,9 @@ export function useStaffScanner({
       setState("code_detected");
       const attemptId = generateAttemptId();
       // Allow 220ms for the emerald lock-on animation to flash before stopping the video feed
-      window.setTimeout(() => {
+      decodeTimerRef.current = window.setTimeout(() => {
+        if (!isCurrent() || document.hidden) return;
+        decodeTimerRef.current = null;
         stopScan();
         onDecodeRef.current(trimmed, attemptId);
       }, 220);
@@ -367,28 +377,26 @@ export function useStaffScanner({
     void startScan();
   }, [startScan, stopScan]);
 
-  // Mount & Visibility lifecycle — automatically starts on mount and cleanly resumes when returning to tab
+  // Open on foreground entry; resuming a backgrounded scanner is deliberate.
   useEffect(() => {
     mountedRef.current = true;
+    let cancelled = false;
     if (autoStart) {
-      void startScan();
+      queueMicrotask(() => {
+        if (!cancelled) void startScan();
+      });
     }
 
     function handleVisibilityChange() {
       if (document.hidden) {
-        // Only stop if an active stream is running (do NOT kill while permission dialog is open!)
-        if (streamRef.current !== null && !acquiringRef.current) {
-          stopScan();
-          setState("paused");
-        }
-      } else if (mountedRef.current && !lockedRef.current && !acquiringRef.current && !streamRef.current) {
-        // Auto-resume camera when staff returns to the scanner screen
-        void startScan();
+        stopScan();
+        setState("paused");
       }
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
+      cancelled = true;
       mountedRef.current = false;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       stopScan();

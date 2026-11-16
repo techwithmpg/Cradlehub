@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addDaysToYmd } from "@/lib/attendance/time";
+import { attendanceV2Status, readAttendanceCredit, type AttendanceCredit } from "@/lib/attendance/v2-policy";
 import { getAttendanceSettingsReadOnly } from "@/lib/attendance/queries";
 import { branchDateTimeToIsoInTimezone, getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
 import {
@@ -19,6 +20,7 @@ import {
 } from "@/lib/attendance/staff-self-service";
 
 export type StaffAttendanceHistoryRecord = {
+  credit?: AttendanceCredit | null;
   id: string;
   shiftDate: string;
   shiftType: string;
@@ -181,7 +183,18 @@ export function deriveStaffAttendanceReviewState(
 
 function mapCheckin(row: CheckinRow): StaffAttendanceHistoryRecord {
   const review = deriveStaffAttendanceReviewState(row);
+  const credit = readAttendanceCredit(row.attendance_policy_snapshot);
+  const status = attendanceV2Status({
+    checkedInAt: row.checked_in_at,
+    checkedOutAt: row.checked_out_at,
+    scheduledStartAt: row.scheduled_start_at,
+    scheduledEndAt: row.scheduled_end_at,
+    snapshot: row.attendance_policy_snapshot,
+    provisionalAutoClosedAt: row.provisional_auto_closed_at,
+    now: new Date().toISOString(),
+  });
   return {
+    credit,
     id: row.id,
     shiftDate: row.shift_date,
     shiftType: row.shift_type,
@@ -196,7 +209,7 @@ function mapCheckin(row: CheckinRow): StaffAttendanceHistoryRecord {
     earlyLeaveMinutes: row.early_leave_minutes ?? 0,
     overtimeMinutes: row.overtime_minutes ?? 0,
     reviewState: review.state,
-    reviewLabel: review.label,
+    reviewLabel: status ?? review.label,
   };
 }
 

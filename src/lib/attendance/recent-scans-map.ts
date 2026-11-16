@@ -1,9 +1,12 @@
+import { readAttendanceCredit } from "@/lib/attendance/v2-policy";
 import { rootAttendanceOperationId } from "@/lib/attendance/recent-scan-grouping";
 import type { RecentAttendanceScan } from "@/lib/attendance/types";
+import { scanShiftLabel } from "@/lib/attendance/scan-shift-label";
 
 type Relation<T> = T | T[] | null | undefined;
 
 export type RecentScanRow = {
+  metadata?: unknown;
   id: string;
   branch_id: string | null;
   staff_id: string | null;
@@ -23,6 +26,7 @@ export type RecentScanRow = {
   branches?: Relation<{ id: string; name: string | null }>;
   qr_points?: Relation<{ label: string | null }>;
   checkin?: Relation<{
+    attendance_policy_snapshot?: Record<string, unknown> | null;
     shift_type: string | null;
     attendance_status: string | null;
     worked_minutes: number | null;
@@ -65,11 +69,13 @@ export function mapRecentScan(
     message: row.message,
     occurredAt: row.created_at,
     timezone: context.timezone,
-    shiftType: checkin?.shift_type ?? null,
+    shiftType: scanShiftLabel(checkin?.shift_type, row.metadata),
     attendanceStatus: checkin?.attendance_status ?? null,
     workedMinutes: typeof checkin?.worked_minutes === "number" ? checkin.worked_minutes : null,
     clockInAt: checkin?.checked_in_at ?? null,
     clockOutAt: checkin?.checked_out_at ?? null,
+    credit: readAttendanceCredit(checkin?.attendance_policy_snapshot),
+    creditInvalid: Boolean(checkin?.attendance_policy_snapshot && "v2" in checkin.attendance_policy_snapshot && !readAttendanceCredit(checkin.attendance_policy_snapshot)),
     sourceLabel: point?.label ?? null,
     operationId: row.operation_id ?? row.request_id ?? null,
     rootOperationId: rootAttendanceOperationId(row.operation_id, row.request_id, row.id),

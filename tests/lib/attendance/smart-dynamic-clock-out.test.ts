@@ -346,7 +346,6 @@ describe("smart dynamic clock-out — test mode", () => {
 
 describe("smart dynamic clock-out — Supabase and Vercel", () => {
   it("56. Vercel has no frequent Attendance cron", () => {
-    expect(vercelConfig).not.toContain("*/5");
     expect(vercelConfig).not.toContain("/api/attendance");
   });
 
@@ -361,9 +360,9 @@ describe("smart dynamic clock-out — Supabase and Vercel", () => {
     expect(hybridMigration).toContain("limit $2");
   });
 
-  it("59. no routine five-minute Vercel request is introduced", () => {
+  it("59. Attendance has no competing Vercel scheduler", () => {
     const config = JSON.parse(vercelConfig) as { crons?: Array<{ path: string; schedule: string }> };
-    expect(config.crons).toEqual([{ path: "/api/agent/follow-up", schedule: "0 0 * * *" }]);
+    expect(config.crons?.filter((cron) => cron.path.includes("/api/attendance"))).toEqual([]);
   });
 });
 

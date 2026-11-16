@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { AttendanceCreditDetails } from "@/components/features/attendance/shared/attendance-credit-details";
+import { attendanceClockOutLabel } from "@/lib/attendance/v2-policy";
 import {
   AlertTriangle,
   ArrowUpDown,
@@ -71,7 +73,11 @@ function getRecordDisplayStatus(
   row: AttendanceRecord,
   hasCorrection: boolean
 ): { key: Exclude<HistoryStatusFilter, "all">; label: string; badgeClass: string } {
-  if (!row.checked_out_at || row.attendance_status === "incomplete" || row.status === "checked_in") {
+  if (
+    !row.checked_out_at ||
+    row.attendance_status === "incomplete" ||
+    row.status === "checked_in"
+  ) {
     return {
       key: "incomplete",
       label: "Incomplete",
@@ -118,7 +124,9 @@ function exportFilteredCsv(
         row.staff_name,
         formatAttendanceRole(row.staff_type),
         formatShortClock(row.checked_in_at, timezone),
-        row.checked_out_at ? formatShortClock(row.checked_out_at, timezone) : "Open",
+        row.checked_out_at
+          ? attendanceClockOutLabel(row, (value) => formatShortClock(value, timezone))
+          : "Open",
         row.worked_minutes,
         getRecordDisplayStatus(row, corrs.length > 0).label,
         latestCorr
@@ -205,7 +213,9 @@ export function AttendanceHistoryView({
     for (const r of data?.records ?? []) {
       if (r.staff_type) set.add(r.staff_type);
     }
-    return Array.from(set).sort((a, b) => formatAttendanceRole(a).localeCompare(formatAttendanceRole(b)));
+    return Array.from(set).sort((a, b) =>
+      formatAttendanceRole(a).localeCompare(formatAttendanceRole(b))
+    );
   }, [data?.records]);
 
   const filteredRecords = useMemo(() => {
@@ -216,14 +226,19 @@ export function AttendanceHistoryView({
 
       if (statusFilter === "corrected" && !hasCorrection && row.attendance_status !== "corrected") {
         return false;
-      } else if (statusFilter !== "all" && statusFilter !== "corrected" && disp.key !== statusFilter) {
+      } else if (
+        statusFilter !== "all" &&
+        statusFilter !== "corrected" &&
+        disp.key !== statusFilter
+      ) {
         return false;
       }
 
       if (roleFilter !== "all" && (row.staff_type ?? "") !== roleFilter) return false;
 
       if (query) {
-        const hay = `${row.staff_name} ${row.shift_date} ${disp.label} ${row.staff_type ?? ""}`.toLowerCase();
+        const hay =
+          `${row.staff_name} ${row.shift_date} ${disp.label} ${row.staff_type ?? ""}`.toLowerCase();
         if (!hay.includes(query)) return false;
       }
       return true;
@@ -397,7 +412,11 @@ export function AttendanceHistoryView({
               />
             </label>
 
-            <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Status filters">
+            <div
+              className="flex flex-wrap items-center gap-1"
+              role="group"
+              aria-label="Status filters"
+            >
               {(
                 [
                   { key: "all", label: "All" },
@@ -449,7 +468,10 @@ export function AttendanceHistoryView({
           {showDatePicker ? (
             <div className="mt-3 flex flex-wrap items-end gap-2.5 rounded-xl border border-[var(--cs-border-soft)] bg-[#FAF8F5] p-3">
               <div className="grid gap-1">
-                <label htmlFor="history-from" className="text-[0.68rem] font-bold text-[var(--cs-text-muted)]">
+                <label
+                  htmlFor="history-from"
+                  className="text-[0.68rem] font-bold text-[var(--cs-text-muted)]"
+                >
                   From
                 </label>
                 <Input
@@ -461,7 +483,10 @@ export function AttendanceHistoryView({
                 />
               </div>
               <div className="grid gap-1">
-                <label htmlFor="history-to" className="text-[0.68rem] font-bold text-[var(--cs-text-muted)]">
+                <label
+                  htmlFor="history-to"
+                  className="text-[0.68rem] font-bold text-[var(--cs-text-muted)]"
+                >
                   To
                 </label>
                 <Input
@@ -649,7 +674,9 @@ export function AttendanceHistoryView({
                           </td>
                           <td className="whitespace-nowrap px-3 py-3.5 align-middle text-xs font-semibold text-[var(--cs-text)] tabular-nums">
                             {row.checked_out_at
-                              ? formatShortClock(row.checked_out_at, workspace.timezone)
+                              ? attendanceClockOutLabel(row, (value) =>
+                                  formatShortClock(value, workspace.timezone)
+                                )
                               : "—"}
                           </td>
                           <td className="whitespace-nowrap px-3 py-3.5 align-middle text-xs font-semibold text-[var(--cs-text)] tabular-nums">
@@ -783,10 +810,14 @@ export function AttendanceHistoryView({
                           </div>
                         </div>
                         <div>
-                          <div className="text-[0.65rem] text-[var(--cs-text-muted)]">Clock Out</div>
+                          <div className="text-[0.65rem] text-[var(--cs-text-muted)]">
+                            Clock Out
+                          </div>
                           <div className="font-semibold">
                             {row.checked_out_at
-                              ? formatShortClock(row.checked_out_at, workspace.timezone)
+                              ? attendanceClockOutLabel(row, (value) =>
+                                  formatShortClock(value, workspace.timezone)
+                                )
                               : "—"}
                           </div>
                         </div>
@@ -844,7 +875,10 @@ export function AttendanceHistoryView({
                   <div className="text-[var(--cs-text-secondary)]">{item.reason}</div>
                   <div className="text-right text-[0.7rem] text-[var(--cs-text-muted)]">
                     {item.corrected_by_name ?? "System"} ·{" "}
-                    {formatAttendanceDateTime(item.corrected_at ?? item.created_at, workspace.timezone)}
+                    {formatAttendanceDateTime(
+                      item.corrected_at ?? item.created_at,
+                      workspace.timezone
+                    )}
                   </div>
                 </article>
               ))}
@@ -899,7 +933,9 @@ export function AttendanceHistoryView({
                     <dt className="font-bold text-[var(--cs-text-muted)]">Clock Out</dt>
                     <dd className="mt-1 text-sm font-bold text-[var(--cs-text)] tabular-nums">
                       {inspectRecord.checked_out_at
-                        ? formatShortClock(inspectRecord.checked_out_at, workspace.timezone)
+                        ? attendanceClockOutLabel(inspectRecord, (value) =>
+                            formatShortClock(value, workspace.timezone)
+                          )
                         : "Open shift"}
                     </dd>
                   </div>
@@ -920,6 +956,10 @@ export function AttendanceHistoryView({
                 </dl>
 
                 {/* Matched Audit Trail */}
+                <AttendanceCreditDetails
+                  snapshot={inspectRecord.attendance_policy_snapshot}
+                  timezone={workspace.timezone}
+                />
                 {(correctionsByCheckin.get(inspectRecord.id)?.length ?? 0) > 0 ? (
                   <div className="rounded-xl border border-[var(--cs-border-soft)] p-3.5">
                     <div className="text-xs font-bold text-[var(--cs-text)]">

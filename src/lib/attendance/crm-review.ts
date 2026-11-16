@@ -164,7 +164,7 @@ export function applyCanonicalReviewToStaff(
     return {
       ...row,
       status,
-      statusLabel: labels[status] ?? row.staff.displayLabel,
+      statusLabel: row.creditStatusLabel ?? labels[status] ?? row.staff.displayLabel,
       needsHelp: false,
       issue: null,
       openException: null,
