@@ -341,7 +341,7 @@ async function main() {
         ? buildPublicStorageUrl(supabaseUrl, storagePath)
         : `<SUPABASE_URL>/storage/v1/object/public/${PUBLIC_MEDIA_BUCKET}/${storagePath}`;
 
-      if (!opts.force && previousUrl && isSupabasePublicMediaUrl(previousUrl, supabaseUrl) && previousUrl.includes(hash)) {
+      if (!opts.force && previousUrl && isSupabasePublicMediaUrl(previousUrl, supabaseUrl)) {
         report.summary.skippedAlreadyMigrated += 1;
         report.services.push({
           id: entry.id,
@@ -433,7 +433,7 @@ async function main() {
         ? buildPublicStorageUrl(supabaseUrl, storagePath)
         : `<SUPABASE_URL>/storage/v1/object/public/${PUBLIC_MEDIA_BUCKET}/${storagePath}`;
 
-      if (!opts.force && previousUrl && isSupabasePublicMediaUrl(previousUrl, supabaseUrl) && previousUrl.includes(hash)) {
+      if (!opts.force && previousUrl && isSupabasePublicMediaUrl(previousUrl, supabaseUrl)) {
         report.summary.skippedAlreadyMigrated += 1;
         report.boutique.push({ kind: "hero", id: "boutique", status: "skipped_existing", storagePath, publicUrl: previousUrl });
       } else {
@@ -526,7 +526,7 @@ async function main() {
         ? buildPublicStorageUrl(supabaseUrl, storagePath)
         : `<SUPABASE_URL>/storage/v1/object/public/${PUBLIC_MEDIA_BUCKET}/${storagePath}`;
 
-      if (!opts.force && previousUrl && isSupabasePublicMediaUrl(previousUrl, supabaseUrl) && previousUrl.includes(hash)) {
+      if (!opts.force && previousUrl && isSupabasePublicMediaUrl(previousUrl, supabaseUrl)) {
         report.summary.skippedAlreadyMigrated += 1;
         report.boutique.push({ kind: item.kind, id: item.id, status: "skipped_existing", storagePath, publicUrl: previousUrl });
         continue;
