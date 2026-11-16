@@ -1,5 +1,12 @@
 # Project Status
 
+## Unified Driver Android candidate — 2026-11-17
+
+- Owner-authorized D0–D5 implementation on `stage/driver-unified-android-shell-20261117`, accepted base `51ba200580068691a0358323e00c8c4a7a8de11e`, implementation `e1bbba4b0258ec1fabf5bab631ea8afa13224666`. Web/Android share this repository; USB-preview work preserved.
+- One host and embedded SDK pane; four primary tabs; complete guarded transport lifecycle, existing CRM location store, trusted camera cleanup and inactive native push candidate.
+- **CORRECTION REQUIRED:** 164 Driver / nine native tests pass; native APK, Web build, types and scoped lint pass with one inherited warning. Broader suite has 1,130 passes / 15 baseline failures. SQL unexecuted; device/installed Supabase acceptance and external review remain open.
+- No main merge/push, production action, flags/Cron activation or staff APK distribution. Separate disposable LOCAL TEST approval requested for the exact manifest. [Handoff and evidence](reports/DRIVER-UNIFIED-ANDROID-HANDOFF-2026-11-17.md).
+
 ## Attendance V2 Web review candidate — 2026-11-16
 
 - Owner-authorized isolated branch `stage/web-attendance-v2-automation-20261116` from fetched main `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`; unrelated worktrees preserved.

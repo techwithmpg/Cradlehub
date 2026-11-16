@@ -1,5 +1,13 @@
 # Known Issues Register
 
+## Unified Driver Android release gates — 2026-11-17
+
+- **DRV-UNI-R1 / P1 / OPEN:** New privileged journey/device/push/CRM SQL is prepared, not executed. Separate LOCAL TEST approval and installed Supabase TEST parity are required before activation.
+- **DRV-UNI-R2 / P1 / OPEN:** Real Android SDK/GPS/voice/camera/push/lifecycle evidence unavailable; no physical device; existing read-only emulator failed its disk-space check. Actual target devices unspecified.
+- **DRV-UNI-R3 / P1 / OPEN:** External review and owner release/merge gate pending. Implementation self-review is not independent acceptance.
+- **DRV-UNI-R4 / P2 / OPEN:** Fifteen broad-suite failures reproduce on accepted source; details retained. Conservative dispatch capacity/branch return constraints and completed-service CRM map limitations remain under R5/R6. Existing lint/Gradle warnings under R7.
+- [Current Driver handoff](reports/DRIVER-UNIFIED-ANDROID-HANDOFF-2026-11-17.md). All new controls inactive; no production/database/deployment/main change.
+
 ## Attendance V2 release gates — 2026-11-16
 
 - **ATT-V2-R1 / OPEN:** Native PostgreSQL LOCAL TEST with synthetic schema does not establish installed Supabase functions, grants, notification recipient policies, Auth, PostgREST, Vault or pg_net parity. Verify exact prerequisites without replaying historical local-only migrations.

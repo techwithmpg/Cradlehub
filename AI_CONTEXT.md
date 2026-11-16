@@ -1,5 +1,7 @@
 # CradleHub AI Context
 
+> **2026-11-17 OWNER-AUTHORIZED UNIFIED DRIVER ANDROID — LOCAL CANDIDATE / CORRECTION REQUIRED:** On `stage/driver-unified-android-shell-20261117` from freshly reconciled accepted main `51ba200580068691a0358323e00c8c4a7a8de11e`, implementation `e1bbba4b0258ec1fabf5bab631ea8afa13224666` integrates one Android host, Trips / Navigate / Scan / More, embedded Google guidance, guarded therapist pickup/delivery/collection/return contracts, existing location infrastructure, camera lifecycle and inactive native FCM integration. Driver tests 164/164, native tests 9/9, APK/Web build and types pass. Broad suite: 1,130 pass / 15 inherited failures; baseline reproduction retained. New SQL is UNAPPLIED and separate disposable LOCAL TEST approval is pending. No physical device; emulator failed disk-space check. Supabase TEST parity, real guidance/GPS/camera/push and external review remain gates. No main merge, push, production access/mutation, activation, distribution or deployment. See [active Driver handoff](docs/reports/DRIVER-UNIFIED-ANDROID-HANDOFF-2026-11-17.md). Earlier Attendance local-main permission does not authorize merging this new Driver candidate.
+
 > **2026-11-16 OWNER-AUTHORIZED LOCAL MAIN MERGE:** The owner explicitly requests merging the reviewed Attendance V2 candidate into local `main` only. This supersedes the earlier merge prohibition for that local integration. Source implementation `e0ba79671f8966b29f9d950c1f987e98a5251478` and closeout `a4cbf29f1446123a05e5797bc0aaa76bacd40923` passed the recorded local checks and independent review. No remote push, deployment, production SQL, migration activation or Cron ownership change is authorized. Release acceptance gates below remain open.
 
 > **2026-11-16 OWNER-AUTHORIZED WEB ATTENDANCE V2 — LOCAL TEST / INDEPENDENT REVIEW PASS; RELEASE ACCEPTANCE PENDING:** On `stage/web-attendance-v2-automation-20261116` from verified main `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`, the owner approves one attendance scan up to 120 minutes early: preserve arrival, begin credited time at scheduled start, require no second scan. This supersedes the earlier second-scan proposal for this slice. Credited-time guards, due reminders, provisional midnight closure, delivery evidence and focused presentation/report changes are prepared behind inactive application/database controls. Historical rows and device limits are preserved. See [audit/contract](docs/reports/ATTENDANCE-V2-AUDIT-AND-CONTRACT-2026-11-16.md) and [handoff](docs/reports/ATTENDANCE-V2-HANDOFF-2026-11-16.md). LOCAL TEST evidence is not Supabase deployment parity. All 671 affected tests, 39 LOCAL TEST database scenarios and independent code re-review pass. Authenticated device/browser/push/payroll acceptance, installed Supabase TEST parity and owner release approval remain required. No production SQL, RLS/Auth change, migration ledger change, Cron activation, push, merge or deployment.
@@ -102,6 +104,8 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 8. Production state independently proven by authorized evidence
 
 ## Active governance manifest
+
+- [Unified Driver Android current handoff](docs/reports/DRIVER-UNIFIED-ANDROID-HANDOFF-2026-11-17.md)
 
 - [Staff PWA C6 current handoff](docs/pwa/PWA-C6-HANDOFF.md)
 
