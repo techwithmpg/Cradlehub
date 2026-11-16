@@ -63,6 +63,7 @@ async function requireOwnerOrBranchManager(branchId: string) {
 }
 
 function revalidateBranchServiceSurfaces(branchId: string) {
+  invalidateTag(cacheTags.serviceCatalog);
   invalidateTag(cacheTags.branchServices(branchId));
   invalidateTag(cacheTags.branchAssignableServices(branchId));
   invalidateTag(cacheTags.crmAvailability(branchId));

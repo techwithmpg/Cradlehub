@@ -5,6 +5,7 @@ import { getBranchServiceCatalog } from "@/lib/services/service-catalog";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
 import { resolveServiceImage } from "@/lib/service-images";
+import { publicAssetExistsOnServer } from "@/lib/public/server-image-assets";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
@@ -167,12 +168,16 @@ export async function GET(request: NextRequest) {
         categoryName: category?.name,
         metadata: service.metadata,
       });
-      const serviceImage = resolveServiceImage({
-        id: service.id,
-        name: service.name,
-        imageUrl: record.custom_image_url ?? service.image_url,
-        imageAlt: service.image_alt,
-      });
+      const serviceImage = resolveServiceImage(
+        {
+          id: service.id,
+          name: service.name,
+          branchImageUrl: record.custom_image_url,
+          imageUrl: service.image_url,
+          imageAlt: service.image_alt,
+        },
+        { isAvailable: publicAssetExistsOnServer }
+      );
       let quoteVersion: string | undefined;
       if (service.duration_policy === "fixed" || service.duration_policy === "extendable") {
         try {

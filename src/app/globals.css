@@ -400,44 +400,193 @@ a:focus-visible,
 }
 
 /* ============================================================
-   SPA PUBLIC DESIGN SYSTEM
-   Used exclusively on public-facing spa pages.
+   SPA PUBLIC EMERALD GLASS DESIGN SYSTEM
+   Used exclusively on public-facing spa pages (.sp-public).
+   Internal workspace routes use --cs-* and remain completely isolated.
    ============================================================ */
 
 .sp-public {
   --sp-forest:        #163A2B;
-  --sp-forest-dark:   #10261D;
+  --sp-forest-dark:   #071A12;
   --sp-forest-light:  #1E4D3A;
-  --sp-gold:          #C8A96B;
+  --sp-gold:          #D4B57A;
   --sp-gold-rich:     #B68A3C;
   --sp-gold-light:    #E8D5A3;
-  --sp-cream:         #F7F3EB;
-  --sp-ivory:         #FCFAF5;
+  --sp-cream:         #FAF5E9;
+  --sp-ivory:         #FAF5E9;
   --sp-beige:         #EDE4D3;
   --sp-beige-light:   #F5EFE6;
   --sp-charcoal:      #2A332E;
-  --sp-text:          #1E2A24;
-  --sp-text-muted:    #6B7A6F;
-  --sp-text-light:    #9AA89A;
+  --sp-text:          #FAF5E9;
+  --sp-text-muted:    #CBD6CD;
+  --sp-text-light:    #9CB0A3;
   --sp-white:         #FFFFFF;
+
+  --eg-bg:            #071A12;
+  --eg-bg-mid:        #0B241A;
+  --eg-glass-bg:      linear-gradient(155deg, rgba(22, 66, 48, 0.62) 0%, rgba(8, 29, 20, 0.78) 100%);
+  --eg-border:        rgba(212, 181, 122, 0.24);
+  --eg-border-strong: rgba(212, 181, 122, 0.5);
 
   --sp-font-display: var(--font-playfair), 'Playfair Display', Georgia, serif;
   --sp-font-accent:  var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
   --sp-font-body:    var(--font-manrope), 'Manrope', var(--font-dm-sans), system-ui, sans-serif;
 
-  --sp-shadow-sm: 0 2px 12px rgba(22, 58, 43, 0.06);
-  --sp-shadow-md: 0 8px 32px rgba(22, 58, 43, 0.09);
-  --sp-shadow-lg: 0 16px 48px rgba(22, 58, 43, 0.12);
-  --sp-shadow-gold: 0 8px 28px rgba(200, 169, 107, 0.25);
+  --sp-shadow-sm: 0 2px 12px rgba(2, 10, 7, 0.28);
+  --sp-shadow-md: 0 12px 32px rgba(2, 10, 7, 0.42);
+  --sp-shadow-lg: 0 24px 56px rgba(2, 10, 7, 0.56);
+  --sp-shadow-gold: 0 8px 28px rgba(212, 181, 122, 0.24);
 
-  --sp-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  background-color: var(--sp-cream);
-  color: var(--sp-text);
+  --sp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  background-color: var(--eg-bg);
+  color: var(--sp-ivory);
+  color-scheme: dark;
 }
 
-.sp-public body {
-  background-color: var(--sp-cream);
-  color: var(--sp-text);
+.sp-public :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid #E8D5A3;
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+.eg-glass-card {
+  background: var(--eg-glass-bg);
+  border: 1px solid var(--eg-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 248, 232, 0.08),
+    0 18px 40px -20px rgba(2, 10, 7, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition:
+    transform 260ms var(--sp-ease),
+    border-color 260ms ease,
+    box-shadow 260ms var(--sp-ease);
+}
+
+.eg-glass-card:hover {
+  border-color: var(--eg-border-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 248, 232, 0.14),
+    0 24px 48px -20px rgba(2, 10, 7, 0.8),
+    0 0 24px -10px rgba(212, 181, 122, 0.2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .eg-glass-lift:hover {
+    transform: translateY(-4px);
+  }
+}
+
+.eg-glass-pill {
+  background: rgba(12, 42, 30, 0.68);
+  border: 1px solid rgba(212, 181, 122, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Cinema Hero Zoom (compositor-only, opted in for no-preference) */
+@keyframes egHeroSlowZoom {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.045); }
+}
+
+.eg-hero-photo {
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .eg-hero-photo {
+    animation: egHeroSlowZoom 24s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+}
+
+/* Restrained layered foliage parallax (progressive scroll-driven animation) */
+@keyframes egLeafParallax {
+  from { transform: translate3d(0, -14px, 0); }
+  to   { transform: translate3d(0, 14px, 0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports ((animation-timeline: view()) and (animation-range: entry)) {
+    .eg-leaf-parallax {
+      animation: egLeafParallax linear both;
+      animation-timeline: view();
+      animation-range: entry 0% exit 100%;
+    }
+  }
+}
+
+/* Booking wizard subtle step entrance */
+@keyframes egStepEnter {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .eg-step-enter {
+    animation: egStepEnter 240ms var(--sp-ease) both;
+  }
+}
+
+/* Moving Service Rail (faithful to Kimi ServiceRail + WCAG 2.2.2 reduced-motion) */
+.eg-rail-viewport {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.eg-rail-track {
+  display: flex;
+  gap: 14px;
+  padding: 6px max(24px, calc((100vw - 80rem) / 2 + 24px)) 14px;
+  width: max-content;
+  cursor: grab;
+  user-select: none;
+  will-change: transform;
+}
+
+.eg-rail-track.dragging {
+  cursor: grabbing;
+}
+
+.eg-rail-track img {
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.eg-rail-face {
+  border-radius: 16px;
+  border: 1px solid rgba(212, 181, 122, 0.28);
+  background: #092017;
+  box-shadow: 0 20px 36px -20px rgba(2, 10, 7, 0.88);
+  overflow: hidden;
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  transition:
+    transform 260ms var(--sp-ease),
+    border-color 260ms ease,
+    box-shadow 260ms var(--sp-ease);
+}
+
+.eg-rail-face:hover,
+.eg-rail-face:focus-visible {
+  border-color: rgba(232, 213, 163, 0.65);
+  box-shadow:
+    0 28px 48px -20px rgba(2, 10, 7, 0.95),
+    0 0 22px -8px rgba(212, 181, 122, 0.3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .eg-rail-face:hover,
+  .eg-rail-face:focus-visible {
+    transform: translateY(-6px);
+  }
+  .eg-rail-face:active {
+    transform: translateY(-2px) scale(0.985);
+    transition-duration: 90ms;
+  }
 }
 
 .public-booking-surface input,
@@ -450,34 +599,34 @@ a:focus-visible,
 
 .public-booking-surface select,
 .public-booking-surface option {
-  background-color: rgba(5, 36, 29, 0.95);
-  color: #F6EBD6;
+  background-color: #092218;
+  color: #FAF5E9;
 }
 
 .public-booking-surface option:checked {
   background-color: #D4B57A;
-  color: #031B16;
+  color: #071A12;
 }
 
 .public-booking-surface input:-webkit-autofill,
 .public-booking-surface textarea:-webkit-autofill,
 .public-booking-surface select:-webkit-autofill {
-  -webkit-text-fill-color: #F6EBD6;
+  -webkit-text-fill-color: #FAF5E9;
   transition: background-color 9999s ease-in-out 0s;
-  box-shadow: 0 0 0px 1000px rgba(5, 36, 29, 0.95) inset;
+  box-shadow: 0 0 0px 1000px #092218 inset;
 }
 
 @media (max-width: 767px) {
   .sp-public:has(.public-booking-surface) {
     min-height: 100dvh;
     overflow: hidden;
-    background-color: #031B16;
+    background-color: #061A13;
   }
 
   .sp-public:has(.public-booking-surface) main {
     min-height: 100dvh;
     overflow: hidden;
-    background-color: #031B16;
+    background-color: #061A13;
   }
 
   .sp-public:has(.public-booking-surface) .public-site-footer {
@@ -488,22 +637,22 @@ a:focus-visible,
 /* Scroll reveal animations */
 .sp-reveal {
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s var(--sp-ease), transform 0.7s var(--sp-ease);
+  transform: translate3d(0, 18px, 0);
+  transition: opacity 0.6s var(--sp-ease), transform 0.6s var(--sp-ease);
 }
 .sp-reveal.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0);
 }
 
 .sp-reveal-scale {
   opacity: 0;
-  transform: scale(0.96) translateY(16px);
-  transition: opacity 0.65s var(--sp-ease), transform 0.65s var(--sp-ease);
+  transform: scale(0.97) translate3d(0, 14px, 0);
+  transition: opacity 0.55s var(--sp-ease), transform 0.55s var(--sp-ease);
 }
 .sp-reveal-scale.is-visible {
   opacity: 1;
-  transform: scale(1) translateY(0);
+  transform: scale(1) translate3d(0, 0, 0);
 }
 
 @media (prefers-reduced-motion: reduce) {

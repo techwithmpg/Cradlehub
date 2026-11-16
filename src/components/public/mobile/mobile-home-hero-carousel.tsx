@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Calendar } from "lucide-react";
 import type { NormalizedHeroSection } from "@/lib/public/normalized-sections";
@@ -40,29 +41,32 @@ export function MobileHomeHeroCarousel({
       SPA_IMAGES.aromatherapy,
     siteImages?.mobile_hero_tertiary || SPA_IMAGES.hotStone,
   ];
-  const currentImage = slideImages[activeSlide] || slideImages[0];
+  const currentImage = slideImages[activeSlide] || slideImages[0] || SPA_IMAGES.heroPortrait;
 
   return (
-    <section className="relative overflow-hidden bg-[#10261D] pt-6 text-[#FAF5E9]">
+    <section className="relative overflow-hidden bg-[#05140E] pt-6 text-[#FAF5E9]">
       {/* Top Botanical Ambient Glow */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-[#D4B57A]/12 blur-3xl"
+        className="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-[#D4B57A]/14 blur-3xl"
       />
 
       <div className="relative mx-auto max-w-md px-5 pb-12 text-center">
         {/* Circular Gold-Framed Sanctuary Portrait */}
         <div className="mx-auto mb-6 flex justify-center">
-          <div className="relative h-56 w-56 overflow-hidden rounded-full border-2 border-[#D4B57A]/75 bg-[#163A2B] shadow-[0_18px_40px_-10px_rgba(0,0,0,0.55)]">
-            <img
+          <div className="relative h-56 w-56 overflow-hidden rounded-full border-2 border-[#D4B57A]/75 bg-[#0A251B] shadow-[0_18px_40px_-10px_rgba(0,0,0,0.7)]">
+            <Image
               src={currentImage}
               alt={
                 hero?.mobileImageAltText ||
                 hero?.imageAltText ||
                 "Cradle Wellness Living signature treatment"
               }
+              fill
+              sizes="224px"
+              loading="eager"
               fetchPriority="high"
-              className="h-full w-full object-cover"
+              className="eg-hero-photo object-cover"
               style={{
                 objectPosition: hero?.mobileImagePosition || "50% 35%",
               }}
@@ -70,7 +74,7 @@ export function MobileHomeHeroCarousel({
           </div>
         </div>
 
-        <p className="text-[10px] font-semibold tracking-[0.26em] text-[#D4B57A] uppercase">
+        <p className="text-[10px] font-semibold tracking-[0.26em] text-[#E5C98B] uppercase">
           Wellness · Beauty · Relaxation
         </p>
 
@@ -78,14 +82,14 @@ export function MobileHomeHeroCarousel({
           {title}
         </h1>
 
-        <p className="mx-auto mt-3 max-w-xs text-[13px] leading-relaxed text-[#CFD9D1] [text-wrap:pretty]">
+        <p className="mx-auto mt-3 max-w-xs text-[13px] leading-relaxed text-[#CBD6CD] [text-wrap:pretty]">
           {subtitle}
         </p>
 
         <div className="mt-6 flex flex-col gap-2.5">
           <Link
             href={primaryHref}
-            className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-[#D4B57A] px-5 py-3 text-sm font-semibold text-[#10261D] shadow-sm transition hover:bg-[#E0C38A]"
+            className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-5 py-3 text-sm font-semibold text-[#071A12] shadow-sm transition hover:brightness-105"
           >
             <Calendar className="h-4 w-4" aria-hidden="true" />
             <span>{primaryLabel}</span>
@@ -94,7 +98,7 @@ export function MobileHomeHeroCarousel({
           {secondaryLabel && (
             <Link
               href={secondaryHref}
-              className="inline-flex min-h-[44px] w-full items-center justify-center rounded-full border border-[#D4B57A]/50 bg-[#163A2B]/60 px-5 py-2.5 text-sm font-medium text-[#FAF5E9] transition hover:border-[#D4B57A]"
+              className="eg-glass-pill inline-flex min-h-[44px] w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-medium text-[#FAF5E9] transition hover:border-[#E8D5A3]"
             >
               <span>{secondaryLabel}</span>
             </Link>
@@ -124,12 +128,11 @@ export function MobileHomeHeroCarousel({
         </div>
       </div>
 
-      {/* Curved Cream Wave Transition */}
       <div aria-hidden="true" className="relative h-6 w-full overflow-hidden">
         <svg
           viewBox="0 0 400 24"
           preserveAspectRatio="none"
-          className="h-full w-full fill-[#F7F3EB]"
+          className="h-full w-full fill-[#071A12]"
         >
           <path d="M0,24 Q200,0 400,24 L400,24 L0,24 Z" />
         </svg>

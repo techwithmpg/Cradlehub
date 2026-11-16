@@ -30,6 +30,7 @@ import {
 import { getPublicBranches } from "@/lib/queries/branches";
 import { getPublicServiceCatalog } from "@/lib/queries/services";
 import { getMediaContract, type MarketingMediaIntentKey } from "@/lib/marketing/media-contracts";
+import { DEFAULT_PUBLIC_IMAGE_CACHE_CONTROL } from "@/lib/public/public-image-resolver";
 
 export type MarketingMediaAssetRow = {
   id: string;
@@ -843,6 +844,7 @@ export async function uploadMarketingMediaFile(
       .from(PUBLIC_MEDIA_BUCKET)
       .upload(bucketPath, buffer, {
         contentType: storedMimeType,
+        cacheControl: DEFAULT_PUBLIC_IMAGE_CACHE_CONTROL,
         upsert: false,
       });
 

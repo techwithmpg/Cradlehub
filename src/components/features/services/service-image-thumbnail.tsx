@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { ImageIcon } from "lucide-react";
-import { resolveServiceImage } from "@/lib/service-images";
+import { ServiceImage } from "@/components/public/service-image";
+import { DEFAULT_SERVICE_IMAGE_URL, resolveServiceImage } from "@/lib/service-images";
 
 type Props = {
   serviceId?: string;
@@ -25,10 +25,12 @@ export function ServiceImageThumbnail({ serviceId, serviceName, imageUrl, imageA
       }}
     >
       {image.imageUrl ? (
-        <Image
+        <ServiceImage
           src={image.imageUrl}
+          fallbackSrc={DEFAULT_SERVICE_IMAGE_URL}
           alt={image.imageAlt}
           fill
+          loading="lazy"
           sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
           style={{ objectFit: "cover" }}
         />

@@ -55,7 +55,8 @@ export type NavPermission =
   | "dev_panel"
   | "operations"
   | "repeats"
-  | "lapsed";
+  | "lapsed"
+  | "boutique";
 
 const NAV_PERMISSION_MAP: Record<NavPermission, readonly string[]> = {
   today: BOOKING_OPERATIONS,
@@ -70,6 +71,7 @@ const NAV_PERMISSION_MAP: Record<NavPermission, readonly string[]> = {
   operations: MANAGERS,
   repeats: [...MANAGERS, ...CRM_ROLES],
   lapsed: [...MANAGERS, ...CRM_ROLES],
+  boutique: BOOKING_OPERATIONS,
 };
 
 export function canViewNav(role: string, permission: NavPermission): boolean {

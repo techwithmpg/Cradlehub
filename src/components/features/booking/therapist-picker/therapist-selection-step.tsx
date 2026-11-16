@@ -40,21 +40,21 @@ export function TherapistSelectionStep({
     <div className="space-y-4 sm:space-y-6">
       <div>
         <h2
-          className="font-[family-name:var(--sp-font-display)] text-[26px] font-medium leading-tight text-[#10261D] sm:text-[30px] md:text-[34px]"
+          className="font-[family-name:var(--sp-font-display)] text-[26px] font-medium leading-tight text-[#FAF5E9] sm:text-[30px] md:text-[34px]"
         >
           Select therapist
         </h2>
-        <p className="mt-1.5 text-[14px] leading-6 text-[#526058] sm:text-[15px]">
+        <p className="mt-1.5 text-[14px] leading-6 text-[#CBD6CD] sm:text-[15px]">
           Choose your preferred therapist or let us assign the best one.
         </p>
       </div>
 
       {serviceCount > 0 ? (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-[#E5DEC9] bg-white px-4 py-3 shadow-xs md:hidden">
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-[#8A6D3B]">
+        <div className="eg-glass-card flex items-center justify-between gap-4 rounded-xl px-4 py-3 md:hidden">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-[#E5C98B]">
             {serviceCount} {serviceCount === 1 ? "service" : "services"} · {totalDuration} min
           </p>
-          <p className="text-[14px] font-bold text-[#163A2B]">{totalPriceLabel}</p>
+          <p className="text-[14px] font-bold text-[#FAF5E9]">{totalPriceLabel}</p>
         </div>
       ) : null}
 
@@ -65,10 +65,10 @@ export function TherapistSelectionStep({
 
       <div className="space-y-3">
         <div>
-          <p className="text-[14px] font-semibold text-[#10261D] sm:text-[15px]">
+          <p className="text-[14px] font-semibold text-[#FAF5E9] sm:text-[15px]">
             Choose a specific therapist, optional
           </p>
-          <p className="mt-1 text-[12px] leading-5 text-[#55635B]">
+          <p className="mt-1 text-[12px] leading-5 text-[#9FB1A6]">
             {preferenceConfirmationRequired
               ? "Keep the default or choose a specific staff preference. Our team will confirm a manual preference after we receive your booking."
               : "Keep the default or choose from staff available for your selected time."}
@@ -84,7 +84,7 @@ export function TherapistSelectionStep({
         />
 
         {!hasProviders ? (
-          <div className="rounded-xl border border-dashed border-[#D7CEBC] bg-[#FCFAF5] px-5 py-5 text-[14px] leading-7 text-[#55635B]">
+          <div className="rounded-xl border border-dashed border-[#D4B57A]/28 bg-[#092118]/75 px-5 py-5 text-[14px] leading-7 text-[#CBD6CD]">
             No specific therapists are available for these services. You can continue with Any available provider and we&apos;ll assign the best available staff.
           </div>
         ) : null}
@@ -96,11 +96,11 @@ export function TherapistSelectionStep({
         onClear={() => onValueChange("auto")}
       />
 
-      <div className="flex items-start gap-3 rounded-xl border border-[#E5DEC9] bg-white px-4 py-3 text-[13px] leading-6 shadow-xs">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/40 bg-[#F5EFE3] text-[#8A6D3B]">
+      <div className="eg-glass-card flex items-start gap-3 rounded-xl px-4 py-3 text-[13px] leading-6">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#D4B57A]/35 bg-[#0A251A] text-[#E5C98B]">
           <Info className="size-4" />
         </span>
-        <span className="text-[#4C5A52]">
+        <span className="text-[#CBD6CD]">
           All our therapists are certified professionals. You can review more details after completing your booking.
         </span>
       </div>

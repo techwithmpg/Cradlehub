@@ -18,9 +18,8 @@ import {
 } from "lucide-react";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd } from "@/components/seo/structured-data";
-import { getPublicSiteSections } from "@/lib/queries/public-site";
+import { getPublicSiteSectionsCached } from "@/lib/public/public-site-cached";
 import { resolvePublicSiteSections } from "@/lib/public/normalized-sections";
-import { isPublicReadTransportFailure } from "@/lib/public/public-read-error";
 
 const experiencePillars = [
   { label: "Rest & Relaxation", icon: Flower2 },
@@ -60,14 +59,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function AboutPage() {
-  let managedSections: Awaited<ReturnType<typeof getPublicSiteSections>> = [];
-
-  try {
-    managedSections = await getPublicSiteSections({ includeDisabled: false });
-  } catch (error) {
-    if (!isPublicReadTransportFailure(error)) throw error;
-    managedSections = [];
-  }
+  const managedSections = await getPublicSiteSectionsCached({ includeDisabled: false });
 
   const resolved = resolvePublicSiteSections(managedSections);
   const storyImage =
@@ -78,32 +70,33 @@ export default async function AboutPage() {
     SPA_IMAGES.aboutSecondary;
 
   return (
-    <div className="sp-public bg-[#F7F3EB] text-[#10261D]">
+    <div className="sp-public min-h-screen bg-[#071A12] text-[#FAF5E9]">
       <PublicMobileAbout headerImage={experienceImage} />
       <div className="hidden md:block">
-        {/* Forest Green Split Hero */}
-        <section className="relative overflow-hidden bg-[#10261D] pt-24 text-[#FCFAF5]">
-          <div className="mx-auto grid max-w-7xl grid-cols-12 items-center px-6 py-16 lg:py-20">
+        {/* Emerald Glass Split Hero */}
+        <section className="relative overflow-hidden border-b border-[#D4B57A]/15 bg-[#05140E] pt-24 text-[#FAF5E9]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_380px_at_15%_10%,rgba(28,89,63,0.4),transparent_65%),radial-gradient(600px_320px_at_85%_25%,rgba(212,181,122,0.12),transparent_60%)]" aria-hidden="true" />
+          <div className="relative mx-auto grid max-w-7xl grid-cols-12 items-center px-6 py-16 lg:py-20">
             <div className="relative z-10 col-span-6 pr-8">
               <div className="flex items-center gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#D4B57A]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#E5C98B]">
                   About Us
                 </p>
                 <span className="h-px w-8 bg-[#D4B57A]/60" aria-hidden="true" />
               </div>
               <h1
-                className="mt-3 text-4xl font-medium leading-tight text-[#FCFAF5] lg:text-5xl"
+                className="mt-3 text-4xl font-medium leading-tight text-[#FAF5E9] lg:text-5xl"
                 style={{ fontFamily: "var(--sp-font-display)" }}
               >
                 Our Story
               </h1>
-              <p className="mt-4 max-w-md text-[15px] leading-relaxed text-[#EDE4D3]/85">
+              <p className="mt-4 max-w-md text-[15px] leading-relaxed text-[#CBD6CD]">
                 More than a spa — a sanctuary for rest, rejuvenation, and holistic wellness.
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <Link
                   href="/book"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#D4B57A] px-6 text-[13px] font-semibold text-[#10261D] transition hover:bg-[#E4C992]"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-6 text-[13px] font-semibold text-[#071A12] shadow-[0_8px_24px_-8px_rgba(212,181,122,0.55)] transition hover:brightness-105"
                 >
                   <Calendar className="h-4 w-4" aria-hidden="true" />
                   Book an Experience
@@ -111,35 +104,35 @@ export default async function AboutPage() {
                 </Link>
                 <Link
                   href="/services"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#D4B57A]/45 bg-[#163A2B]/60 px-5 text-[13px] font-semibold text-[#FCFAF5] transition hover:bg-[#1E4D3A]"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#D4B57A]/40 bg-[#0D2E20]/70 px-5 text-[13px] font-semibold text-[#FAF5E9] backdrop-blur-sm transition hover:border-[#E8D5A3]/75 hover:bg-[#14402E]"
                 >
-                  <Leaf className="h-4 w-4 text-[#D4B57A]" aria-hidden="true" />
+                  <Leaf className="h-4 w-4 text-[#E5C98B]" aria-hidden="true" />
                   Our Services
                 </Link>
               </div>
             </div>
 
-            <div className="relative col-span-6 h-64 overflow-hidden rounded-2xl border border-[#D4B57A]/25 lg:h-72">
+            <div className="relative col-span-6 h-64 overflow-hidden rounded-2xl border border-[#D4B57A]/30 shadow-2xl lg:h-72">
               <Image
                 src={storyImage}
                 alt="Warm candlelight and folded spa towel at Cradle Wellness Living"
                 fill
                 preload
                 fetchPriority="high"
-                className="object-cover"
+                className="eg-hero-photo object-cover"
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#10261D]/65 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#05140E]/75 via-transparent to-transparent" />
             </div>
           </div>
         </section>
 
         {/* Experience Split Story */}
-        <section className="bg-[#FCFAF5] py-16 lg:py-20">
+        <section className="bg-[#061810]/70 py-16 lg:py-20">
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid items-center gap-12 lg:grid-cols-12">
               <ScrollReveal variant="scale" className="lg:col-span-5">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-[#E5DEC9] shadow-sm">
+                <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-[#D4B57A]/25 shadow-2xl">
                   <Image
                     src={experienceImage}
                     alt="Warm herbal bowl and glowing spa sanctuary inside Cradle Wellness Living"
@@ -154,12 +147,12 @@ export default async function AboutPage() {
               <div className="lg:col-span-7">
                 <ScrollReveal>
                   <h2
-                    className="text-2xl font-semibold leading-tight text-[#10261D] sm:text-3xl"
+                    className="text-2xl font-semibold leading-tight text-[#FAF5E9] sm:text-3xl"
                     style={{ fontFamily: "var(--sp-font-display)" }}
                   >
                     The Cradle Wellness Living Experience
                   </h2>
-                  <div className="mt-4 flex flex-col gap-3.5 text-[15px] leading-relaxed text-[#35463E]">
+                  <div className="mt-4 flex flex-col gap-3.5 text-[15px] leading-relaxed text-[#CBD6CD]">
                     <p>
                       Cradle Wellness Living is a calm wellness and spa sanctuary in Bacolod
                       City, dedicated to providing professional massage, beauty, and
@@ -173,13 +166,13 @@ export default async function AboutPage() {
                     </p>
                   </div>
 
-                  <div className="mt-8 grid grid-cols-4 gap-4 border-t border-[#EDE4D3] pt-7">
+                  <div className="mt-8 grid grid-cols-4 gap-4 border-t border-[#D4B57A]/20 pt-7">
                     {experiencePillars.map(({ label, icon: Icon }) => (
                       <div key={label} className="flex flex-col items-center text-center">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]">
                           <Icon className="h-5 w-5" aria-hidden="true" />
                         </div>
-                        <p className="mt-2.5 text-[12px] font-semibold text-[#10261D]">
+                        <p className="mt-2.5 text-[12px] font-semibold text-[#FAF5E9]">
                           {label}
                         </p>
                       </div>
@@ -192,18 +185,18 @@ export default async function AboutPage() {
         </section>
 
         {/* Commitment & Values Band */}
-        <section className="border-t border-[#E5DEC9] bg-[#F7F3EB] py-16">
+        <section className="border-t border-[#D4B57A]/15 bg-[#071A12] py-16">
           <div className="mx-auto max-w-7xl px-6">
             <ScrollReveal>
-              <div className="grid items-center gap-10 rounded-3xl border border-[#E5DEC9] bg-[#FCFAF5] p-8 shadow-xs lg:grid-cols-12 lg:p-12">
-                <div className="lg:col-span-5 lg:border-r lg:border-[#E5DEC9] lg:pr-8">
+              <div className="eg-glass-card grid items-center gap-10 rounded-3xl p-8 lg:grid-cols-12 lg:p-12">
+                <div className="lg:col-span-5 lg:border-r lg:border-[#D4B57A]/20 lg:pr-8">
                   <h2
-                    className="text-2xl font-semibold text-[#10261D] sm:text-3xl"
+                    className="text-2xl font-semibold text-[#FAF5E9] sm:text-3xl"
                     style={{ fontFamily: "var(--sp-font-display)" }}
                   >
                     Our Commitment
                   </h2>
-                  <p className="mt-3 text-[14px] leading-relaxed text-[#35463E]">
+                  <p className="mt-3 text-[14px] leading-relaxed text-[#CBD6CD]">
                     To deliver high-quality, safe, and personalized wellness experiences
                     that help you look, feel, and live better.
                   </p>
@@ -211,7 +204,7 @@ export default async function AboutPage() {
 
                 <div className="lg:col-span-7">
                   <h2
-                    className="text-xl font-semibold text-[#10261D]"
+                    className="text-xl font-semibold text-[#FAF5E9]"
                     style={{ fontFamily: "var(--sp-font-display)" }}
                   >
                     Our Values
@@ -219,13 +212,13 @@ export default async function AboutPage() {
                   <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-4">
                     {coreValues.map((v) => (
                       <div key={v.title} className="flex flex-col items-center text-center">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#E5DEC9] bg-white text-[#B68A3C]">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]">
                           <v.icon className="h-5 w-5" aria-hidden="true" />
                         </div>
-                        <h3 className="mt-2.5 text-[13px] font-semibold text-[#10261D]">
+                        <h3 className="mt-2.5 text-[13px] font-semibold text-[#FAF5E9]">
                           {v.title}
                         </h3>
-                        <p className="mt-1 text-[11px] leading-relaxed text-[#55635B]">
+                        <p className="mt-1 text-[11px] leading-relaxed text-[#B7C6BC]">
                           {v.desc}
                         </p>
                       </div>

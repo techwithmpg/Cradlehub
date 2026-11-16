@@ -47,8 +47,14 @@ export function PublicShell({
   const branchNames = branches.map((b) => b.name);
 
   return (
-    <div className="sp-public flex min-h-dvh flex-col bg-[#F7F3EB] text-[#10261D]">
+    <div className="sp-public flex min-h-dvh flex-col bg-[#071A12] text-[#FAF5E9]">
       <BoutiqueCartProvider branchNames={branchNames}>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-[#D4B57A] focus:px-4 focus:py-2 focus:text-xs focus:font-semibold focus:text-[#071A12]"
+        >
+          Skip to main content
+        </a>
         <MobileFirstVisitPreloader initiallyVisible={!hasSeenMobilePreloader} />
         {withOfflineBanner && <OfflineBanner />}
         <SiteHeader
@@ -56,7 +62,9 @@ export function PublicShell({
           logoUrl={headerLogoUrl}
           logoAlt={headerLogoAlt}
         />
-        <main className="flex-1 pb-20 lg:pb-0">{children}</main>
+        <main id="main-content" tabIndex={-1} className="flex-1 pb-20 focus:outline-none lg:pb-0">
+          {children}
+        </main>
         <SiteFooter
           branches={branches}
           logoUrl={footerLogoUrl}

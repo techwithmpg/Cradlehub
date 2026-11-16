@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ScrollReveal } from "@/components/public/scroll-reveal";
 import { PublicMobileContact } from "@/components/public/mobile/public-mobile-contact";
-import { getPublicBranches } from "@/lib/queries/branches";
+import { getPublicBranchesSafeCached } from "@/lib/public/public-site-cached";
 import { Phone, MapPin, Clock, MessageSquare } from "lucide-react";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { BreadcrumbJsonLd, LocalBusinessJsonLd } from "@/components/seo/structured-data";
@@ -33,7 +33,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function ContactPage() {
-  const branches = await getPublicBranches();
+  const branches = await getPublicBranchesSafeCached();
   const primaryBranch = branches[0];
   const primaryPhone = primaryBranch?.phone ?? "";
   const secondaryPhone = primaryBranch?.secondary_phone ?? "";
@@ -43,22 +43,23 @@ export default async function ContactPage() {
   const openingHours = primaryBranch?.opening_hours ?? "10:00 AM – 10:00 PM";
 
   return (
-    <div className="sp-public bg-[#F7F3EB] text-[#10261D]">
+    <div className="sp-public min-h-screen bg-[#071A12] text-[#FAF5E9]">
       <PublicMobileContact branches={branches} />
       <div className="hidden md:block">
-        {/* Forest Green Hero */}
-        <section className="bg-[#10261D] pt-28 pb-16 text-[#FCFAF5] lg:pt-32 lg:pb-20">
-          <div className="mx-auto max-w-4xl px-6 text-center">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#D4B57A]">
+        {/* Emerald Glass Hero */}
+        <section className="relative overflow-hidden border-b border-[#D4B57A]/15 bg-[#05140E] pt-28 pb-16 text-[#FAF5E9] lg:pt-32 lg:pb-20">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_380px_at_15%_10%,rgba(28,89,63,0.4),transparent_65%),radial-gradient(600px_320px_at_85%_25%,rgba(212,181,122,0.12),transparent_60%)]" aria-hidden="true" />
+          <div className="relative mx-auto max-w-4xl px-6 text-center">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E5C98B]">
               Contact Us
             </p>
             <h1
-              className="mb-4 text-3xl font-medium leading-tight text-[#FCFAF5] sm:text-4xl lg:text-5xl"
+              className="mb-4 text-3xl font-medium leading-tight text-[#FAF5E9] sm:text-4xl lg:text-5xl"
               style={{ fontFamily: "var(--sp-font-display)" }}
             >
               {"We're Here to Help"}
             </h1>
-            <p className="mx-auto max-w-xl text-[15px] text-[#EDE4D3]/80">
+            <p className="mx-auto max-w-xl text-[15px] text-[#CBD6CD]">
               Questions about our services, availability, or special requests?
               Reach out and our team will respond with care.
             </p>
@@ -66,36 +67,36 @@ export default async function ContactPage() {
         </section>
 
         {/* Action-first cards */}
-        <section className="bg-[#FCFAF5] pt-12 pb-4 lg:pt-16">
+        <section className="bg-[#061810]/70 pt-12 pb-4 lg:pt-16">
           <div className="mx-auto max-w-6xl px-6">
             <div className="mx-auto grid max-w-2xl gap-4 sm:grid-cols-2">
               {primaryPhone ? (
                 <a
                   href={primaryPhoneHref}
-                  className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#E5DEC9] bg-white p-8 text-center shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                  className="eg-glass-card eg-glass-lift flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]">
                     <Phone className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]">
+                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#E5C98B]">
                       Call Us
                     </p>
-                    <p className="text-[15px] font-semibold text-[#10261D]">
+                    <p className="text-[15px] font-semibold text-[#FAF5E9]">
                       {primaryPhone}
                     </p>
                   </div>
                 </a>
               ) : (
-                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#E5DEC9] bg-white p-8 text-center opacity-80">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                <div className="eg-glass-card flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center opacity-80">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]">
                     <Phone className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]">
+                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#E5C98B]">
                       Call Us
                     </p>
-                    <p className="text-[15px] font-medium text-[#55635B]">
+                    <p className="text-[15px] font-medium text-[#B7C6BC]">
                       Contact info updating
                     </p>
                   </div>
@@ -106,30 +107,30 @@ export default async function ContactPage() {
                   href={messengerHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#E5DEC9] bg-white p-8 text-center shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                  className="eg-glass-card eg-glass-lift flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]">
                     <MessageSquare className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]">
+                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#E5C98B]">
                       Message Us
                     </p>
-                    <p className="text-[15px] font-semibold text-[#10261D]">
+                    <p className="text-[15px] font-semibold text-[#FAF5E9]">
                       Facebook Page
                     </p>
                   </div>
                 </a>
               ) : (
-                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#E5DEC9] bg-white p-8 text-center opacity-80">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F7F3EB] text-[#B68A3C]">
+                <div className="eg-glass-card flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center opacity-80">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]">
                     <MessageSquare className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <div>
-                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#8A6D3B]">
+                    <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#E5C98B]">
                       Message Us
                     </p>
-                    <p className="text-[15px] font-medium text-[#55635B]">
+                    <p className="text-[15px] font-medium text-[#B7C6BC]">
                       Facebook Page
                     </p>
                   </div>
@@ -140,34 +141,34 @@ export default async function ContactPage() {
         </section>
 
         {/* Contact Info Cards */}
-        <section className="bg-[#F7F3EB] py-16 lg:py-24">
+        <section className="bg-[#071A12] py-16 lg:py-24">
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {/* Hours */}
               <ScrollReveal delay={0}>
-                <div className="h-full rounded-2xl border border-[#E5DEC9] bg-white p-7 text-center shadow-xs">
-                  <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F7F3EB] text-[#B68A3C]">
+                <div className="eg-glass-card eg-glass-lift h-full rounded-2xl p-7 text-center">
+                  <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]">
                     <Clock className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <h3
-                    className="mb-3 text-[16px] font-semibold text-[#10261D]"
+                    className="mb-3 text-[16px] font-semibold text-[#FAF5E9]"
                     style={{ fontFamily: "var(--sp-font-display)" }}
                   >
                     Hours
                   </h3>
-                  <p className="text-[13px] font-semibold text-[#10261D]">Open Daily</p>
-                  <p className="mt-1 text-[13px] text-[#55635B]">{openingHours}</p>
+                  <p className="text-[13px] font-semibold text-[#FAF5E9]">Open Daily</p>
+                  <p className="mt-1 text-[13px] text-[#CBD6CD]">{openingHours}</p>
                 </div>
               </ScrollReveal>
 
               {/* Phone */}
               <ScrollReveal delay={100}>
-                <div className="h-full rounded-2xl border border-[#E5DEC9] bg-white p-7 text-center shadow-xs">
-                  <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F7F3EB] text-[#B68A3C]">
+                <div className="eg-glass-card eg-glass-lift h-full rounded-2xl p-7 text-center">
+                  <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]">
                     <Phone className="h-6 w-6" aria-hidden="true" />
                   </div>
                   <h3
-                    className="mb-3 text-[16px] font-semibold text-[#10261D]"
+                    className="mb-3 text-[16px] font-semibold text-[#FAF5E9]"
                     style={{ fontFamily: "var(--sp-font-display)" }}
                   >
                     Phone
@@ -175,17 +176,17 @@ export default async function ContactPage() {
                   {primaryPhone ? (
                     <a
                       href={primaryPhoneHref}
-                      className="block text-[13px] font-medium text-[#35463E] transition-colors hover:text-[#B68A3C]"
+                      className="block text-[13px] font-medium text-[#FAF5E9] transition-colors hover:text-[#E5C98B]"
                     >
                       {primaryPhone}
                     </a>
                   ) : (
-                    <p className="text-[13px] text-[#55635B]">Contact info updating</p>
+                    <p className="text-[13px] text-[#B7C6BC]">Contact info updating</p>
                   )}
                   {secondaryPhone ? (
                     <a
                       href={secondaryPhoneHref}
-                      className="mt-1 block text-[13px] font-medium text-[#35463E] transition-colors hover:text-[#B68A3C]"
+                      className="mt-1 block text-[13px] font-medium text-[#FAF5E9] transition-colors hover:text-[#E5C98B]"
                     >
                       {secondaryPhone}
                     </a>
@@ -196,12 +197,12 @@ export default async function ContactPage() {
               {/* Branch cards */}
               {branches.map((branch, index) => (
                 <ScrollReveal key={branch.id} delay={(index + 2) * 100}>
-                  <div className="h-full rounded-2xl border border-[#E5DEC9] bg-white p-7 text-center shadow-xs">
-                    <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F7F3EB] text-[#B68A3C]">
+                  <div className="eg-glass-card eg-glass-lift h-full rounded-2xl p-7 text-center">
+                    <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-[#D4B57A]/25 bg-[#0A251A]/90 text-[#E5C98B]">
                       <MapPin className="h-6 w-6" aria-hidden="true" />
                     </div>
                     <h3
-                      className="mb-3 text-[16px] font-semibold text-[#10261D]"
+                      className="mb-3 text-[16px] font-semibold text-[#FAF5E9]"
                       style={{ fontFamily: "var(--sp-font-display)" }}
                     >
                       {branch.name}
@@ -211,7 +212,7 @@ export default async function ContactPage() {
                         href={`https://maps.google.com/?q=${encodeURIComponent(branch.address)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[13px] leading-relaxed text-[#55635B] transition-colors hover:text-[#10261D] hover:underline"
+                        className="text-[13px] leading-relaxed text-[#CBD6CD] transition-colors hover:text-[#FAF5E9] hover:underline"
                       >
                         {branch.address}
                       </a>
@@ -223,14 +224,14 @@ export default async function ContactPage() {
 
             {/* Social + Quick Actions */}
             <ScrollReveal>
-              <div className="mt-14 rounded-3xl bg-[#10261D] p-10 text-center text-[#FCFAF5] shadow-md lg:p-14">
+              <div className="eg-glass-card mt-14 rounded-3xl bg-[#05140E]/90 p-10 text-center text-[#FAF5E9] shadow-xl lg:p-14">
                 <h2
-                  className="mb-4 text-2xl font-medium text-[#FCFAF5] sm:text-3xl"
+                  className="mb-4 text-2xl font-medium text-[#FAF5E9] sm:text-3xl"
                   style={{ fontFamily: "var(--sp-font-display)" }}
                 >
                   Follow Us &amp; Book Online
                 </h2>
-                <p className="mx-auto mb-8 max-w-lg text-[15px] text-[#EDE4D3]/80">
+                <p className="mx-auto mb-8 max-w-lg text-[15px] text-[#CBD6CD]">
                   Stay updated on promotions and availability — or book directly through our online system in under two minutes.
                 </p>
 
@@ -240,27 +241,27 @@ export default async function ContactPage() {
                     href="https://www.facebook.com/518084738045813?ref=NONE_xav_ig_profile_page_web"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-[#D4B57A]/40 px-5 py-2.5 text-[12px] font-medium tracking-wide text-[#FCFAF5] transition-all duration-300 hover:bg-[#163A2B]"
+                    className="eg-glass-pill inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide text-[#FAF5E9] transition-all duration-300 hover:border-[#E5C98B]/60 hover:bg-[#14402E]"
                   >
-                    <IconFacebook className="h-4 w-4" />
+                    <IconFacebook className="h-4 w-4 text-[#E5C98B]" />
                     Facebook
                   </a>
                   <a
                     href="https://www.instagram.com/cradlewellnessliving.smbacolod"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-[#D4B57A]/40 px-5 py-2.5 text-[12px] font-medium tracking-wide text-[#FCFAF5] transition-all duration-300 hover:bg-[#163A2B]"
+                    className="eg-glass-pill inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide text-[#FAF5E9] transition-all duration-300 hover:border-[#E5C98B]/60 hover:bg-[#14402E]"
                   >
-                    <IconInstagram className="h-4 w-4" />
+                    <IconInstagram className="h-4 w-4 text-[#E5C98B]" />
                     IG · SM Bacolod
                   </a>
                   <a
                     href="https://www.instagram.com/cradlewellnessliving"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-[#D4B57A]/40 px-5 py-2.5 text-[12px] font-medium tracking-wide text-[#FCFAF5] transition-all duration-300 hover:bg-[#163A2B]"
+                    className="eg-glass-pill inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[12px] font-medium tracking-wide text-[#FAF5E9] transition-all duration-300 hover:border-[#E5C98B]/60 hover:bg-[#14402E]"
                   >
-                    <IconInstagram className="h-4 w-4" />
+                    <IconInstagram className="h-4 w-4 text-[#E5C98B]" />
                     Instagram
                   </a>
                 </div>
@@ -268,16 +269,16 @@ export default async function ContactPage() {
                 <div className="flex flex-wrap items-center justify-center gap-4">
                   <Link
                     href="/book"
-                    className="inline-flex items-center rounded-full bg-[#D4B57A] px-8 py-3.5 text-[13px] font-semibold text-[#10261D] transition hover:bg-[#E4C992]"
+                    className="inline-flex items-center rounded-full bg-gradient-to-r from-[#D4B57A] via-[#E4C98E] to-[#D4B57A] px-8 py-3.5 text-[13px] font-semibold text-[#071A12] shadow-[0_8px_24px_-8px_rgba(212,181,122,0.55)] transition hover:brightness-105"
                   >
                     Book Online
                   </Link>
                   {primaryPhone ? (
                     <a
                       href={primaryPhoneHref}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#D4B57A]/45 px-8 py-3.5 text-[13px] font-semibold text-[#FCFAF5] transition hover:bg-[#163A2B]"
+                      className="inline-flex items-center gap-2 rounded-full border border-[#D4B57A]/45 bg-[#0D2E20]/70 px-8 py-3.5 text-[13px] font-semibold text-[#FAF5E9] backdrop-blur-sm transition hover:border-[#E8D5A3]/75 hover:bg-[#14402E]"
                     >
-                      <Phone className="h-4 w-4" aria-hidden="true" />
+                      <Phone className="h-4 w-4 text-[#E5C98B]" aria-hidden="true" />
                       Call Us
                     </a>
                   ) : null}
