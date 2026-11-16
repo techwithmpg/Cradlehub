@@ -35,6 +35,16 @@ function scan(overrides: Partial<RecentAttendanceScan> = {}): RecentAttendanceSc
 }
 
 describe("attendance scan feed helpers", () => {
+  it("shows completed credited duration while retaining the actual early arrival", () => {
+    const completed = scan({ eventType: "clock_out", workedMinutes: 420,
+      clockInAt: "2026-11-16T03:54Z", clockOutAt: "2026-11-16T12:00Z",
+      credit: { version: 2, creditedStartAt: "2026-11-16T05:00Z", authorizedEndAt: "2026-11-16T12:00Z",
+        creditedEndAt: "2026-11-16T12:00Z", actualClockOutAt: "2026-11-16T12:00Z", state: "final", reason: "scheduled_credit" } });
+    expect(getAttendanceScanBadge(completed)).toEqual({ label: "Completed", tone: "good" });
+    expect(getAttendanceScanDurationDetail(completed)).toBe("7h 00m");
+    expect(completed.clockInAt).toBe("2026-11-16T03:54Z");
+    expect(getAttendanceScanBadge({ ...completed, credit: null, creditInvalid: true }).label).toBe("Needs review");
+  });
   it("builds CRM record deep links with staff and date filters", () => {
     expect(
       buildAttendanceRecordHref({

@@ -9,6 +9,7 @@ end $$;
 create schema extensions;
 create table branches(id uuid primary key default gen_random_uuid(),is_active boolean default true);
 create table staff(id uuid primary key default gen_random_uuid(),branch_id uuid,system_role text default 'staff',
+  is_cross_branch boolean default false,
   staff_type text default 'therapist',full_name text default 'TEST Staff',is_active boolean default true,
   archived_at timestamptz,merged_into_staff_id uuid,auth_user_id uuid default gen_random_uuid());
 create table staff_devices(id uuid primary key default gen_random_uuid(),staff_id uuid,branch_id uuid,
@@ -46,6 +47,7 @@ create table staff_shift_checkins(id uuid primary key default gen_random_uuid(),
   schedule_source_id text default 'TEST-source',branch_timezone text default 'Asia/Manila',attendance_business_date date,
   late_minutes integer default 0,early_leave_minutes integer default 0,overtime_minutes integer default 0,
   attendance_status text default 'present',exception_state text default 'none',is_test boolean default false,
+  branch_authorization_id uuid,
   notes text,worked_minutes integer default 0,clock_in_scan_event_id uuid,clock_out_scan_event_id uuid,
   attendance_expected_end_at timestamptz,earliest_normal_clock_out_at timestamptz,latest_normal_clock_out_at timestamptz,
   clock_out_reminder_at timestamptz,manager_escalation_at timestamptz,hard_cutoff_at timestamptz,provisional_clock_out_at timestamptz,
@@ -83,5 +85,14 @@ create table workflow_tasks(id uuid primary key default gen_random_uuid(),branch
   priority text,status text,due_at timestamptz,dedupe_key text unique,metadata jsonb);
 create table cash_sessions(id uuid primary key default gen_random_uuid(),branch_id uuid,opened_by uuid,
   current_custodian_id uuid,closed_by uuid,business_date date,status text default 'open',closed_at timestamptz);
-create table cash_session_handovers(id uuid primary key default gen_random_uuid(),branch_id uuid,
+create table cash_session_handovers(id uuid primary key default gen_random_uuid(),cash_session_id uuid not null references cash_sessions(id),branch_id uuid,
   outgoing_custodian_id uuid,created_at timestamptz default now());
+
+-- Minimal tables consumed by the exact accepted branch authority resolver.
+create table staff_attendance_branch_assignments(id uuid primary key default gen_random_uuid(),staff_id uuid,branch_id uuid,
+  scope text,assignment_type text,status text,is_test boolean default false,valid_from timestamptz,valid_until timestamptz,
+  attendance_business_date date,assignment_date date,created_at timestamptz default now());
+create table staff_duty_assignments(id uuid primary key default gen_random_uuid(),staff_id uuid,branch_id uuid,
+  day_of_week integer,is_active boolean default true,created_at timestamptz default now());
+create table staff_permanent_branch_transfers(id uuid primary key default gen_random_uuid(),staff_id uuid,new_branch_id uuid,
+  status text,effective_date date,created_at timestamptz default now());

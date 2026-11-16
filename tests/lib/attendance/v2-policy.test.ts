@@ -249,6 +249,16 @@ describe("V2 payroll protection and retained schedule labels", () => {
       expect(report.rows[0]?.actualClockOut).toBe("");
     }
   );
+  it.each([
+    { authorizedEndAt: null }, { creditedEndAt: null }, { creditedEndAt: "2026-11-16T13:00Z" },
+  ])("rejects incomplete or over-cap final credit: %s", (invalid) => {
+    const record = { id: "test", staff_id: "staff", shift_date: "2026-11-16", status: "checked_out",
+      checked_out_at: end, worked_minutes: 420,
+      attendance_policy_snapshot: { v2: { ...credit, state: "final", creditedEndAt: end, ...invalid } } };
+    const report = buildAttendanceReport({ name: "Payroll Export", data: { records: [record], exceptions: [], corrections: [] } as unknown as AttendanceWorkspaceData,
+      filters: { startDate: "2026-11-16", endDate: "2026-11-16", staffId: "all", staffType: "all" } });
+    expect(report.rows[0]?.approvedPayableMinutes).toBe(0);
+  });
   it("uses retained schedule metadata without an attendance session", () => {
     const row = mapRecentScan(
       {

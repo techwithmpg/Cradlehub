@@ -1,3 +1,4 @@
+import { readAttendanceCredit } from "@/lib/attendance/v2-policy";
 import { rootAttendanceOperationId } from "@/lib/attendance/recent-scan-grouping";
 import type { PublicScanResult, RecentAttendanceScan } from "@/lib/attendance/types";
 import type { Database } from "@/types/supabase";
@@ -112,6 +113,8 @@ export function mapStoredAttendanceScan(
     workedMinutes: typeof attendance?.workedMinutes === "number" ? attendance.workedMinutes : null,
     clockInAt: attendance?.sessionStartedAt ?? null,
     clockOutAt: attendance?.action === "clock_out" ? attendance.occurredAt : null,
+    credit: readAttendanceCredit({ v2: result.credit }),
+    creditInvalid: "credit" in result && !readAttendanceCredit({ v2: result.credit }),
     sourceLabel: null,
     operationId,
     rootOperationId: rootAttendanceOperationId(operationId, row.request_id, row.id),

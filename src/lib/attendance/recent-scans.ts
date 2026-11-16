@@ -147,7 +147,7 @@ async function mapScanRows(params: {
         "staff(id, full_name, nickname, avatar_url)",
         "branches(id, name)",
         "qr_points(label)",
-        "checkin:staff_shift_checkins!qr_scan_events_checkin_id_fkey(shift_type, attendance_status, worked_minutes, checked_in_at, checked_out_at)",
+        "checkin:staff_shift_checkins!qr_scan_events_checkin_id_fkey(shift_type, attendance_status, worked_minutes, checked_in_at, checked_out_at, attendance_policy_snapshot)",
       ].join(", ")
     ).in("id", fallbackIds);
     if (fallbackResult.error) throw new Error(fallbackResult.error.message);

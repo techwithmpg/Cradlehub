@@ -381,6 +381,7 @@ describe("W1A: Attendance Settings Read-Only Path Contract", () => {
   });
 
   it("7. existing getAttendanceSettings preserves mutating auto-initialization for operational consumers", async () => {
+    mockRuleVersionsSelect.mockResolvedValueOnce({ data: null, error: null });
     // Missing settings row
     mockAttendanceSettingsSelect.mockResolvedValueOnce({
       data: null,

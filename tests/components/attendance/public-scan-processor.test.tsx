@@ -283,11 +283,11 @@ describe("PublicScanProcessor first-device continuation", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     render(<PublicScanProcessor mode="scan" qrType="room" publicCode="att_main" locationRequired />);
-    expect(screen.getByRole("heading", { name: "QR code recognized" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "QR Code Scanned" })).toBeTruthy();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(250);
     });
-    expect(screen.getByRole("heading", { name: "Verifying location..." })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Confirming branch..." })).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
     await act(async () =>
       resolveLocation({
@@ -297,7 +297,7 @@ describe("PublicScanProcessor first-device continuation", () => {
         timestamp: Date.now(),
       })
     );
-    expect(screen.getByRole("heading", { name: "Validating attendance..." })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Updating your shift..." })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await act(async () => resolveResponse(response(finalAttendance)));
     await finishTimers();

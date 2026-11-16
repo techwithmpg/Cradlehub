@@ -67,6 +67,7 @@ try {
   await db.query(
     "create trigger staff_shift_checkins_qr_clock_in_window_guard before insert on staff_shift_checkins for each row execute function enforce_qr_clock_in_shift_window()"
   );
+  await db.query(extract("supabase/migrations/20260821034409_repair_attendance_branch_authority.sql", "resolve_effective_attendance_branch"));
   await db.query(read("supabase/migrations/20261116094630_attendance_v2_automation.sql"));
   for (const name of [
     "lock_attendance_for_booking_mutation",
@@ -134,6 +135,7 @@ try {
       checkin = null,
       key = `${id}:2026-11-16`,
       connection = db,
+      isTest = false,
     } = {}
   ) {
     const insert = update
@@ -154,7 +156,7 @@ try {
       await connection.query(
         `select * from commit_attendance_scan_transaction(
       p_request_id=>$1,p_branch_id=>$2,p_qr_point_id=>$3,p_staff_id=>$4,p_device_id=>$5,
-      p_scan_type=>'attendance',p_action=>$6,p_outcome=>'success',p_public_result=>$7::jsonb,
+      p_is_test=>$11,p_scan_type=>'attendance',p_action=>$6,p_outcome=>'success',p_public_result=>$7::jsonb,
       p_checkin_id=>$8,p_checkin_insert=>$9::jsonb,p_checkin_update=>$10::jsonb)`,
         [
           request,
@@ -177,6 +179,7 @@ try {
           checkin,
           insert ? JSON.stringify(insert) : null,
           update ? JSON.stringify(update) : null,
+          isTest,
         ]
       )
     ).rows[0];
@@ -667,6 +670,110 @@ try {
     assert.equal(after.status, "resolved");
     assert.equal(after.metadata.reasonCode, before.metadata.reasonCode);
     assert.equal(after.metadata.automaticResolution, "work_evidence_revalidated");
+  });
+
+  await test("training accepts one 120-minute-early scan without enrolling real work", async () => {
+    const person = await staff(), s = await scan(person, { arrived: "2026-11-16T03:00Z", isTest: true });
+    const r = await row(s.checkin_id);
+    assert.equal(r.is_test, true);
+    assert.equal(Date.parse(r.attendance_policy_snapshot.v2.creditedStartAt), Date.parse(startAt));
+    assert.equal((await db.query("select count(*) n from attendance_v2_private.work where checkin_id=$1", [s.checkin_id])).rows[0].n, "0");
+    await processAt("2026-11-16T16:10Z");
+    assert.equal((await row(s.checkin_id)).checked_out_at, null);
+    assert.equal(await notices(s.checkin_id), 0);
+  });
+  await test("temporary branch authority receives reminders while home branch differs", async () => {
+    const person = await staff();
+    await db.query("insert into staff_attendance_branch_assignments(staff_id,branch_id,scope,assignment_type,status,assignment_date) values($1,$2,'business_day','temporary','approved','2026-11-16')", [person,otherBranch]);
+    const s = await scan(person, { atBranch: otherBranch });
+    await processAt("2026-11-16T12:05Z");
+    assert.equal(await notices(s.checkin_id),1);
+    await processAt("2026-11-16T16:00Z");
+    assert.equal((await row(s.checkin_id)).clock_out_method,"system_auto_close");
+  });
+  await test("next-day cash closure cannot retroactively authorize prior shift overtime", async () => {
+    const person = await staff("crm","csr"), s = await scan(person);
+    await db.query("insert into cash_sessions(branch_id,opened_by,closed_by,business_date,status,closed_at) values($1,$2,$2,'2026-11-17','closed','2026-11-17T14:00Z')",[branch,person]);
+    await scan(person,{checkin:s.checkin_id,update:{checked_out_at:"2026-11-16T13:00Z",status:"checked_out",clock_out_method:"qr"}});
+    await db.query("update staff_shift_checkins set attendance_policy_snapshot=attendance_policy_snapshot||jsonb_build_object('staffCategory','crm_front_desk') where id=$1",[s.checkin_id]);
+    const r=await row(s.checkin_id);
+    assert.equal(r.worked_minutes,420);
+    assert.equal(r.attendance_policy_snapshot.v2.state,"review");
+    assert.equal(Date.parse(r.attendance_policy_snapshot.v2.authorizedEndAt),Date.parse(endAt));
+  });
+  await test("clock-in-only correction retains actual QR clock-out provenance", async () => {
+    const person=await staff(),s=await scan(person);
+    await scan(person,{checkin:s.checkin_id,update:{checked_out_at:endAt,status:"checked_out",clock_out_method:"qr"}});
+    await db.query("select * from correct_attendance_times_transaction($1,$2,'correct_attendance_times','TEST clock-in correction',$3,'2026-11-16T05:05Z',$4)",[branch,person,s.checkin_id,endAt]);
+    const r=await row(s.checkin_id);
+    assert.equal(r.clock_out_method,"qr");
+    assert.equal(Date.parse(r.attendance_policy_snapshot.v2.actualClockOutAt),Date.parse(endAt));
+    assert.equal(r.worked_minutes,415);
+  });
+  await test("new active duties resolve and suppress a failed queued reminder", async () => {
+    const person=await staff(),s=await scan(person);
+    await processAt("2026-11-16T12:05Z");
+    assert.equal(await notices(s.checkin_id),1);
+    await db.query("update attendance_v2_private.delivery set state='failed' where checkin_id=$1",[s.checkin_id]);
+    await db.query("insert into bookings(branch_id,staff_id,booking_date,start_time,end_time,status,booking_progress_status,session_started_at) values($1,$2,'2026-11-16','20:06','21:00','in_progress','session_started','2026-11-16T12:06Z')",[branch,person]);
+    await processAt("2026-11-16T12:06Z");
+    assert.equal((await db.query("select status from workspace_notifications where entity_id=$1",[s.checkin_id])).rows[0].status,"resolved");
+    assert.equal((await db.query("select state from attendance_v2_private.delivery where checkin_id=$1",[s.checkin_id])).rows[0].state,"suppressed");
+  });
+  await test("fresh dispatch validation rejects duties started after claim without a worker pass", async () => {
+    const person=await staff(),s=await scan(person);
+    await processAt("2026-11-16T12:05Z");
+    const n=(await db.query("select id from workspace_notifications where entity_id=$1",[s.checkin_id])).rows[0];
+    const lease=randomUUID();
+    await db.query("update workspace_notifications set created_at=now() where id=$1",[n.id]);
+    await db.query("update attendance_v2_private.delivery set state='attempted',lease_token=$2,lease_until=now()+interval '2 minutes' where notification_id=$1",[n.id,lease]);
+    // Synthetic current-day active assignment, so this tests the real dispatch-time resolver.
+    await db.query("insert into bookings(branch_id,staff_id,booking_date,start_time,end_time,status,booking_progress_status,session_started_at) values($1,$2,(now() at time zone 'Asia/Manila')::date,'00:00','23:59','in_progress','session_started',now())",[branch,person]);
+    assert.equal((await db.query("select validate_attendance_v2_push($1,$2) ok",[n.id,lease])).rows[0].ok,false);
+    assert.equal((await db.query("select state from attendance_v2_private.delivery where notification_id=$1",[n.id])).rows[0].state,"suppressed");
+  });
+  await test("reconciliation replay binds branch staff device test mode and checkin", async () => {
+    const request=randomUUID(),device=randomUUID();
+    await db.query("insert into qr_scan_events(request_id,staff_id,branch_id,device_id,checkin_id,is_test,operation_result) values($1,$2,$3,$4,$5,false,jsonb_build_object('ok',true))",[request,ordinary,branch,device,midnight.checkin_id]);
+    const args=[request,midnight.checkin_id,branch,ordinary,randomUUID(),device,"2026-11-16T16:05Z",false];
+    const call=async(values)=>(await db.query("select * from reconcile_provisional_attendance_clock_out($1,$2,$3,$4,$5,$6,$7,'{}',p_is_test=>$8)",values)).rows[0];
+    assert.equal((await call(args)).code,"replayed");
+    for(const index of [1,2,3,5,7]) {
+      const wrong=[...args];wrong[index]=index===7?true:randomUUID();
+      assert.equal((await call(wrong)).code,"scan_request_mismatch");
+    }
+  });
+
+  await test("next-day cash handover and custody do not extend an older session", async () => {
+    const person=await staff("crm","csr"),cash=randomUUID(),isolated=randomUUID();
+    await db.query("insert into branches(id) values($1)",[isolated]);
+    await db.query("insert into attendance_settings(branch_id) values($1)",[isolated]);
+    await db.query("update staff set branch_id=$2 where id=$1",[person,isolated]);
+    const s=await scan(person,{atBranch:isolated});
+    await db.query("insert into cash_sessions(id,branch_id,opened_by,current_custodian_id,business_date) values($1,$2,$3,$3,'2026-11-17')",[cash,isolated,person]);
+    await db.query("insert into cash_session_handovers(cash_session_id,branch_id,outgoing_custodian_id,created_at) values($1,$2,$3,'2026-11-17T08:00Z')",[cash,isolated,person]);
+    await processAt("2026-11-17T08:05Z");
+    const r=await row(s.checkin_id);
+    assert.equal(r.clock_out_method,"system_auto_close");
+    assert.equal(Date.parse(r.attendance_policy_snapshot.v2.authorizedEndAt),Date.parse(endAt));
+    assert.equal(r.worked_minutes,420);
+  });
+  await test("dispatch accepts current overdue duty then rejects newly verified cash completion", async () => {
+    const now=new Date(), end=new Date(now.getTime()-6*60000).toISOString(), start=new Date(now.getTime()-7*3600000).toISOString();
+    const person=await staff("crm","csr"),cashBranch=randomUUID();
+    await db.query("insert into branches(id) values($1)",[cashBranch]);
+    await db.query("insert into attendance_settings(branch_id) values($1)",[cashBranch]);
+    await db.query("update staff set branch_id=$2 where id=$1",[person,cashBranch]);
+    const s=await scan(person,{start,end,arrived:start,atBranch:cashBranch});
+    await processAt(now.toISOString());
+    const n=(await db.query("select id from workspace_notifications where entity_id=$1",[s.checkin_id])).rows[0];
+    assert.ok(n);
+    const lease=randomUUID();
+    await db.query("update attendance_v2_private.delivery set state='attempted',lease_token=$2,lease_until=now()+interval '2 minutes' where notification_id=$1",[n.id,lease]);
+    assert.equal((await db.query("select validate_attendance_v2_push($1,$2) ok",[n.id,lease])).rows[0].ok,true);
+    await db.query("insert into cash_sessions(branch_id,opened_by,closed_by,business_date,status,closed_at) values($1,$2,$2,'2026-11-16','closed',now()-interval '1 minute')",[cashBranch,person]);
+    assert.equal((await db.query("select validate_attendance_v2_push($1,$2) ok",[n.id,lease])).rows[0].ok,false);
+    assert.equal((await db.query("select state from attendance_v2_private.delivery where notification_id=$1",[n.id])).rows[0].state,"suppressed");
   });
   process.stdout.write(
     `LOCAL TEST ${database}: ${passed} integration scenarios passed; max bounded batch ${Math.max(...batchDurations).toFixed(2)} ms. Exact policy/scan/lifecycle SQL on PostgreSQL 17.11; synthetic schema, no Supabase/PostgREST parity claim.\n`

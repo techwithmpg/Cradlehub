@@ -58,6 +58,14 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("Attendance notification transport evidence", () => {
+  it("suppresses dispatch when fresh duty validation rejects a claimed reminder", async () => {
+    const normal = mocks.rpc.getMockImplementation()!;
+    mocks.rpc.mockImplementation((name: string, args: unknown) => name === "validate_attendance_v2_push"
+      ? Promise.resolve({ data: false, error: null }) : normal(name, args));
+    await processAttendanceV2();
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith("finish_attendance_v2_push", expect.objectContaining({ p_error: "work_or_deadline_changed" }));
+  });
   it("does no due processing or delivery while the application switch is off", async () => {
     vi.stubEnv("CRADLEHUB_ATTENDANCE_V2_ENABLED", "false");
     expect(await processAttendanceV2()).toEqual({ inactive: true });
@@ -94,6 +102,7 @@ describe("Attendance notification transport evidence", () => {
     expect(mocks.push).toHaveBeenCalledWith(notice, {
       skipSubscriptionIds: new Set(["TEST-accepted-endpoint"]),
       eligibleStaffIds: new Set([notice.recipient_staff_id]),
+      validatedAttendanceRecipient: notice.recipient_staff_id,
     });
     expect(mocks.rpc).toHaveBeenCalledWith(
       "finish_attendance_v2_push",

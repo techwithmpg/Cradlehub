@@ -281,15 +281,15 @@ export async function getAttendanceSettings(branchId: string): Promise<Attendanc
     });
   }
 
+  if (effectiveVersion.error) {
+    throw createAttendanceDataError({
+      error: effectiveVersion.error,
+      fallback: "ATTENDANCE_TRANSACTION_FAILED",
+      stage: "get_effective_attendance_rule_version",
+      details: { branchId },
+    });
+  }
   if (data) {
-    if (effectiveVersion.error) {
-      throw createAttendanceDataError({
-        error: effectiveVersion.error,
-        fallback: "ATTENDANCE_TRANSACTION_FAILED",
-        stage: "get_effective_attendance_rule_version",
-        details: { branchId },
-      });
-    }
     return normalizeAttendanceSettings(
       { ...data, ...safeJsonRecord(effectiveVersion.data?.rule_values) },
       branchId

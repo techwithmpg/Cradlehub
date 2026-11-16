@@ -35,6 +35,8 @@ describe("public Attendance scan simplification contract", () => {
   });
 
   it("does not force a long artificial scan delay", () => {
-    expect(processor).toContain("const MINIMUM_FLOW_DURATION_MS = 450;");
+    const duration = processor.match(/const MINIMUM_FLOW_DURATION_MS = (\d+);/);
+    expect(duration).not.toBeNull();
+    expect(Number(duration![1])).toBeLessThanOrEqual(450);
   });
 });

@@ -246,11 +246,15 @@ function payrollExportReport(
           exception.status === "open" && AMBIGUOUS_EXCEPTION_TYPES.has(exception.exception_type)
       );
       const credit = readAttendanceCredit(record.attendance_policy_snapshot);
+      const validFinalCredit = credit && credit.state === "final" && record.status === "checked_out" && record.checked_out_at &&
+        credit.authorizedEndAt && credit.creditedEndAt &&
+        Date.parse(credit.creditedEndAt) <= Date.parse(credit.authorizedEndAt) &&
+        record.worked_minutes === Math.max(0, Math.round((Date.parse(credit.creditedEndAt) - Date.parse(credit.creditedStartAt)) / 60000));
       const preliminary =
         record.clock_out_confirmation_required ||
         Boolean(record.provisional_auto_closed_at && !record.actual_clock_out_reconciled_at) ||
-        Boolean(record.attendance_policy_snapshot?.v2 && !credit) ||
-        (credit ? credit.state !== "final" : false);
+        Boolean(record.attendance_policy_snapshot && "v2" in record.attendance_policy_snapshot && !credit) ||
+        (credit ? !validFinalCredit : false);
       return {
         businessDate: record.shift_date,
         staff: record.staff_name,

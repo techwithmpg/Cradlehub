@@ -30,6 +30,11 @@ const data = {
 const filters = { startDate: "2026-07-14", endDate: "2026-07-14", staffType: "all", staffId: "all" };
 
 describe("Attendance operational reports", () => {
+  it.each([null, false, 0, "", { version: 2 }])("rejects malformed V2 credit even when falsy: %s", (v2) => {
+    const report = buildAttendanceReport({ name: "Payroll Export", filters,
+      data: { ...data, exceptions: [], records: [{ ...data.records[0], attendance_policy_snapshot: { v2 } }] } as unknown as AttendanceWorkspaceData });
+    expect(report.rows[0]?.approvedPayableMinutes).toBe(0);
+  });
   it("exposes exactly the three required report names", () => {
     expect(ATTENDANCE_REPORT_NAMES).toEqual([
       "Daily Attendance",

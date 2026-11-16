@@ -151,7 +151,8 @@ describe("late real QR scan routing contract", () => {
 describe("CRM closing scheduler and signal contract", () => {
   it("keeps Vercel free of automatic Attendance scheduling", () => {
     expect(vercelConfig).not.toContain('"/api/attendance/closing-interventions"');
-    expect(vercelConfig).not.toContain('"*/5 * * * *"');
+    const config = JSON.parse(vercelConfig) as { crons: Array<{ path: string }> };
+    expect(config.crons.filter((cron) => cron.path.startsWith("/api/attendance/"))).toEqual([]);
     expect(vercelConfig).toContain('"/api/agent/follow-up"');
   });
 

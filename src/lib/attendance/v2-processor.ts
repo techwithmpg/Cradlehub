@@ -48,22 +48,35 @@ export async function processAttendanceV2() {
             if (state.data?.status !== "checked_in" || state.data.checked_out_at) {
               errorCode = "attendance_closed";
             } else {
-              const delivery = await deliverWorkspaceNotificationPush(notice, {
-                skipSubscriptionIds: new Set(job.delivered_subscription_ids),
-                eligibleStaffIds: new Set([notice.recipient_staff_id!]),
-              });
-              delivered = delivery.deliveredSubscriptionIds;
-              complete =
-                delivery.configured &&
-                !delivery.dispatchFailed &&
-                delivery.failed === 0 &&
-                (delivery.attempted > 0 || job.delivered_subscription_ids.length > 0);
-              if (!complete)
-                errorCode = !delivery.configured
-                  ? "push_unconfigured"
-                  : delivery.attempted === 0
-                    ? "no_push_endpoint"
-                    : "push_failed";
+              const eligible = await admin.rpc(
+                "validate_attendance_v2_push" as never,
+                {
+                  p_notification_id: job.notification_id,
+                  p_lease_token: job.lease_token,
+                } as never
+              );
+              if (eligible.error) throw eligible.error;
+              if (eligible.data !== true) {
+                errorCode = "work_or_deadline_changed";
+              } else {
+                const delivery = await deliverWorkspaceNotificationPush(notice, {
+                  skipSubscriptionIds: new Set(job.delivered_subscription_ids),
+                  eligibleStaffIds: new Set([notice.recipient_staff_id!]),
+                  validatedAttendanceRecipient: notice.recipient_staff_id!,
+                });
+                delivered = delivery.deliveredSubscriptionIds;
+                complete =
+                  delivery.configured &&
+                  !delivery.dispatchFailed &&
+                  delivery.failed === 0 &&
+                  (delivery.attempted > 0 || job.delivered_subscription_ids.length > 0);
+                if (!complete)
+                  errorCode = !delivery.configured
+                    ? "push_unconfigured"
+                    : delivery.attempted === 0
+                      ? "no_push_endpoint"
+                      : "push_failed";
+              }
             }
           }
         } catch {

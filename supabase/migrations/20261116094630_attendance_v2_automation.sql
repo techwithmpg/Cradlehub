@@ -5,6 +5,7 @@ begin;
 do $$ begin
   if to_regprocedure('public.recalculate_attendance_clock_out_policy(uuid,timestamptz)') is null
      or to_regprocedure('public.enforce_qr_clock_in_shift_window()') is null
+     or to_regprocedure('public.resolve_effective_attendance_branch(uuid,uuid,date,boolean)') is null
      or to_regclass('public.attendance_staff_reminder_checks') is null then
     raise exception 'Attendance V2 prerequisites missing. Review the exact installed schema; do not replay historical migrations.';
   end if;
@@ -70,7 +71,7 @@ declare
 begin
   select enabled_at into v_enabled from attendance_v2_private.control where id;
   if tg_op = 'INSERT' then
-    if v_enabled is null or new.is_test or new.checked_in_at < v_enabled
+    if v_enabled is null or new.checked_in_at < v_enabled
        or new.clock_in_method <> 'qr' then return new; end if;
     -- Same global staff row used by the canonical scan RPC serializes branches.
     perform 1 from public.staff where id = new.staff_id for update;
@@ -104,8 +105,12 @@ begin
      and to_regclass('public.cash_sessions') is not null and to_regclass('public.cash_session_handovers') is not null then
     select greatest(
       (select max(cs.closed_at) from public.cash_sessions cs where cs.branch_id=new.branch_id
-        and cs.closed_by=new.staff_id and cs.closed_at>=new.checked_in_at),
-      (select max(h.created_at) from public.cash_session_handovers h where h.branch_id=new.branch_id
+        and cs.closed_by=new.staff_id and cs.closed_at>=new.checked_in_at
+        and cs.business_date=coalesce(new.attendance_business_date,new.shift_date)
+        and cs.closed_at<=coalesce(new.checked_out_at,now())),
+      (select max(h.created_at) from public.cash_session_handovers h join public.cash_sessions cs on cs.id=h.cash_session_id
+        where h.branch_id=new.branch_id and cs.branch_id=new.branch_id
+        and cs.business_date=coalesce(new.attendance_business_date,new.shift_date)
         and h.outgoing_custodian_id=new.staff_id and h.created_at>=new.checked_in_at
         and h.created_at<=coalesce(new.checked_out_at,now()))) into v_cash_end;
     v_end:=greatest(v_end,v_cash_end);
@@ -169,7 +174,7 @@ $$;
 create function attendance_v2_private.track_work() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  if new.attendance_policy_snapshot->'v2'->>'version' is distinct from '2' then return new; end if;
+  if new.is_test or new.attendance_policy_snapshot->'v2'->>'version' is distinct from '2' then return new; end if;
   if new.attendance_policy_snapshot->'v2'->>'state'='review' then
     insert into public.attendance_exceptions(branch_id,staff_id,checkin_id,exception_type,severity,
       message,metadata,dedupe_key,recommended_action,priority,is_test)
@@ -204,6 +209,19 @@ $$;
 revoke all on function attendance_v2_private.track_work() from public, anon, authenticated;
 create trigger attendance_v2_track after insert or update on public.staff_shift_checkins
   for each row execute function attendance_v2_private.track_work();
+
+-- Retain delivery history while retiring notices made obsolete by new duties.
+create function attendance_v2_private.suppress_reminders(p_checkin_id uuid,p_at timestamptz)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  update public.workspace_notifications set status='resolved',resolved_at=p_at,requires_action=false
+  where entity_type='attendance_record' and entity_id=p_checkin_id
+    and type='attendance_clock_out_reminder' and status in ('unread','read');
+  update attendance_v2_private.delivery set state='suppressed',last_error='work_or_deadline_changed'
+  where checkin_id=p_checkin_id and state in ('queued','attempted','failed');
+end;
+$$;
+revoke all on function attendance_v2_private.suppress_reminders(uuid,timestamptz) from public,anon,authenticated;
 
 create function public.process_due_attendance_v2(
   p_processed_at timestamptz default now(), p_batch_size integer default 50
@@ -270,7 +288,10 @@ begin
       end if;
       if not exists(select 1 from public.staff s join public.branches b on b.id=c.branch_id
         where s.id=c.staff_id and s.is_active and s.archived_at is null and s.merged_into_staff_id is null
-          and s.auth_user_id is not null and s.branch_id=c.branch_id and b.is_active) then
+          and s.auth_user_id is not null and b.is_active)
+         or not exists(select 1 from public.resolve_effective_attendance_branch(
+           c.staff_id,c.branch_id,coalesce(c.attendance_business_date,c.shift_date),c.is_test) authority
+           where authority.allowed and authority.effective_branch_id=c.branch_id) then
         update attendance_v2_private.work set next_due_at=p_processed_at+interval '1 day',last_reason='staff_branch_unverified' where checkin_id=c.id;
         continue;
       end if;
@@ -291,14 +312,19 @@ begin
         end if;
         -- Cash custody, close and handover are duty evidence independent of spa bookings.
         perform 1 from public.cash_sessions cs where cs.branch_id=c.branch_id
+          and cs.business_date=coalesce(c.attendance_business_date,c.shift_date)
           and coalesce(cs.current_custodian_id,cs.opened_by)=c.staff_id for share;
         select exists(select 1 from public.cash_sessions cs where cs.branch_id=c.branch_id
-          and cs.status='open' and coalesce(cs.current_custodian_id,cs.opened_by)=c.staff_id)
+          and cs.status='open' and cs.business_date=coalesce(c.attendance_business_date,c.shift_date)
+          and coalesce(cs.current_custodian_id,cs.opened_by)=c.staff_id)
           into v_cash_active;
         select greatest(
           (select max(cs.closed_at) from public.cash_sessions cs where cs.branch_id=c.branch_id and cs.closed_by=c.staff_id
-            and cs.business_date=coalesce(c.attendance_business_date,c.shift_date)),
-          (select max(h.created_at) from public.cash_session_handovers h where h.branch_id=c.branch_id
+            and cs.business_date=coalesce(c.attendance_business_date,c.shift_date)
+            and cs.closed_at>=c.checked_in_at and cs.closed_at<=p_processed_at),
+          (select max(h.created_at) from public.cash_session_handovers h join public.cash_sessions cs on cs.id=h.cash_session_id
+            where h.branch_id=c.branch_id and cs.branch_id=c.branch_id
+            and cs.business_date=coalesce(c.attendance_business_date,c.shift_date)
             and h.outgoing_custodian_id=c.staff_id and h.created_at>=c.checked_in_at and h.created_at<=p_processed_at)) into v_cash_end;
         v_end:=greatest(v_end,v_cash_end);
         v_active:=v_active or v_cash_active;
@@ -323,6 +349,7 @@ begin
         end if;
       end if;
       if v_active then
+        perform attendance_v2_private.suppress_reminders(c.id,p_processed_at);
         -- Only verified active work can extend the preliminary bound to this pass.
         if (p->>'has_active_assignment')::boolean or coalesce(v_cash_active,false) then v_end:=greatest(v_end,p_processed_at); end if;
         update public.staff_shift_checkins set attendance_policy_snapshot=attendance_policy_snapshot ||
@@ -334,6 +361,7 @@ begin
       update public.staff_shift_checkins set attendance_policy_snapshot=attendance_policy_snapshot ||
         jsonb_build_object('v2',(attendance_policy_snapshot->'v2') || jsonb_build_object('authorizedEndAt',v_end,'activeWork',false)) where id=c.id;
       if w.deadline is distinct from v_end then
+        perform attendance_v2_private.suppress_reminders(c.id,p_processed_at);
         w.generation:=w.generation+1; w.last_interval:=0;
         update attendance_v2_private.work set deadline=v_end,generation=w.generation,last_interval=0 where checkin_id=c.id;
       end if;
@@ -429,6 +457,54 @@ begin
     returning d.notification_id,d.lease_token,d.delivered_subscription_ids;
 end;
 $$;
+create function public.validate_attendance_v2_push(p_notification_id uuid,p_lease_token uuid)
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare
+  c public.staff_shift_checkins%rowtype;
+  n public.workspace_notifications%rowtype;
+  p jsonb;
+  v_end timestamptz;
+  v_valid boolean := false;
+begin
+  if not public.attendance_v2_enabled() then return false; end if;
+  select a.* into c from public.staff_shift_checkins a
+    join attendance_v2_private.delivery d on d.checkin_id=a.id
+    where d.notification_id=p_notification_id;
+  if not found then return false; end if;
+  -- Same branch/staff -> session order as scan/booking writers. Never lock the
+  -- delivery row before policy refresh, which can itself suppress deliveries.
+  if not pg_try_advisory_xact_lock(hashtext('attendance_scan_staff'),
+      hashtext(concat_ws(':',c.branch_id,c.staff_id,c.is_test))) then return false; end if;
+  select * into c from public.staff_shift_checkins where id=c.id for update;
+  select * into n from public.workspace_notifications where id=p_notification_id;
+  if c.status='checked_in' and c.checked_out_at is null and not c.is_test
+     and n.status='unread' and n.created_at>now()-interval '5 minutes'
+     and exists(select 1 from attendance_v2_private.delivery d where d.notification_id=n.id
+       and d.lease_token=p_lease_token and d.lease_until>now() and d.state='attempted')
+     and exists(select 1 from public.staff s where s.id=c.staff_id and s.is_active
+       and s.archived_at is null and s.merged_into_staff_id is null and s.auth_user_id is not null)
+     and exists(select 1 from public.resolve_effective_attendance_branch(c.staff_id,c.branch_id,
+       coalesce(c.attendance_business_date,c.shift_date),c.is_test) a where a.allowed and a.effective_branch_id=c.branch_id) then
+    p:=public.recalculate_attendance_clock_out_policy(c.id,now());
+    select * into c from public.staff_shift_checkins where id=c.id;
+    v_end:=greatest(c.scheduled_end_at,
+      nullif(c.attendance_policy_snapshot->'v2'->>'authorizedEndAt','')::timestamptz,
+      nullif(p->'attendance_policy_snapshot'->>'resolvedScheduleEndAt','')::timestamptz,
+      nullif(p->>'attendance_expected_end_at','')::timestamptz);
+    v_valid:=p->>'has_active_assignment'='false' and p->>'has_upcoming_assignment'='false'
+      and v_end=nullif(n.metadata->>'deadline','')::timestamptz and now()>=v_end+interval '5 minutes'
+      and not exists(select 1 from public.cash_sessions cs where cs.branch_id=c.branch_id
+        and cs.status='open' and cs.business_date=coalesce(c.attendance_business_date,c.shift_date)
+          and coalesce(cs.current_custodian_id,cs.opened_by)=c.staff_id);
+  end if;
+  if coalesce(v_valid,false) then return true; end if;
+  perform attendance_v2_private.suppress_reminders(c.id,now());
+  return false;
+end;
+$$;
+revoke all on function public.validate_attendance_v2_push(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.validate_attendance_v2_push(uuid,uuid) to service_role;
+
 create function public.finish_attendance_v2_push(p_notification_id uuid,p_lease_token uuid,
   p_delivered uuid[],p_complete boolean,p_error text default null)
 returns boolean language plpgsql security definer set search_path = '' as $$
@@ -536,7 +612,9 @@ begin
 
     if found and public.attendance_v2_enabled() and
        (v_existing_event.staff_id is distinct from p_staff_id or v_existing_event.branch_id is distinct from p_branch_id
-        or v_existing_event.device_id is distinct from p_device_id) then
+        or v_existing_event.device_id is distinct from p_device_id
+        or v_existing_event.is_test is distinct from p_is_test
+        or (p_checkin_id is not null and v_existing_event.checkin_id is distinct from p_checkin_id)) then
       return query select false,'scan_request_mismatch',null::uuid,null::uuid,null::uuid,null::jsonb,
         'This scan request belongs to a different operation. Please scan again.';
       return;
@@ -1699,7 +1777,8 @@ begin
       checked_out_at = p_checked_out_at,
       status = v_status,
       clock_in_method = case when p_checked_in_at is distinct from v_checkin.checked_in_at then 'manual_review' else clock_in_method end,
-      clock_out_method = case when p_checked_out_at is null then null when v_checkin.attendance_policy_snapshot->'v2'->>'version'='2' or p_checked_out_at is distinct from v_checkin.checked_out_at then 'manual_review' else clock_out_method end,
+      clock_out_method = case when p_checked_out_at is null then null when p_checked_out_at is distinct from v_checkin.checked_out_at
+        or (v_checkin.attendance_policy_snapshot->'v2'->>'version'='2' and v_checkin.clock_out_method='system_auto_close') then 'manual_review' else clock_out_method end,
       worked_minutes = coalesce((p_metrics->>'workedMinutes')::integer, 0),
       late_minutes = coalesce((p_metrics->>'lateMinutes')::integer, 0),
       early_leave_minutes = coalesce((p_metrics->>'earlyLeaveMinutes')::integer, 0),
@@ -1786,6 +1865,15 @@ begin
   select * into v_existing_event
   from public.qr_scan_events where request_id = p_request_id
   order by created_at limit 1 for update;
+  if found and (v_existing_event.staff_id is distinct from p_staff_id
+      or v_existing_event.branch_id is distinct from p_branch_id
+      or v_existing_event.device_id is distinct from p_device_id
+      or v_existing_event.is_test is distinct from p_is_test
+      or v_existing_event.checkin_id is distinct from p_checkin_id) then
+    return query select false,'scan_request_mismatch',null::uuid,p_checkin_id,null::jsonb,
+      'This scan request belongs to a different operation. Please scan again.';
+    return;
+  end if;
   if found and v_existing_event.operation_result is not null then
     return query select true, 'replayed', v_existing_event.id, v_existing_event.checkin_id,
       v_existing_event.operation_result, 'Reconciled scan result replayed.';
