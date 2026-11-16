@@ -172,5 +172,32 @@ export function canManageDispatch(role: string): boolean {
   return isCrmOperationalRole(role);
 }
 
+/**
+ * Authorized CRM & administrative roles permitted to access Boutique Management.
+ * Mirrors CRM Front Desk / Management unification while excluding marketer & treatment-only roles.
+ */
+export function canManageBoutique(role: string): boolean {
+  return isCrmOperationalRole(role);
+}
+
+/**
+ * Only owners may authorize catalog publish/merchandising approvals or future operational cutovers.
+ */
+export function canApproveBoutiqueCatalogChanges(role: string): boolean {
+  return canonicalizeSystemRole(role) === "owner";
+}
+
+/**
+ * Hard operational safety switches for Boutique CRM.
+ * All financial, stock-ledger, persistent-order, and serialized gift issuance actions remain
+ * explicitly disabled pending operational authorization.
+ */
+export const BOUTIQUE_OPERATIONAL_CAPABILITIES = {
+  paymentsEnabled: false,
+  stockMutationsEnabled: false,
+  orderProcessingEnabled: false,
+  giftIssuanceEnabled: false,
+} as const;
+
 // Keep a reference so callers can check the owner role constant if needed.
 export { OWNER_ROLE };
