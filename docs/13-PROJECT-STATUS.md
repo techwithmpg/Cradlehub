@@ -6,7 +6,7 @@
 - Latest approved policy: one scan, maximum 120 minutes early, actual arrival retained, credited start at scheduled start. No second scan and no device-limit change.
 - Candidate includes authoritative credited storage, bounded reminders/delivery audit, provisional midnight reconciliation, concurrency controls and focused Today/History/export updates. Application/database activation remains off; no scheduler activated.
 - **LOCAL IMPLEMENTATION / INDEPENDENT REVIEW PASS; RELEASE ACCEPTANCE PENDING**: 90 files / 671 tests, 39 LOCAL database scenarios, scoped lint/type checks and simulated scanner browser smoke pass. Classified Supabase TEST parity, authenticated devices/actual push/payroll acceptance and owner release approval remain gates. See [handoff](reports/ATTENDANCE-V2-HANDOFF-2026-11-16.md).
-- No production mutation, historical migration replay/ledger repair, RLS/Auth change, push, merge or deployment.
+- Owner explicitly authorizes integration into local `main` only. No production mutation, historical migration replay/ledger repair, RLS/Auth change, remote push, deployment or Attendance activation.
 
 
 ## Customer SMS Web slice — 2026-11-08

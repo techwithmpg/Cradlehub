@@ -4,6 +4,15 @@
 The review candidate remains inactive; no production release or operational
 sign-off is claimed.
 
+## Owner follow-up: local main integration
+
+The owner subsequently requested **merge to local main**. Local integration of
+the reviewed implementation and documentation closeout `a4cbf29f` is authorized;
+this does not authorize a remote push, deployment, production database operation
+or Attendance activation. The implementation remains `e0ba7967`; recorded test
+and review evidence is unchanged. Local merge identity is recorded in Git and
+the completion response. Existing main-worktree assets must be preserved.
+
 ## Authority, branch and policy
 
 - Owner authorized remaining test corrections and independent review, explicitly

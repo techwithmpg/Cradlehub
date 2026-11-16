@@ -1,5 +1,7 @@
 # ChatGPT Live Context
 
+> 2026-11-16 follow-up: The owner authorizes merging reviewed Attendance V2 into local `main` only. No remote push, production execution, activation or deployment. One-scan 120-minute policy and remaining release acceptance gates are preserved. See ATT-V2-004 and the current handoff.
+
 > 2026-11-16: Attendance V2 is an isolated inactive Web review candidate on `stage/web-attendance-v2-automation-20261116`, based on fetched main `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`. Latest owner policy is one scan up to 120 minutes early, preserving arrival and crediting from shift start; no second scan. Read [the handoff](reports/ATTENDANCE-V2-HANDOFF-2026-11-16.md) and [contract](reports/ATTENDANCE-V2-AUDIT-AND-CONTRACT-2026-11-16.md). Production execution, Cron activation, RLS/Auth changes, push, merge and deployment are not authorized. Local corrections and independent review pass (671 tests, 39 LOCAL database scenarios). Target parity and authenticated real-device/push/payroll acceptance remain open; see the linked handoff and independent review report.
 
 
