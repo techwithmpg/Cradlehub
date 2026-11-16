@@ -1,0 +1,69 @@
+{
+  "date": "2026-11-17",
+  "classification": "LOCAL TEST",
+  "outcome": "PASS",
+  "scenariosPassed": 22,
+  "ownerApproval": "Explicit reply: Approve disposable LOCAL TEST execution",
+  "approvedManifest": "tests/database/driver-unified-local-approval.json",
+  "approvedManifestSha256": "36a0345cd7833fb5a8c0d8dca7a6db64773bdff2a4c204fcef6bc8aa1166fc47",
+  "sourceHead": "e19d1f8d2d869782c404258f4542932039146e79",
+  "packageModifiedForExecution": false,
+  "target": {
+    "host": "127.0.0.1",
+    "port": 55439,
+    "postgresVersion": "17.11",
+    "dataDirectory": "E:/cradlehub/.worktrees/web-attendance-v2/.tmp/attendance-v2-pgdata",
+    "databasePattern": "driver_unified_test_<timestamp>",
+    "data": "synthetic only"
+  },
+  "command": "fnm exec --using=24.14.0 node tests/database/driver-unified-local-test.mjs --approved-local-test --approved-manifest-sha256=36a0345cd7833fb5a8c0d8dca7a6db64773bdff2a4c204fcef6bc8aa1166fc47",
+  "cleanup": {
+    "remainingDriverTestDatabases": 0,
+    "driverSchemasInParentDatabase": 0,
+    "otherConnections": 0,
+    "clusterRestoredToOriginalStoppedState": true
+  },
+  "scopeExcluded": [
+    "production",
+    "remote Supabase",
+    "real staff data",
+    "real FCM delivery",
+    "deployment",
+    "main merge",
+    "migration ledger"
+  ],
+  "limitations": [
+    "Synthetic Auth and minimal schema are not installed Supabase parity",
+    "No physical Android GPS/voice/camera/push acceptance",
+    "External Driver review remains pending"
+  ],
+  "scenarioOutput": [
+    "LOCAL TEST identity verified; new synthetic database created. No Supabase parity is implied.",
+    "PASS installed contract defaults inactive",
+    "PASS driver cannot read private registry",
+    "PASS cross-branch actor sees no assignments",
+    "PASS snapshot identifies pickup without starting",
+    "PASS off-shift start rejected atomically",
+    "PASS pickup start and identical retry are idempotent",
+    "PASS request ID cannot change payload",
+    "PASS boarding before arrival rejected",
+    "PASS inaccurate GPS rejected",
+    "PASS far GPS cannot establish arrival",
+    "PASS pickup GPS arrival is not boarding",
+    "PASS explicit boarding opens delivery",
+    "PASS legacy canonical writer cannot bypass driver GPS arrival",
+    "PASS delivery start uses the accepted canonical booking writer",
+    "PASS customer GPS arrival uses the canonical arrived transition",
+    "PASS therapist service start remains authoritative",
+    "PASS service completion creates readiness, never collection",
+    "PASS CRM reads completed-service collection separately",
+    "PASS driver cannot request CRM branch projection",
+    "PASS collection requires a fresh return and explicit boarding",
+    "PASS branch return and explicit drop-off finish transport",
+    "PASS native token is session owned and revocable",
+    "LOCAL TEST: 22 scenarios passed. Supabase Auth/PostgREST/RLS deployment parity and device evidence remain separate gates."
+  ],
+  "cleanupOutput": [
+    "LOCAL TEST cleanup verified: {\"host\":\"127.0.0.1\",\"port\":55439,\"version\":\"17.11\",\"disposableDatabases\":0,\"parentDriverSchemas\":0,\"otherConnections\":0}"
+  ]
+}
