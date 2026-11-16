@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { readAttendanceCredit } from "@/lib/attendance/v2-policy";
 import {
   AlertTriangle,
   ArrowRight,
@@ -71,7 +72,10 @@ export function AttendanceTodayView({
   const checkedOutCount = useMemo(() => rows.filter((row) => row.checkedOut).length, [rows]);
   const needsHelpCount = useMemo(() => rows.filter((row) => row.needsHelp).length, [rows]);
 
-  const scheduleTotal = Math.max(1, workingRows.length + notInCount + checkedOutCount + needsHelpCount);
+  const scheduleTotal = Math.max(
+    1,
+    workingRows.length + notInCount + checkedOutCount + needsHelpCount
+  );
   const workingPct = Math.round((workingRows.length / scheduleTotal) * 100);
   const notInPct = Math.round((notInCount / scheduleTotal) * 100);
   const checkedOutPct = Math.round((checkedOutCount / scheduleTotal) * 100);
@@ -198,12 +202,17 @@ export function AttendanceTodayView({
                           <span className="font-semibold text-[var(--cs-text-secondary)] tabular-nums">
                             {scheduleLabel}
                           </span>
-                          {row.staff.clockInAt ? (
+                          {row.staff.clockInAt && !row.staff.clockOutAt ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-[#EEF8F2] px-1.5 py-0.5 text-[0.68rem] font-bold text-[#1F4E33] ring-1 ring-[#CBE6D4] tabular-nums">
                               <Clock3 className="size-3" />
                               <LiveShiftClock
                                 clockInAt={row.staff.clockInAt}
                                 initialNowMs={data.serverNowMs}
+                                credit={readAttendanceCredit(
+                                  data.records.find(
+                                    (record) => record.id === row.staff.attendanceRecordId
+                                  )?.attendance_policy_snapshot
+                                )}
                               />
                             </span>
                           ) : null}
@@ -224,7 +233,9 @@ export function AttendanceTodayView({
                                 style={{
                                   width: `${progressDetail.percent}%`,
                                   minWidth: progressDetail.percent > 0 ? "6px" : "0px",
-                                  backgroundColor: progressDetail.isBeyondSchedule ? "#1F4E33" : "#2D6A45",
+                                  backgroundColor: progressDetail.isBeyondSchedule
+                                    ? "#1F4E33"
+                                    : "#2D6A45",
                                 }}
                               />
                             </div>
@@ -275,7 +286,8 @@ export function AttendanceTodayView({
                 Today&apos;s Schedule Overview
               </h2>
               <span className="text-xs font-medium text-[var(--cs-text-muted)]">
-                {workingRows.length + notInCount + checkedOutCount + needsHelpCount} scheduled / active
+                {workingRows.length + notInCount + checkedOutCount + needsHelpCount} scheduled /
+                active
               </span>
             </div>
 
@@ -425,9 +437,7 @@ export function AttendanceTodayView({
                           variant={canFix ? "default" : "outline"}
                           onClick={() => onOpenReviewItem(item)}
                           style={
-                            canFix
-                              ? { backgroundColor: "#1F4E33", color: "#FFFFFF" }
-                              : undefined
+                            canFix ? { backgroundColor: "#1F4E33", color: "#FFFFFF" } : undefined
                           }
                           className={cn(
                             "h-7.5 rounded-lg px-2.5 text-[0.72rem] font-semibold",
@@ -462,7 +472,10 @@ export function AttendanceTodayView({
               className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4"
               aria-labelledby="service-context-heading"
             >
-              <h2 id="service-context-heading" className="text-xs font-bold uppercase tracking-wide text-amber-950">
+              <h2
+                id="service-context-heading"
+                className="text-xs font-bold uppercase tracking-wide text-amber-950"
+              >
                 Active service context ({activeServiceContexts.length})
               </h2>
               <p className="mt-1 text-xs text-amber-800">

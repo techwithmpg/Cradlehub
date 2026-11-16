@@ -1,9 +1,11 @@
 import { rootAttendanceOperationId } from "@/lib/attendance/recent-scan-grouping";
 import type { RecentAttendanceScan } from "@/lib/attendance/types";
+import { scanShiftLabel } from "@/lib/attendance/scan-shift-label";
 
 type Relation<T> = T | T[] | null | undefined;
 
 export type RecentScanRow = {
+  metadata?: unknown;
   id: string;
   branch_id: string | null;
   staff_id: string | null;
@@ -65,7 +67,7 @@ export function mapRecentScan(
     message: row.message,
     occurredAt: row.created_at,
     timezone: context.timezone,
-    shiftType: checkin?.shift_type ?? null,
+    shiftType: scanShiftLabel(checkin?.shift_type, row.metadata),
     attendanceStatus: checkin?.attendance_status ?? null,
     workedMinutes: typeof checkin?.worked_minutes === "number" ? checkin.worked_minutes : null,
     clockInAt: checkin?.checked_in_at ?? null,

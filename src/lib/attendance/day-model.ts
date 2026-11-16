@@ -1,4 +1,6 @@
 import { branchDateTimeToIsoInTimezone } from "@/lib/attendance/shift-instance";
+import { computeAttendanceMetrics } from "@/lib/attendance/time";
+import { attendanceV2Status, readAttendanceCredit } from "@/lib/attendance/v2-policy";
 import {
   effectiveAttendanceExceptionType,
   isActionableAttendanceException,
@@ -329,11 +331,22 @@ export function resolveAttendanceDayStaffStates(params: {
       operationalStatus = "expected_later";
     else operationalStatus = "not_expected";
 
-    const workedMinutes = record
-      ? record.checked_out_at
-        ? record.worked_minutes
-        : minuteDifference(record.checked_in_at, params.now.toISOString())
-      : 0;
+    const credit = readAttendanceCredit(record?.attendance_policy_snapshot);
+    const workedMinutes =
+      record && credit
+        ? computeAttendanceMetrics({
+            checkedInAt: record.checked_in_at,
+            checkedOutAt: record.checked_out_at,
+            credit,
+            asOf: params.now.toISOString(),
+            lateGraceMinutes: 0,
+            earlyLeaveGraceMinutes: 0,
+          }).workedMinutes
+        : record
+          ? record.checked_out_at
+            ? record.worked_minutes
+            : minuteDifference(record.checked_in_at, params.now.toISOString())
+          : 0;
     const lateMinutes =
       record?.late_minutes ??
       (currentAttendanceState === "late_not_arrived" && startedShiftWindow
@@ -375,7 +388,17 @@ export function resolveAttendanceDayStaffStates(params: {
       exceptionState: openExceptions.length > 0 ? "open" : "clear",
       currentExceptionIds: openExceptions.map((exception) => exception.id),
       issueCodes: Array.from(new Set(issueCodes)),
-      displayLabel: scheduleDisplayLabel(scheduleState, currentAttendanceState),
+      displayLabel: record
+        ? (attendanceV2Status({
+            checkedInAt: record.checked_in_at,
+            checkedOutAt: record.checked_out_at,
+            scheduledStartAt: record.scheduled_start_at,
+            scheduledEndAt: record.scheduled_end_at,
+            snapshot: record.attendance_policy_snapshot,
+            provisionalAutoClosedAt: record.provisional_auto_closed_at,
+            now: params.now.toISOString(),
+          }) ?? scheduleDisplayLabel(scheduleState, currentAttendanceState))
+        : scheduleDisplayLabel(scheduleState, currentAttendanceState),
       actionRequired,
     };
   });

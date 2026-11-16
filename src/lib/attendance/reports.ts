@@ -1,3 +1,4 @@
+import { readAttendanceCredit } from "@/lib/attendance/v2-policy";
 import type {
   AttendanceCorrection,
   AttendanceException,
@@ -233,14 +234,23 @@ function payrollExportReport(
 ): AttendanceReport {
   const rows = data.records
     .filter((record) => inRange(record.shift_date, filters))
-    .filter((record) => staffMatches({ staffId: record.staff_id, staffType: record.staff_type, filters }))
+    .filter((record) =>
+      staffMatches({ staffId: record.staff_id, staffType: record.staff_type, filters })
+    )
     .filter((record) => record.status !== "voided")
     .map((record) => {
       const exceptions = exceptionsForRecord(record, data.exceptions);
       const corrections = correctionsForRecord(record, data.corrections);
       const unresolvedAmbiguity = exceptions.some(
-        (exception) => exception.status === "open" && AMBIGUOUS_EXCEPTION_TYPES.has(exception.exception_type)
+        (exception) =>
+          exception.status === "open" && AMBIGUOUS_EXCEPTION_TYPES.has(exception.exception_type)
       );
+      const credit = readAttendanceCredit(record.attendance_policy_snapshot);
+      const preliminary =
+        record.clock_out_confirmation_required ||
+        Boolean(record.provisional_auto_closed_at && !record.actual_clock_out_reconciled_at) ||
+        Boolean(record.attendance_policy_snapshot?.v2 && !credit) ||
+        (credit ? credit.state !== "final" : false);
       return {
         businessDate: record.shift_date,
         staff: record.staff_name,
@@ -248,7 +258,15 @@ function payrollExportReport(
         clockIn: record.checked_in_at,
         clockOut: record.checked_out_at ?? "",
         workedMinutes: record.worked_minutes,
-        approvedPayableMinutes: unresolvedAmbiguity ? 0 : record.worked_minutes,
+        approvedPayableMinutes: unresolvedAmbiguity || preliminary ? 0 : record.worked_minutes,
+        creditState: credit?.state ?? (preliminary ? "preliminary" : "legacy"),
+        creditedStart: credit?.creditedStartAt ?? "",
+        creditedEnd: credit?.creditedEndAt ?? "",
+        actualClockOut: credit
+          ? (credit.actualClockOutAt ?? "")
+          : record.clock_out_method === "system_auto_close"
+            ? ""
+            : (record.checked_out_at ?? ""),
         unresolvedAmbiguity: unresolvedAmbiguity ? "Yes" : "No",
         exceptionLabels: exceptionLabels(exceptions),
         correctionIndicator: corrections.length > 0 ? "Yes" : "No",
@@ -258,10 +276,19 @@ function payrollExportReport(
   return {
     name: "Payroll Export",
     columns: reportColumns([
-      ["businessDate", "Business Date"], ["staff", "Staff"], ["staffType", "Staff Type"],
-      ["clockIn", "Clock In"], ["clockOut", "Clock Out"], ["workedMinutes", "Worked Minutes"],
+      ["businessDate", "Business Date"],
+      ["staff", "Staff"],
+      ["staffType", "Staff Type"],
+      ["clockIn", "Clock In"],
+      ["clockOut", "Clock Out"],
+      ["workedMinutes", "Worked Minutes"],
       ["approvedPayableMinutes", "Approved Payable Minutes"],
-      ["unresolvedAmbiguity", "Unresolved Ambiguity"], ["exceptionLabels", "Exception Labels"],
+      ["creditState", "Credit State"],
+      ["creditedStart", "Credited Start"],
+      ["creditedEnd", "Credited End"],
+      ["actualClockOut", "Actual Clock Out"],
+      ["unresolvedAmbiguity", "Unresolved Ambiguity"],
+      ["exceptionLabels", "Exception Labels"],
       ["correctionIndicator", "Corrected"],
     ]),
     rows,

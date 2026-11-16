@@ -1,6 +1,8 @@
 import type { AttendanceDayStaffState } from "@/lib/attendance/day-model";
 import type { AttendanceRecord, AttendanceWorkspaceData } from "@/lib/attendance/types";
 import type { Database, Json } from "@/types/supabase";
+import { computeAttendanceMetrics } from "@/lib/attendance/time";
+import { attendanceV2Status, readAttendanceCredit } from "@/lib/attendance/v2-policy";
 
 export type AttendanceCheckinRealtimeRow =
   Database["public"]["Tables"]["staff_shift_checkins"]["Row"];
@@ -110,9 +112,19 @@ function mergeStaffState(
       : isOpen
         ? "clocked_in"
         : "clocked_out";
-  const workedMinutes = isOpen
-    ? Math.max(0, Math.round((nowMs - new Date(row.checked_in_at).getTime()) / 60_000))
-    : row.worked_minutes;
+  const credit = readAttendanceCredit(row.attendance_policy_snapshot);
+  const workedMinutes = credit
+    ? computeAttendanceMetrics({
+        checkedInAt: row.checked_in_at,
+        checkedOutAt: row.checked_out_at,
+        credit,
+        asOf: new Date(nowMs).toISOString(),
+        lateGraceMinutes: 0,
+        earlyLeaveGraceMinutes: 0,
+      }).workedMinutes
+    : isOpen
+      ? Math.max(0, Math.round((nowMs - new Date(row.checked_in_at).getTime()) / 60_000))
+      : row.worked_minutes;
 
   return {
     ...state,
@@ -131,15 +143,25 @@ function mergeStaffState(
         ? "available"
         : "not_available",
     exceptionState: needsReview ? "open" : "clear",
-    displayLabel: isInService
-      ? "In Service"
-      : needsReview
-        ? "Needs Review"
-        : isOpen && state.currentShiftWindow
-          ? "Available"
-          : isOpen
-            ? "Clocked In"
-            : "Clocked Out",
+    displayLabel:
+      attendanceV2Status({
+        checkedInAt: row.checked_in_at,
+        checkedOutAt: row.checked_out_at,
+        scheduledStartAt: row.scheduled_start_at,
+        scheduledEndAt: row.scheduled_end_at,
+        snapshot: row.attendance_policy_snapshot,
+        provisionalAutoClosedAt: row.provisional_auto_closed_at,
+        now: new Date(nowMs).toISOString(),
+      }) ??
+      (isInService
+        ? "In Service"
+        : needsReview
+          ? "Needs Review"
+          : isOpen && state.currentShiftWindow
+            ? "Available"
+            : isOpen
+              ? "Clocked In"
+              : "Clocked Out"),
     actionRequired: needsReview,
   };
 }
@@ -158,6 +180,10 @@ export function mergeAttendanceWorkspaceCheckin(
   }
 
   const existing = workspace.records.find((record) => record.id === row.id) ?? null;
+  const previousRevision = readAttendanceCredit(existing?.attendance_policy_snapshot)?.revision;
+  const incomingRevision = readAttendanceCredit(row.attendance_policy_snapshot)?.revision;
+  if (previousRevision !== undefined && (incomingRevision ?? 0) < previousRevision)
+    return workspace;
   const nextRecord = toAttendanceRecord(workspace, row, existing);
   const records = [nextRecord, ...workspace.records.filter((record) => record.id !== row.id)];
   const dailyStaffStates = workspace.dailyStaffStates.map((state) =>

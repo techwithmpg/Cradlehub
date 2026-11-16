@@ -72,6 +72,32 @@ function checkin(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PERF-4 Attendance realtime row merge", () => {
+  it("does not reopen a completed V2 shift from an older delayed row", () => {
+    const credit = {
+      version: 2,
+      creditedStartAt: "2026-10-17T00:05:00Z",
+      authorizedEndAt: "2026-10-17T09:00:00Z",
+      creditedEndAt: "2026-10-17T09:00:00Z",
+      actualClockOutAt: "2026-10-17T09:00:00Z",
+      state: "final",
+      reason: "scheduled_credit",
+      revision: 3,
+    };
+    const completed = mergeAttendanceWorkspaceCheckin(
+      workspace(),
+      checkin({
+        checked_out_at: "2026-10-17T09:00:00Z",
+        status: "checked_out",
+        attendance_policy_snapshot: { v2: credit },
+      })
+    );
+    expect(
+      mergeAttendanceWorkspaceCheckin(
+        completed,
+        checkin({ attendance_policy_snapshot: { v2: { ...credit, revision: 2 } } })
+      )
+    ).toBe(completed);
+  });
   it("patches the affected record and staff row without replacing unrelated workspace data", () => {
     const source = workspace();
     const merged = mergeAttendanceWorkspaceCheckin(
@@ -102,19 +128,17 @@ describe("PERF-4 Attendance realtime row merge", () => {
   it("ignores a row outside the active branch/business date", () => {
     const source = workspace();
 
-    expect(
-      mergeAttendanceWorkspaceCheckin(source, checkin({ branch_id: "branch-2" }))
-    ).toBe(source);
-    expect(
-      mergeAttendanceWorkspaceCheckin(source, checkin({ shift_date: "2026-10-18" }))
-    ).toBe(source);
+    expect(mergeAttendanceWorkspaceCheckin(source, checkin({ branch_id: "branch-2" }))).toBe(
+      source
+    );
+    expect(mergeAttendanceWorkspaceCheckin(source, checkin({ shift_date: "2026-10-18" }))).toBe(
+      source
+    );
   });
 
   it("does not patch incomplete or test rows", () => {
     const source = workspace();
-    expect(
-      mergeAttendanceWorkspaceCheckin(source, checkin({ is_test: true }))
-    ).toBe(source);
+    expect(mergeAttendanceWorkspaceCheckin(source, checkin({ is_test: true }))).toBe(source);
     expect(
       mergeAttendanceWorkspaceCheckin(
         source,

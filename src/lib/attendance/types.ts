@@ -483,6 +483,7 @@ export type PublicScanResult = {
     occurredAt: string;
     sessionStartedAt: string;
     workedMinutes?: number;
+    creditedStartAt?: string;
   };
   countdown?: {
     bookingId: string;

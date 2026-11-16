@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AttendanceCreditDetails } from "@/components/features/attendance/shared/attendance-credit-details";
 import { staffPwaAttendanceHref } from "@/lib/staff-pwa/attendance-href";
 import { AlertCircle, CalendarDays, CheckCircle2, Clock3, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -134,7 +135,10 @@ export function StaffAttendanceHistory({
               </p>
               <p className="mt-1 font-medium">
                 {time(today?.checkedInAt ?? null, data.todayState.timezone)} –{" "}
-                {time(today?.checkedOutAt ?? null, data.todayState.timezone)}
+                {time(
+                  today?.credit ? today.credit.actualClockOutAt : (today?.checkedOutAt ?? null),
+                  data.todayState.timezone
+                )}
               </p>
             </div>
             <div>
@@ -151,8 +155,20 @@ export function StaffAttendanceHistory({
             </div>
           </div>
           {today ? (
+            <AttendanceCreditDetails
+              snapshot={{ v2: today.credit }}
+              timezone={data.todayState.timezone}
+            />
+          ) : null}
+          {today ? (
             <p className="mt-4 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-              Worked {duration(today.workedMinutes)} · {metricSummary(today)}
+              Worked{" "}
+              {duration(
+                today.status === "checked_in" && today.credit
+                  ? data.todayState.workedMinutes
+                  : today.workedMinutes
+              )}{" "}
+              · {metricSummary(today)}
             </p>
           ) : null}
         </CardContent>
@@ -198,7 +214,14 @@ export function StaffAttendanceHistory({
                       </TableCell>
                       <TableCell>
                         {time(record.checkedInAt, data.todayState.timezone)} –{" "}
-                        {time(record.checkedOutAt, data.todayState.timezone)}
+                        {time(
+                          record.credit ? record.credit.actualClockOutAt : record.checkedOutAt,
+                          data.todayState.timezone
+                        )}
+                        <AttendanceCreditDetails
+                          snapshot={{ v2: record.credit }}
+                          timezone={data.todayState.timezone}
+                        />
                       </TableCell>
                       <TableCell>{duration(record.workedMinutes)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">

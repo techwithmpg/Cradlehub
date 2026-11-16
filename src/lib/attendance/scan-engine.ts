@@ -55,6 +55,8 @@ import {
   mayOpenScheduledAttendance,
 } from "@/lib/attendance/clock-in-authority";
 import { verifyAttendanceGeofence } from "@/lib/attendance/geofence-server";
+import { attendanceV2Enabled } from "@/lib/attendance/v2-server";
+import { readAttendanceCredit } from "@/lib/attendance/v2-policy";
 import type { AttendanceLocation, GeofenceFailure } from "@/lib/attendance/geofence";
 
 export type ScanRequestContext = {
@@ -588,12 +590,13 @@ async function commitAttendanceScanTransaction(
 async function loadCommittedScanResult(
   admin: AttendanceDb,
   requestId: string | null | undefined,
-  qrPointId: string | null
+  qrPointId: string | null,
+  rawDeviceCredential?: string | null
 ): Promise<PublicScanResult | null> {
   if (!requestId) return null;
   const { data, error } = await admin
     .from("qr_scan_events")
-    .select("id, qr_point_id, operation_result, metadata")
+    .select("id, qr_point_id, device_id, operation_result, metadata")
     .eq("request_id", requestId)
     .maybeSingle();
 
@@ -609,6 +612,7 @@ async function loadCommittedScanResult(
   const row = data as {
     id?: string;
     qr_point_id?: string | null;
+    device_id?: string | null;
     operation_result?: unknown;
     metadata?: unknown;
   } | null;
@@ -617,6 +621,27 @@ async function loadCommittedScanResult(
       reasonCode: "scan_request_mismatch",
       securityNote: "No new attendance change was recorded.",
     });
+  }
+  if (row && process.env.CRADLEHUB_ATTENDANCE_V2_ENABLED === "true") {
+    const device = await resolveDevice(admin, rawDeviceCredential);
+    const staff = first(device?.staff);
+    if (
+      !device ||
+      device.id !== row.device_id ||
+      device.status !== "active" ||
+      deviceIsSecurityBlocked(device) ||
+      !staff?.is_active ||
+      staff.archived_at ||
+      staff.merged_into_staff_id
+    ) {
+      return blocked(
+        "Scan again",
+        "This scan request is not available on this phone. Please scan again.",
+        {
+          reasonCode: "scan_request_mismatch",
+        }
+      );
+    }
   }
   if (isPublicScanResult(row?.operation_result))
     return withOperationId(row.operation_result, requestId);
@@ -2512,6 +2537,7 @@ async function processAttendanceScan(
 ): Promise<PublicScanResult> {
   const commit = options.commit ?? commitAttendanceScanTransaction;
   const settings = await getAttendanceSettings(point.branch_id);
+  const attendanceV2 = await attendanceV2Enabled(admin);
   const isTest = settings.test_mode_enabled;
   const testMetadata = testModeMetadata(settings);
   const staff = first(device.staff);
@@ -2634,6 +2660,7 @@ async function processAttendanceScan(
     Boolean(activeCheckin) && openCheckinClassification.matchingCheckin?.id === activeCheckin?.id;
 
   const inferredScanIntent = resolveAttendanceScanIntent({
+    attendanceV2,
     scanIso: nowIso,
     scanDate: branchNow.localDate,
     scanTime: branchNow.time,
@@ -2645,6 +2672,7 @@ async function processAttendanceScan(
   const scanIntent =
     activeCheckin && !activeCheckinMatchesSchedule
       ? resolveAttendanceScanIntent({
+          attendanceV2,
           scanIso: nowIso,
           scanDate: branchNow.localDate,
           scanTime: branchNow.time,
@@ -2667,6 +2695,7 @@ async function processAttendanceScan(
     branchTimezone: branchNow.timezone,
   });
   const canOpenNewShift = mayOpenScheduledAttendance({
+    attendanceV2,
     scanIso: nowIso,
     schedule: scanIntent.schedule,
     resolvedSchedule: schedule.resolvedSchedule,
@@ -2711,6 +2740,7 @@ async function processAttendanceScan(
 
   if (activeCheckin) {
     const nowIso = new Date().toISOString();
+    const priorCredit = readAttendanceCredit(activeCheckin.attendance_policy_snapshot);
     const dynamicPolicy = await recalculateAttendanceClockOutPolicy(
       admin,
       activeCheckin.id,
@@ -2720,7 +2750,10 @@ async function processAttendanceScan(
     activeCheckin.earliest_normal_clock_out_at = dynamicPolicy.earliestNormalClockOutAt;
     activeCheckin.latest_normal_clock_out_at = dynamicPolicy.latestNormalClockOutAt;
     activeCheckin.attendance_policy_source = dynamicPolicy.source;
-    activeCheckin.attendance_policy_snapshot = dynamicPolicy.snapshot;
+    activeCheckin.attendance_policy_snapshot = {
+      ...dynamicPolicy.snapshot,
+      ...(priorCredit ? { v2: priorCredit } : {}),
+    };
 
     // After midnight, an open same-business-day shift must clock OUT.
     // Only a genuinely stale prior shift may enter atomic stale recovery.
@@ -2893,6 +2926,7 @@ async function processAttendanceScan(
 
     const metrics = computeAttendanceMetrics({
       checkedInAt: activeCheckin.checked_in_at,
+      credit: readAttendanceCredit(activeCheckin.attendance_policy_snapshot) ?? undefined,
       checkedOutAt: nowIso,
       scheduledStartAt: activeCheckin.scheduled_start_at ?? null,
       scheduledEndAt: activeCheckin.scheduled_end_at ?? null,
@@ -3240,6 +3274,35 @@ async function processAttendanceScan(
   }
 
   if (existingForShift.data?.status === "checked_out") {
+    if (attendanceV2) {
+      const result = success(
+        "Shift already completed",
+        "This scan was retained. Your completed shift was not changed.",
+        {
+          outcome: "noop",
+          reasonCode: "already_checked_out",
+        }
+      );
+      return (
+        await commit(admin, {
+          event: {
+            branchId: point.branch_id,
+            qrPointId: point.id,
+            staffId: device.staff_id,
+            deviceId: device.id,
+            scanType: "attendance",
+            action: "duplicate_scan",
+            outcome: "noop",
+            reasonCode: "already_checked_out",
+            requestId: ctx.requestId,
+            metadata: { shiftInstance, schedule: attendanceSchedule },
+            isTest,
+          },
+          result,
+          deviceScanType: "attendance",
+        })
+      ).result;
+    }
     const result = captured(
       "Scan captured",
       "This shift is already closed. The new scan was preserved for manager review.",
@@ -3286,7 +3349,9 @@ async function processAttendanceScan(
   });
 
   const needsClockInRecovery =
-    scanIntent.requiresRecovery || scanIntent.type !== "clock_in" || metrics.lateMinutes > 0;
+    scanIntent.requiresRecovery ||
+    (scanIntent.type !== "clock_in" && !(attendanceV2 && scanIntent.type === "early_clock_in")) ||
+    metrics.lateMinutes > 0;
   const greeting = buildAttendanceGreeting({
     staffId: device.staff_id,
     nickname: staffNickname,
@@ -3297,21 +3362,40 @@ async function processAttendanceScan(
     requestId: ctx.requestId,
     businessDate: branchNow.businessDate,
   });
-  const result = success(greeting.title, greeting.message, {
-    reasonCode: scanIntent.reasonCode,
-    severity: needsClockInRecovery ? "warning" : "success",
-    reviewLabel: attendanceReviewLabel(scanIntent.reasonCode, needsClockInRecovery),
-    securityNote: "This device is recognized and ready for future scans.",
-    attendance: {
-      action: "clock_in",
-      staffName,
-      branchName,
-      branchTimezone: settings.timezone,
-      shiftLabel: attendanceSchedule.shiftType,
-      occurredAt: nowIso,
-      sessionStartedAt: nowIso,
-    },
-  });
+  const earlyArrival = attendanceV2 && scanIntent.type === "early_clock_in";
+  const shiftStartLabel = attendanceSchedule.scheduledStartAt
+    ? new Intl.DateTimeFormat("en-US", {
+        timeZone: settings.timezone,
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date(attendanceSchedule.scheduledStartAt))
+    : "your scheduled time";
+  const result = success(
+    earlyArrival ? "Early arrival recorded" : greeting.title,
+    earlyArrival
+      ? `Your shift starts at ${shiftStartLabel}. Working time starts then.`
+      : greeting.message,
+    {
+      reasonCode: scanIntent.reasonCode,
+      severity: needsClockInRecovery ? "warning" : "success",
+      reviewLabel: attendanceReviewLabel(scanIntent.reasonCode, needsClockInRecovery),
+      securityNote: "This device is recognized and ready for future scans.",
+      attendance: {
+        action: "clock_in",
+        staffName,
+        branchName,
+        branchTimezone: settings.timezone,
+        shiftLabel: attendanceSchedule.shiftType,
+        occurredAt: nowIso,
+        sessionStartedAt: nowIso,
+        creditedStartAt: attendanceV2
+          ? new Date(
+              Math.max(Date.parse(nowIso), Date.parse(attendanceSchedule.scheduledStartAt!))
+            ).toISOString()
+          : undefined,
+      },
+    }
+  );
 
   const exceptionMessage =
     scanIntent.type === "off_day_exception"
@@ -3342,6 +3426,7 @@ async function processAttendanceScan(
       ipAddress: ctx.ipAddress,
       metadata: {
         intent: scanIntent.type,
+        attendanceV2,
         schedule: attendanceSchedule,
         shiftInstance,
         lateMinutes: metrics.lateMinutes,
@@ -4330,7 +4415,12 @@ export async function processQrScan(
     });
     if (failure) return withOperationId(blockedGeofenceResult(failure), operationId);
   }
-  const replayed = await loadCommittedScanResult(admin, operationId, pointForGeofence?.id ?? null);
+  const replayed = await loadCommittedScanResult(
+    admin,
+    operationId,
+    pointForGeofence?.id ?? null,
+    scanCtx.rawDeviceCredential
+  );
   if (replayed) {
     if (!pointForGeofence?.is_active) {
       return withOperationId(

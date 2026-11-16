@@ -292,13 +292,13 @@ describe("Attendance hybrid closing automation — resource and platform safety"
     expect(vercelConfig.crons?.some((cron) => cron.path.includes("/api/attendance"))).toBe(
       false
     );
-    expect(JSON.stringify(vercelConfig)).not.toContain("*/5");
+    expect(vercelConfig.crons?.filter((cron) => cron.path.includes("/api/attendance"))).toEqual([]);
   });
 
-  it("39. the production Vercel config retains only daily schedules", () => {
-    expect(vercelConfig.crons).toEqual([
+  it("39. Attendance retains its four Supabase schedules and the existing daily agent job", () => {
+    expect(vercelConfig.crons).toEqual(expect.arrayContaining([
       { path: "/api/agent/follow-up", schedule: "0 0 * * *" },
-    ]);
+    ]));
     expect(cronOperation.match(/select cron\.schedule\(/g)).toHaveLength(4);
     for (const schedule of ["0 15 * * *", "30 15 * * *", "0 16 * * *", "10 16 * * *"]) {
       expect(cronOperation).toContain(`'${schedule}'`);

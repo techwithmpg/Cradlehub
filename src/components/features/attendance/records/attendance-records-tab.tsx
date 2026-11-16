@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AttendanceCreditDetails } from "@/components/features/attendance/shared/attendance-credit-details";
+import { attendanceClockOutLabel } from "@/lib/attendance/v2-policy";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -185,7 +187,7 @@ function RecordCard({
           <div className="font-bold text-foreground">
             {formatAttendanceDateTime(record.checked_in_at)}
             <span className="mx-1 text-muted-foreground">–</span>
-            {formatAttendanceDateTime(record.checked_out_at)}
+            {attendanceClockOutLabel(record, formatAttendanceDateTime)}
           </div>
           <div className="mt-0.5 text-muted-foreground">Clock in / out</div>
         </div>
@@ -303,7 +305,7 @@ function AttendanceTimeline({ record }: { record: AttendanceRecord }) {
           </div>
           <div className="mt-2 text-xs font-semibold text-muted-foreground">Clock Out</div>
           <div className="mt-1 text-sm font-bold">
-            {formatAttendanceDateTime(record.checked_out_at)}
+            {attendanceClockOutLabel(record, formatAttendanceDateTime)}
           </div>
         </div>
       </div>
@@ -395,8 +397,15 @@ function SelectedRecordPanel({
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
+        <AttendanceCreditDetails
+          snapshot={record.attendance_policy_snapshot}
+          timezone="Asia/Manila"
+        />
         <DetailTile label="Clock In" value={formatAttendanceDateTime(record.checked_in_at)} />
-        <DetailTile label="Clock Out" value={formatAttendanceDateTime(record.checked_out_at)} />
+        <DetailTile
+          label="Clock Out"
+          value={attendanceClockOutLabel(record, formatAttendanceDateTime)}
+        />
         <DetailTile label="Worked" value={formatMinutesCompact(record.worked_minutes)} />
         <DetailTile
           label="Late"

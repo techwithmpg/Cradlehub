@@ -1,5 +1,12 @@
 # Decision Log
 
+## Attendance V2 — 2026-11-16
+
+| ID | Date | Status | Decision | Rationale, impact and supersession |
+| --- | --- | --- | --- | --- |
+| ATT-V2-001 | 2026-11-16 | ACTIVE / OWNER APPROVED / ISOLATED REVIEW | Authorize Web Attendance V2 repository implementation and classified LOCAL/TEST verification on `stage/web-attendance-v2-automation-20261116` from fetched main `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`. | Reuse the canonical attendance transaction, schedule/dynamic-duty policy, notifications and correction audit. Preserve historical migrations/data, device limits, module structure and unrelated active work. Supersedes older attendance slice limits only for this V2 review candidate; production SQL/data, RLS/Auth changes, scheduler activation, deployment and merge remain unauthorized. Independent review and owner release gate remain binding. |
+| ATT-V2-002 | 2026-11-16 | ACTIVE / OWNER APPROVED | Accept one legitimate scan within 120 minutes before shift start, record actual arrival, and begin credited working time at scheduled start without a second scan. | Latest owner correction supersedes the earlier second-scan confirmation proposal. Arrival is evidence of the scan, not proof of continuous presence. Preserve actual departure and duty evidence; cap credit at justified bounds and keep uncertain/provisional credit out of approved payable totals. See [contract](reports/ATTENDANCE-V2-AUDIT-AND-CONTRACT-2026-11-16.md). |
+
 ## P1 Notification Reliability — pending booking confirmations — 2026-11-09
 
 | ID | Date | Status | Decision | Limits |

@@ -11,6 +11,7 @@ import {
 import { timeToMinutes } from "@/lib/utils/time-format";
 import type { AttendanceSettings } from "@/lib/attendance/types";
 import { EARLIEST_CLOCK_IN_MINUTES } from "@/lib/attendance/clock-in-authority";
+import { EARLY_ARRIVAL_LIMIT_MINUTES } from "@/lib/attendance/v2-policy";
 
 const DAY_MINUTES = 24 * 60;
 
@@ -65,6 +66,7 @@ export type ActiveAttendanceIntentCheckin = {
 };
 
 export type ResolveAttendanceScanIntentInput = {
+  attendanceV2?: boolean;
   scanIso: string;
   scanDate: string;
   scanTime: string;
@@ -263,6 +265,7 @@ function isInClockOutWindow(params: {
 }
 
 function isInClockInWindow(params: {
+  attendanceV2?: boolean;
   scanTime: string;
   settings: AttendanceSettings;
   window: ResolvedStaffScheduleWindow;
@@ -272,7 +275,7 @@ function isInClockInWindow(params: {
   return inWindowMinutes({
     scanTime: params.scanTime,
     window: params.window,
-    start: start - EARLIEST_CLOCK_IN_MINUTES,
+    start: start - (params.attendanceV2 ? EARLY_ARRIVAL_LIMIT_MINUTES : EARLIEST_CLOCK_IN_MINUTES),
     end: start + params.settings.clock_in_window_after_shift_start_minutes,
   });
 }
@@ -302,6 +305,7 @@ function scheduleSelectionFromWindow(params: {
   const effectiveWindow = getOpenCloseAttendanceWindow(params.schedule) ?? params.window;
   const scanMinutes = timeToMinutes(params.scanTime);
   const startMinutes = timeToMinutes(effectiveWindow.startTime);
+  const endMinutes = timeToMinutes(effectiveWindow.endTime);
   const openCloseClosing =
     params.schedule.coverageKind === "open_close"
       ? params.schedule.windows.find((window) => window.shiftType === "closing")
@@ -316,7 +320,8 @@ function scheduleSelectionFromWindow(params: {
     startMinutes !== null &&
     (openCloseClosing
       ? openCloseEndMinutes !== null && scanMinutes <= openCloseEndMinutes
-      : scanMinutes < startMinutes)
+      : (endMinutes !== null && scanMinutes <= endMinutes) ||
+        scanMinutes < startMinutes - EARLY_ARRIVAL_LIMIT_MINUTES)
       ? addDaysToYmd(params.scanDate, -1)
       : params.scanDate;
 
@@ -568,6 +573,7 @@ export function resolveAttendanceScanIntent(
 
   const clockInWindow = attendanceWindows.find((window) =>
     isInClockInWindow({
+      attendanceV2: input.attendanceV2,
       scanTime: input.scanTime,
       settings: input.settings,
       window,
