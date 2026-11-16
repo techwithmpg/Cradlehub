@@ -303,6 +303,15 @@ begin
         v_end:=greatest(v_end,v_cash_end);
         v_active:=v_active or v_cash_active;
       end if;
+      -- A successful retry resolves only this processor's unreviewed transient
+      -- issue. Preserve its original evidence and any explicit human review.
+      update public.attendance_exceptions set status='resolved',resolution_status='resolved',
+        resolved_at=p_processed_at,resolution_action='accept_recorded_attendance',
+        resolution_note='Work evidence revalidated by an automatic Attendance V2 retry.',
+        metadata=metadata||jsonb_build_object('automaticResolution','work_evidence_revalidated','resolvedAt',p_processed_at)
+      where checkin_id=c.id and dedupe_key='attendance-v2-processing:'||c.id::text
+        and status='open' and reviewed_by is null;
+      update attendance_v2_private.work set failures=0 where checkin_id=c.id;
       -- Use actual lifecycle completion, never an estimated due timestamp as proof.
       v_source := nullif(snapshot->>'sourceBookingId','')::uuid;
       v_verified_end := null;

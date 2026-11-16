@@ -650,6 +650,24 @@ try {
     assert.equal(delivery.attempts, 1);
     assert.equal(delivery.attempt_log.length, 1);
   });
+  await test("successful retry resolves a routine issue without deleting its evidence", async () => {
+    const retryBranch = randomUUID();
+    await db.query("insert into branches(id) values($1)", [retryBranch]);
+    await db.query("insert into attendance_settings(branch_id) values($1)", [retryBranch]);
+    const person = await staff("crm", "csr");
+    await db.query("update staff set branch_id=$2 where id=$1", [person, retryBranch]);
+    const s = await scan(person, { atBranch: retryBranch });
+    await db.query("alter table cash_session_handovers rename to held_test_cash_handovers");
+    try { await processAt("2026-11-16T12:05Z"); }
+    finally { await db.query("alter table held_test_cash_handovers rename to cash_session_handovers"); }
+    const before = (await db.query("select * from attendance_exceptions where dedupe_key=$1", [`attendance-v2-processing:${s.checkin_id}`])).rows[0];
+    assert.equal(before.status, "open");
+    await processAt("2026-11-16T12:10Z");
+    const after = (await db.query("select * from attendance_exceptions where id=$1", [before.id])).rows[0];
+    assert.equal(after.status, "resolved");
+    assert.equal(after.metadata.reasonCode, before.metadata.reasonCode);
+    assert.equal(after.metadata.automaticResolution, "work_evidence_revalidated");
+  });
   process.stdout.write(
     `LOCAL TEST ${database}: ${passed} integration scenarios passed; max bounded batch ${Math.max(...batchDurations).toFixed(2)} ms. Exact policy/scan/lifecycle SQL on PostgreSQL 17.11; synthetic schema, no Supabase/PostgREST parity claim.\n`
   );

@@ -176,6 +176,11 @@ describe("V2 single-scan arrival and credited working time", () => {
 });
 
 describe("V2 due intervals and states", () => {
+  it("does not label verified active work as clock-out overdue", () => {
+    expect(attendanceV2Status({ checkedInAt: start, checkedOutAt: null, scheduledStartAt: start,
+      scheduledEndAt: end, snapshot: { v2: { ...credit, activeWork: true } }, now: "2026-11-16T12:10Z",
+    })).toBe("Authorized extension");
+  });
   it("first reminder is five minutes after the deadline", () => {
     expect(dueClockOutReminder(end, "2026-11-16T12:04:59Z")).toBeNull();
     expect(dueClockOutReminder(end, "2026-11-16T12:05Z")).toMatchObject({
