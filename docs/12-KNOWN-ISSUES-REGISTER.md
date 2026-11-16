@@ -1,5 +1,10 @@
 # Known Issues Register
 
+## Driver native integration investigation
+
+- **DRIVER-NAV-R1 / OPEN:** Native guidance opens outside the portal's shared chrome, and the current booking-derived driver projection lacks an explicit later therapist-collection leg. Native arrival, CRM location writer, camera and push registration gaps remain in the reviewed source. See [review](reports/DRIVER-PORTAL-NATIVE-NAVIGATION-REVIEW-2026-11-16.md) for exact evidence and proposed stages.
+- **DRIVER-NAV-R2 / OPEN:** Existing driver suite has one stale Start Travel test expecting external/window navigation; 114 other tests pass. No physical Android device or connected TEST backend was exercised; a simulated concept is not native release acceptance.
+
 ## Attendance V2 release gates — 2026-11-16
 
 - **ATT-V2-R1 / OPEN:** Native PostgreSQL LOCAL TEST with synthetic schema does not establish installed Supabase functions, grants, notification recipient policies, Auth, PostgREST, Vault or pg_net parity. Verify exact prerequisites without replaying historical local-only migrations.

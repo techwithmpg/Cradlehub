@@ -1,5 +1,11 @@
 # Decision Log
 
+## Driver portal / native navigation investigation — 2026-11-16
+
+| ID | Date | Status | Decision | Limits |
+| --- | --- | --- | --- | --- |
+| DRIVER-NAV-001 | 2026-11-16 | OWNER REQUESTED / INVESTIGATION | Fetch and inspect remote driver work, existing portal/native integration and propose the next implementation. Owner confirms outbound therapist drop-off followed by a later collection journey. | Isolated investigation and disconnected prototype only. Preserve existing native work, local main and Attendance policy. No production access/mutation, database implementation, APK installation/distribution, push, merge or deployment. See [review](reports/DRIVER-PORTAL-NATIVE-NAVIGATION-REVIEW-2026-11-16.md). |
+
 ## Attendance V2 — 2026-11-16
 
 | ID | Date | Status | Decision | Rationale, impact and supersession |

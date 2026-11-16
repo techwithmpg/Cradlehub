@@ -1,5 +1,13 @@
 # Project Status
 
+## Driver portal and native navigation — investigation
+
+- Owner requested remote/source inspection and an integrated-shell proposal on `stage/driver-portal-navigation-review-20261116` from local main `51ba2005`.
+- Owner clarified: drop therapist off, leave, then return to collect. Current source has a separate native activity and no explicit collection leg in the reviewed projection/API.
+- Remote refs fetched; core native foundation is already local. Local USB debug work remains separate and unmerged.
+- Disconnected current-component preview and two-journey concept verified; existing driver tests 114 pass/1 stale routing mock fails. No application/Android/database source changed. Physical device/backend acceptance unverified.
+- Read [findings and staged proposal](reports/DRIVER-PORTAL-NATIVE-NAVIGATION-REVIEW-2026-11-16.md). No production operation, push, merge or deployment.
+
 ## Attendance V2 Web review candidate — 2026-11-16
 
 - Owner-authorized isolated branch `stage/web-attendance-v2-automation-20261116` from fetched main `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`; unrelated worktrees preserved.
