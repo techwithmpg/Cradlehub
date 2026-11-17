@@ -14,12 +14,13 @@ export const metadata: Metadata = { title: "Home Service Operations — CRM" };
 export default async function CrmDispatchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; bookingId?: string }>;
+  searchParams: Promise<{ tab?: string; bookingId?: string; view?: string }>;
 }) {
   const { role, branchId, branchName } = await getFrontDeskContext();
   const today = getBranchBusinessDate();
   const params = await searchParams;
   let upcoming = params.tab === "upcoming";
+  const initialView = params.view === "map" ? ("map" as const) : undefined;
   let selectedBookingId: string | undefined;
   if (params.bookingId) {
     const { createClient } = await import("@/lib/supabase/server");
@@ -66,6 +67,7 @@ export default async function CrmDispatchPage({
           showHeader={false}
           upcoming={upcoming}
           selectedBookingId={selectedBookingId}
+          {...(initialView ? { initialView } : {})}
         />
       </CrmOperationalPageShell>
     </RetainedWorkspaceModule>

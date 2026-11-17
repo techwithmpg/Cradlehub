@@ -170,3 +170,87 @@ export async function calculateDrivingDistanceKm(
     return null;
   }
 }
+
+export interface ComputedRouteResult {
+  durationMinutes: number;
+  distanceMeters: number;
+  encodedPolyline: string;
+}
+
+/**
+ * Computes a road route with encoded polyline, travel duration, and distance via
+ * Google Routes API v2, optionally routing across multiple ordered stops.
+ */
+export async function computeDrivingRouteWithPolyline(input: {
+  originLat: number;
+  originLng: number;
+  destinationLat: number;
+  destinationLng: number;
+  intermediates?: Array<{ lat: number; lng: number }>;
+}): Promise<ComputedRouteResult | null> {
+  const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY;
+  if (!apiKey) return null;
+
+  const toWaypoint = (lat: number, lng: number) => ({
+    location: { latLng: { latitude: lat, longitude: lng } },
+  });
+
+  try {
+    const res = await fetch(
+      "https://routes.googleapis.com/directions/v2:computeRoutes",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": "routes.polyline.encodedPolyline,routes.duration,routes.distanceMeters",
+        },
+        body: JSON.stringify({
+          origin: toWaypoint(input.originLat, input.originLng),
+          destination: toWaypoint(input.destinationLat, input.destinationLng),
+          ...(input.intermediates && input.intermediates.length > 0
+            ? {
+                intermediates: input.intermediates
+                  .slice(0, 8)
+                  .map((point) => toWaypoint(point.lat, point.lng)),
+              }
+            : {}),
+          travelMode: "DRIVE",
+          routingPreference: "TRAFFIC_AWARE",
+          polylineQuality: "OVERVIEW",
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as {
+      routes?: {
+        polyline?: { encodedPolyline?: string };
+        duration?: string;
+        distanceMeters?: number;
+      }[];
+    };
+
+    const route = data.routes?.[0];
+    const encodedPolyline = route?.polyline?.encodedPolyline;
+    const durationStr = route?.duration;
+    const distanceMeters = route?.distanceMeters;
+    if (!encodedPolyline || !durationStr) return null;
+
+    const seconds = Number.parseInt(durationStr.replace(/s$/i, ""), 10);
+    if (!Number.isFinite(seconds) || seconds < 0) return null;
+
+    return {
+      durationMinutes: Math.max(1, Math.ceil(seconds / 60)),
+      distanceMeters:
+        typeof distanceMeters === "number" && Number.isFinite(distanceMeters) && distanceMeters >= 0
+          ? distanceMeters
+          : 0,
+      encodedPolyline,
+    };
+  } catch {
+    return null;
+  }
+}

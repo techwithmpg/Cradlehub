@@ -2,25 +2,27 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle,
-  Car,
-  CheckCircle2,
-  Clock,
+  Bell,
   ExternalLink,
   MapPin,
-  Navigation,
-  RefreshCw,
-  Search,
+  Radio,
+  WifiOff,
+  X,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { formatTime12h } from "@/lib/utils/time-format";
-import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
+import type { DispatchData } from "@/lib/queries/dispatch-queries";
+import { isOpenHomeServiceBooking } from "@/lib/home-service/active-map";
+import type { DriverTrack } from "@/lib/dispatch/crm-live-map-model";
 import {
-  eligibleCustomerDestinations,
-  hasCustomerGps,
-  isOpenHomeServiceBooking,
-} from "@/lib/home-service/active-map";
+  decodeEncodedPolyline,
+  formatDurationMinutes,
+  isValidGeoPoint,
+} from "@/lib/dispatch/route-eta";
+import type { LiveMapTripItem, TripFilterKey } from "@/lib/dispatch/trip-presentation";
+import { ContextualJourneyPanel } from "./contextual-journey-panel";
+import { FloatingTripRail } from "./floating-trip-rail";
+import { LiveMapFilterBar } from "./live-map-filter-bar";
+import { TRIP_STAGE_STYLES } from "./trip-stage-styles";
+import { useLiveCrmMapSync } from "./use-live-crm-map-sync";
 
 type LatLngLiteral = {
   lat: number;
@@ -57,10 +59,26 @@ type GoogleMarkerOptions = {
   title: string;
   label?: string;
   icon?: string;
+  zIndex?: number;
+  opacity?: number;
 };
 
 type GoogleInfoWindowInstance = {
   open: (options: { map: GoogleMapInstance; anchor: GoogleMarkerInstance }) => void;
+};
+
+type GooglePolylineInstance = {
+  setMap: (map: GoogleMapInstance | null) => void;
+};
+
+type GooglePolylineOptions = {
+  map: GoogleMapInstance;
+  path: LatLngLiteral[];
+  geodesic?: boolean;
+  strokeColor?: string;
+  strokeOpacity?: number;
+  strokeWeight?: number;
+  zIndex?: number;
 };
 
 type GoogleMapsNamespace = {
@@ -68,6 +86,7 @@ type GoogleMapsNamespace = {
   Marker: new (options: GoogleMarkerOptions) => GoogleMarkerInstance;
   InfoWindow: new (options: { content: string }) => GoogleInfoWindowInstance;
   LatLngBounds: new () => GoogleLatLngBounds;
+  Polyline?: new (options: GooglePolylineOptions) => GooglePolylineInstance;
 };
 
 declare global {
@@ -77,71 +96,6 @@ declare global {
     };
     __cradleGoogleMapsPromise?: Promise<void>;
   }
-}
-
-type CustomerMarker = {
-  booking: RealDispatchItem;
-  position: LatLngLiteral;
-  label: string;
-};
-
-type StaffMarker = {
-  booking: RealDispatchItem;
-  position: LatLngLiteral;
-  label: string;
-};
-
-const DRIVER_GPS_FRESH_MS = 2 * 60 * 1000;
-
-function hasStaffGps(item: RealDispatchItem, now = Date.now()): boolean {
-  const recorded = item.currentLocation?.recorded_at;
-  if (!recorded) return false;
-  const timestamp = Date.parse(recorded);
-  return Number.isFinite(timestamp) && timestamp <= now &&
-    now - timestamp <= DRIVER_GPS_FRESH_MS;
-}
-
-function staffGpsLabel(item: RealDispatchItem): string {
-  if (hasStaffGps(item)) return "Driver GPS updated recently";
-  const recorded = item.currentLocation?.recorded_at;
-  if (!recorded) return "Driver GPS not yet shared";
-  const timestamp = Date.parse(recorded);
-  if (!Number.isFinite(timestamp)) return "Driver GPS time unavailable";
-  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
-  return `Last driver GPS ${minutes} min ago (not live)`;
-}
-
-function locationLabel(item: RealDispatchItem): string {
-  return item.area ?? item.formattedAddress ?? "Customer GPS saved";
-}
-
-function statusLabel(item: RealDispatchItem): string {
-  if (!hasCustomerGps(item)) return "GPS Missing";
-  if (!item.driverId) return "Needs Driver";
-  if (item.dispatchStatus === "scheduled") return "Scheduled";
-  if (item.dispatchStatus === "released_to_driver") return "Released";
-  if (item.dispatchStatus === "in_route") return "En Route";
-  if (item.dispatchStatus === "arrived_at_customer") return "Arrived";
-  if (item.dispatchStatus === "service_started") return "In Service";
-  return "Ready";
-}
-
-function statusClass(item: RealDispatchItem): string {
-  if (!hasCustomerGps(item)) return "border-red-300 bg-red-50 text-red-700";
-  if (!item.driverId) return "border-amber-300 bg-amber-50 text-amber-700";
-  if (item.dispatchStatus === "scheduled") return "border-blue-300 bg-blue-50 text-blue-700";
-  if (item.dispatchStatus === "released_to_driver") {
-    return "border-purple-300 bg-purple-50 text-purple-700";
-  }
-  if (["in_route", "arrived_at_customer", "service_started"].includes(item.dispatchStatus)) {
-    return "border-emerald-300 bg-emerald-50 text-emerald-700";
-  }
-  return "border-green-300 bg-green-50 text-green-700";
-}
-
-function formatCoord(value: number | null): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  return value.toFixed(5);
 }
 
 function escapeHtml(value: string): string {
@@ -185,375 +139,446 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   return window.__cradleGoogleMapsPromise;
 }
 
-function buildRouteUrl(item: RealDispatchItem): string {
-  if (!hasCustomerGps(item) || item.lat === null || item.lng === null) {
-    return "https://www.google.com/maps";
+function driverInitials(name: string): string {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "D";
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
+}
+
+function driverMarkerIcon(state: DriverTrack["reliability"]["state"]): string {
+  if (state === "live") return "https://maps.google.com/mapfiles/ms/icons/blue-dot.png";
+  if (state === "delayed" || state === "poor_accuracy") {
+    return "https://maps.google.com/mapfiles/ms/icons/yellow-dot.png";
   }
-
-  return `https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}&travelmode=driving`;
+  return "https://maps.google.com/mapfiles/ms/icons/orange-dot.png";
 }
 
-function BookingSummaryCard({
-  item,
-  selected,
-  onSelect,
-}: {
-  item: RealDispatchItem;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  const gpsReady = hasCustomerGps(item);
-  const staffGpsReady = hasStaffGps(item);
-
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:border-[#155A33] hover:shadow-md ${selected
-        ? "border-[#155A33] bg-green-50"
-        : "border-[var(--cs-border)] bg-[var(--cs-surface)]"
-        }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-mono text-xs text-[var(--cs-text-muted)]">{item.number}</p>
-          <h3 className="mt-1 truncate text-base font-bold text-[var(--cs-text)]">
-            {item.customerName}
-          </h3>
-          <p className="mt-0.5 truncate text-sm text-[var(--cs-text-secondary)]">
-            {item.serviceName}
-          </p>
-        </div>
-
-        <Badge variant="outline" className={`shrink-0 text-[0.68rem] ${statusClass(item)}`}>
-          {statusLabel(item)}
-        </Badge>
-      </div>
-
-      <div className="mt-3 space-y-1.5 text-xs text-[var(--cs-text-secondary)]">
-        <div className="flex items-center gap-1.5">
-          <Clock size={13} />
-          <span>
-            {formatTime12h(item.startTime)}
-            {item.endTime ? ` – ${formatTime12h(item.endTime)}` : ""}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <MapPin size={13} />
-          <span className="truncate">{locationLabel(item)}</span>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {gpsReady ? (
-            <CheckCircle2 size={13} className="text-green-600" />
-          ) : (
-            <AlertCircle size={13} className="text-red-600" />
-          )}
-          <span>{gpsReady ? "Customer GPS ready" : "Customer GPS missing"}</span>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {staffGpsReady ? <CheckCircle2 size={13} className="text-blue-600" /> : <Car size={13} />}
-          <span>{staffGpsLabel(item)}</span>
-        </div>
-      </div>
-    </button>
-  );
+function destinationMarkerIcon(trip: LiveMapTripItem): string {
+  if (trip.stageKey === "in_service") {
+    return "https://maps.google.com/mapfiles/ms/icons/green-dot.png";
+  }
+  if (trip.stageKey === "collection" || trip.stageKey === "returning") {
+    return "https://maps.google.com/mapfiles/ms/icons/orange-dot.png";
+  }
+  if (trip.stageKey === "arrived") {
+    return "https://maps.google.com/mapfiles/ms/icons/purple-dot.png";
+  }
+  return "https://maps.google.com/mapfiles/ms/icons/red-dot.png";
 }
 
-function MapCanvas({
-  bookings,
-  businessDate,
-  selectedId,
-  onSelect,
+function SharedGoogleMapLayer({
+  allTrips,
+  filteredTrips,
+  drivers,
+  routesByDriver,
+  selectedTrip,
+  hasActiveFilter,
+  onSelectTrip,
 }: {
-  bookings: RealDispatchItem[];
-  businessDate: string;
-  selectedId: string | null;
-  onSelect: (bookingId: string) => void;
+  allTrips: LiveMapTripItem[];
+  filteredTrips: LiveMapTripItem[];
+  drivers: DriverTrack[];
+  routesByDriver: ReadonlyMap<string, { encodedPolyline: string | null }>;
+  selectedTrip: LiveMapTripItem | null;
+  hasActiveFilter: boolean;
+  onSelectTrip: (bookingId: string) => void;
 }) {
-  const mapRef = useRef<HTMLDivElement | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<GoogleMapInstance | null>(null);
   const markerRefs = useRef<GoogleMarkerInstance[]>([]);
+  const polylineRefs = useRef<GooglePolylineInstance[]>([]);
+  const initialFitDoneRef = useRef(false);
+  const lastFittedBookingRef = useRef<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const [mapLoadError, setMapLoadError] = useState<string | null>(null);
+
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? "";
   const mapError = apiKey ? mapLoadError : "NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY is missing.";
 
-  const customerMarkers: CustomerMarker[] = useMemo(
-    () =>
-      eligibleCustomerDestinations(bookings, businessDate).map((booking, index) => ({
-        booking,
-        position: {
-          lat: booking.lat as number,
-          lng: booking.lng as number,
-        },
-        label: String(index + 1),
-      })),
-    [bookings, businessDate]
+  const filteredIds = useMemo(
+    () => new Set(filteredTrips.map((t) => t.bookingId)),
+    [filteredTrips]
   );
 
-  const staffMarkers: StaffMarker[] = useMemo(
-    () =>
-      bookings
-        .filter((booking) => hasStaffGps(booking))
-        .map((booking, index) => ({
-          booking,
-          position: {
-            lat: booking.currentLocation?.lat as number,
-            lng: booking.currentLocation?.lng as number,
-          },
-          label: String(index + 1),
-        })),
-    [bookings]
-  );
-
+  // Mount the single Google Map instance once — never remount when trips or filters change
   useEffect(() => {
-    if (!apiKey) return;
-
-    if (!mapRef.current) return;
-
+    if (!apiKey || !mapContainerRef.current) return;
     let cancelled = false;
 
-    async function renderMap() {
+    async function initMap() {
       try {
         await loadGoogleMaps(apiKey);
-
-        if (cancelled || !mapRef.current || !window.google?.maps) return;
-
+        if (cancelled || !mapContainerRef.current || !window.google?.maps) return;
         const maps = window.google.maps;
-        const defaultCenter = customerMarkers[0]?.position ?? {
-          lat: 10.6765,
-          lng: 122.9509,
-        };
 
-        const map = new maps.Map(mapRef.current, {
-          center: defaultCenter,
-          zoom: customerMarkers.length > 0 ? 13 : 12,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: true,
-          clickableIcons: true,
-        });
+        if (!mapInstanceRef.current) {
+          const firstDest = allTrips.find((t) => t.hasCustomerGps && t.lat !== null && t.lng !== null);
+          const firstDriver = drivers.find((d) => d.location);
+          const defaultCenter: LatLngLiteral = firstDest
+            ? { lat: firstDest.lat as number, lng: firstDest.lng as number }
+            : firstDriver?.location
+              ? { lat: firstDriver.location.lat, lng: firstDriver.location.lng }
+              : { lat: 10.6765, lng: 122.9509 };
 
-        markerRefs.current.forEach((marker) => marker.setMap(null));
-        markerRefs.current = [];
-
-        const bounds = new maps.LatLngBounds();
-
-        customerMarkers.forEach((marker) => {
-          bounds.extend(marker.position);
-
-          const markerInstance = new maps.Marker({
-            map,
-            position: marker.position,
-            title: marker.booking.customerName,
-            label: marker.label,
-            icon: "https://maps.google.com/mapfiles/ms/icons/red-dot.png",
+          mapInstanceRef.current = new maps.Map(mapContainerRef.current, {
+            center: defaultCenter,
+            zoom: 13,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true,
+            clickableIcons: true,
           });
-
-          const infoWindow = new maps.InfoWindow({
-            content: `
-              <div style="min-width: 220px; font-family: system-ui, sans-serif;">
-                <div style="font-size: 12px; color: #6b5b4b;">${escapeHtml(marker.booking.number)}</div>
-                <div style="font-weight: 700; font-size: 15px; margin-top: 2px;">${escapeHtml(marker.booking.customerName)}</div>
-                <div style="font-size: 13px; color: #5f5146; margin-top: 4px;">${escapeHtml(marker.booking.serviceName)} · ${escapeHtml(formatTime12h(marker.booking.startTime))}</div>
-                <div style="font-size: 12px; color: #6b5b4b; margin-top: 8px;">${escapeHtml(locationLabel(marker.booking))}</div>
-              </div>
-            `,
-          });
-
-          markerInstance.addListener("click", () => {
-            onSelect(marker.booking.id);
-            infoWindow.open({ map, anchor: markerInstance });
-          });
-
-          markerRefs.current.push(markerInstance);
-        });
-
-        staffMarkers.forEach((marker) => {
-          bounds.extend(marker.position);
-
-          const markerInstance = new maps.Marker({
-            map,
-            position: marker.position,
-            title: marker.booking.driverName ?? marker.booking.therapistName ?? "Driver/staff",
-            label: "D",
-            icon: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-          });
-
-          markerInstance.addListener("click", () => {
-            onSelect(marker.booking.id);
-          });
-
-          markerRefs.current.push(markerInstance);
-        });
-
-        const totalVisibleMarkers = customerMarkers.length + staffMarkers.length;
-
-        if (totalVisibleMarkers > 1) {
-          map.fitBounds(bounds, 80);
-        } else if (totalVisibleMarkers === 1) {
-          map.setCenter(customerMarkers[0]?.position ?? staffMarkers[0]?.position ?? defaultCenter);
-          map.setZoom(15);
-        } else {
-          map.setCenter(defaultCenter);
-          map.setZoom(12);
         }
-
         setMapLoadError(null);
+        setMapReady(true);
       } catch {
         setMapLoadError("Google Maps could not load.");
       }
     }
 
-    void renderMap();
-
+    void initMap();
     return () => {
       cancelled = true;
-      markerRefs.current.forEach((marker) => marker.setMap(null));
-      markerRefs.current = [];
     };
-  }, [apiKey, customerMarkers, staffMarkers, onSelect]);
+    // Mount map instance cleanly once when apiKey & container exist
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey]);
 
-  const selectedBooking = bookings.find((booking) => booking.id === selectedId) ?? null;
-  const selectedRouteUrl = selectedBooking
-    ? buildRouteUrl(selectedBooking)
-    : "https://www.google.com/maps";
+  // Synchronize markers & genuine Google route polylines smoothly
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const maps = window.google?.maps;
+    if (!mapReady || !map || !maps) return;
 
-  return (
-    <div className="relative h-[calc(100vh-235px)] min-h-[620px] overflow-hidden rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-sm">
-      {mapError ? (
-        <div className="flex h-full flex-col items-center justify-center bg-[var(--cs-surface-warm)] p-8 text-center">
-          <MapPin className="mb-3 text-[var(--cs-text-muted)]" size={38} />
-          <h3 className="text-lg font-bold text-[var(--cs-text)]">Live Google Map is not ready</h3>
-          <p className="mt-2 max-w-md text-sm text-[var(--cs-text-secondary)]">{mapError}</p>
-          {selectedBooking ? (
-            <a
-              href={selectedRouteUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#155A33] px-5 text-sm font-bold text-white hover:bg-[#104728]"
-            >
-              Open selected customer in Google Maps
-              <ExternalLink size={14} />
-            </a>
-          ) : null}
-        </div>
-      ) : (
-        <div ref={mapRef} className="h-full w-full" />
-      )}
+    markerRefs.current.forEach((marker) => marker.setMap(null));
+    markerRefs.current = [];
+    polylineRefs.current.forEach((polyline) => polyline.setMap(null));
+    polylineRefs.current = [];
 
-      <div className="pointer-events-none absolute left-5 top-5 rounded-2xl border border-white/70 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
-        <p className="text-sm font-bold text-[var(--cs-text)]">Live Home-Service Map</p>
-        <div className="mt-2 flex flex-wrap gap-3 text-xs">
-          <span className="inline-flex items-center gap-1.5 text-[var(--cs-text-secondary)]">
-            <span className="size-3 rounded-full bg-red-500" />
-            Customer booking locations
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-[var(--cs-text-secondary)]">
-            <span className="size-3 rounded-full bg-blue-500" />
-            Recent driver GPS (within 2 min)
-          </span>
-        </div>
-      </div>
+    const selectedDriverId = selectedTrip?.driverId ?? null;
+    const overviewBounds = new maps.LatLngBounds();
+    let overviewCount = 0;
 
-      {selectedBooking ? (
-        <div className="absolute bottom-5 right-5 w-[320px] rounded-2xl border border-white/80 bg-white/95 p-4 shadow-xl backdrop-blur">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="font-mono text-xs text-[var(--cs-text-muted)]">
-                {selectedBooking.number}
-              </p>
-              <h3 className="mt-1 truncate text-base font-bold text-[var(--cs-text)]">
-                {selectedBooking.customerName}
-              </h3>
-              <p className="mt-1 text-xs text-[var(--cs-text-secondary)]">
-                {selectedBooking.serviceName} · {formatTime12h(selectedBooking.startTime)}
-              </p>
-            </div>
-            <Badge
-              variant="outline"
-              className={`shrink-0 text-[0.68rem] ${statusClass(selectedBooking)}`}
-            >
-              {statusLabel(selectedBooking)}
-            </Badge>
+    // 1. Booking destination markers (emphasized if selected or matches filter, dimmed if filtered out)
+    for (const trip of allTrips) {
+      if (!trip.hasCustomerGps || trip.lat === null || trip.lng === null) continue;
+      const pos = { lat: trip.lat, lng: trip.lng };
+      const isSelected = selectedTrip?.bookingId === trip.bookingId;
+      const matchesFilter = !hasActiveFilter || filteredIds.has(trip.bookingId);
+      const isSameVehicle = Boolean(selectedDriverId && trip.driverId === selectedDriverId);
+
+      if (matchesFilter || isSelected) {
+        overviewBounds.extend(pos);
+        overviewCount += 1;
+      }
+
+      const opacity = isSelected ? 1 : selectedTrip ? (isSameVehicle ? 0.85 : 0.45) : matchesFilter ? 1 : 0.3;
+      const marker = new maps.Marker({
+        map,
+        position: pos,
+        title: `${trip.bookingNumber} · ${trip.customerName} (${trip.detailedStatusLabel})`,
+        label: trip.bookingNumber.replace(/^#/, ""),
+        icon: destinationMarkerIcon(trip),
+        zIndex: isSelected ? 90 : isSameVehicle ? 50 : matchesFilter ? 20 : 5,
+        opacity,
+      });
+
+      const infoWindow = new maps.InfoWindow({
+        content: `
+          <div style="min-width: 220px; font-family: system-ui, sans-serif;">
+            <div style="font-size: 12px; color: #64748b;">${escapeHtml(trip.bookingNumber)} · ${escapeHtml(trip.stageBadgeLabel)}</div>
+            <div style="font-weight: 700; font-size: 14px; margin-top: 2px;">${escapeHtml(trip.customerName)}</div>
+            <div style="font-size: 12px; color: #475569; margin-top: 3px;">${escapeHtml(trip.serviceName)} · ${escapeHtml(trip.locationSummary)}</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 5px;">Driver: ${escapeHtml(trip.driverName ?? "Needs driver")}</div>
           </div>
+        `,
+      });
 
-          <div className="mt-3 space-y-1.5 text-xs text-[var(--cs-text-secondary)]">
-            <div className="flex items-center gap-1.5">
-              <MapPin size={13} />
-              <span className="truncate">{locationLabel(selectedBooking)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Navigation size={13} />
-              <span>
-                {formatCoord(selectedBooking.lat)}, {formatCoord(selectedBooking.lng)}
-              </span>
-            </div>
-          </div>
+      marker.addListener("click", () => {
+        onSelectTrip(trip.bookingId);
+        infoWindow.open({ map, anchor: marker });
+      });
 
+      markerRefs.current.push(marker);
+    }
+
+    // 2. Physical driver vehicle markers (ONE per driverId — never duplicated across shared trips)
+    for (const driver of drivers) {
+      const driverPos =
+        driver.location && isValidGeoPoint({ lat: driver.location.lat, lng: driver.location.lng })
+          ? { lat: driver.location.lat, lng: driver.location.lng }
+          : null;
+
+      if (driverPos) {
+        overviewBounds.extend(driverPos);
+        overviewCount += 1;
+
+        const isSelectedDriver = Boolean(selectedDriverId && driver.driverId === selectedDriverId);
+        const primaryBookingId = driver.nextStop?.bookingId ?? driver.stops[0]?.bookingId ?? null;
+        const opacity = selectedTrip ? (isSelectedDriver ? 1 : 0.65) : 1;
+
+        const marker = new maps.Marker({
+          map,
+          position: driverPos,
+          title: `${driver.driverName} · ${driver.currentStatusLabel} · ${driver.reliability.label}`,
+          label: driverInitials(driver.driverName),
+          icon: driverMarkerIcon(driver.reliability.state),
+          zIndex: isSelectedDriver ? 100 : 40,
+          opacity,
+        });
+
+        const nextLabel = driver.nextStop
+          ? `${driver.nextStop.customerName} (${driver.nextStop.destinationLabel})`
+          : "Active assignment";
+        const infoWindow = new maps.InfoWindow({
+          content: `
+            <div style="min-width: 220px; font-family: system-ui, sans-serif;">
+              <div style="font-size: 11px; color: #155A33; font-weight: 700;">${escapeHtml(driver.reliability.label)}</div>
+              <div style="font-weight: 700; font-size: 14px; margin-top: 2px;">${escapeHtml(driver.driverName)}</div>
+              <div style="font-size: 12px; color: #334155; margin-top: 4px;">${escapeHtml(driver.currentStatusLabel)} · ${escapeHtml(formatDurationMinutes(driver.etaMinutes))}</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Next: ${escapeHtml(nextLabel)}</div>
+            </div>
+          `,
+        });
+
+        marker.addListener("click", () => {
+          if (primaryBookingId) onSelectTrip(primaryBookingId);
+          infoWindow.open({ map, anchor: marker });
+        });
+
+        markerRefs.current.push(marker);
+      }
+
+      // 3. Genuine Google Routes API Polylines ONLY — never fabricate straight-line geometry as navigation
+      if (maps.Polyline && driver.driverId) {
+        const cachedRoute = routesByDriver.get(driver.driverId);
+        if (cachedRoute?.encodedPolyline) {
+          const decodedPath = decodeEncodedPolyline(cachedRoute.encodedPolyline);
+          if (decodedPath.length >= 2) {
+            const isSelectedRoute = Boolean(selectedTrip && driver.driverId === selectedDriverId);
+            const selectedColor = selectedTrip
+              ? TRIP_STAGE_STYLES[selectedTrip.stageKey].accentHex
+              : "#155A33";
+
+            const polyline = new maps.Polyline({
+              map,
+              path: decodedPath,
+              geodesic: true,
+              strokeColor: isSelectedRoute ? selectedColor : "#64748b",
+              strokeOpacity: isSelectedRoute ? 0.96 : selectedTrip ? 0.18 : 0.34,
+              strokeWeight: isSelectedRoute ? 6 : 2.5,
+              zIndex: isSelectedRoute ? 60 : 5,
+            });
+            polylineRefs.current.push(polyline);
+          }
+        }
+      }
+    }
+
+    // Only adjust map bounds on initial mount OR explicit booking selection change (never on GPS ticks!)
+    if (!initialFitDoneRef.current && !selectedTrip && overviewCount > 0) {
+      initialFitDoneRef.current = true;
+      if (overviewCount > 1) {
+        map.fitBounds(overviewBounds, 96);
+      } else {
+        const single =
+          allTrips.find((t) => t.hasCustomerGps && t.lat !== null && t.lng !== null)
+            ? {
+              lat: allTrips.find((t) => t.hasCustomerGps)!.lat as number,
+              lng: allTrips.find((t) => t.hasCustomerGps)!.lng as number,
+            }
+            : { lat: 10.6765, lng: 122.9509 };
+        map.setCenter(single);
+        map.setZoom(14);
+      }
+    }
+
+    if (selectedTrip && lastFittedBookingRef.current !== selectedTrip.bookingId) {
+      initialFitDoneRef.current = true;
+      lastFittedBookingRef.current = selectedTrip.bookingId;
+      const focusBounds = new maps.LatLngBounds();
+      let focusCount = 0;
+
+      if (selectedTrip.hasCustomerGps && selectedTrip.lat !== null && selectedTrip.lng !== null) {
+        focusBounds.extend({ lat: selectedTrip.lat, lng: selectedTrip.lng });
+        focusCount += 1;
+      }
+
+      const assignedDriver = selectedDriverId
+        ? drivers.find((d) => d.driverId === selectedDriverId)
+        : null;
+      if (
+        assignedDriver?.location &&
+        isValidGeoPoint({ lat: assignedDriver.location.lat, lng: assignedDriver.location.lng })
+      ) {
+        focusBounds.extend({
+          lat: assignedDriver.location.lat,
+          lng: assignedDriver.location.lng,
+        });
+        focusCount += 1;
+      }
+
+      if (focusCount > 1) {
+        map.fitBounds(focusBounds, 110);
+      } else if (
+        focusCount === 1 &&
+        selectedTrip.hasCustomerGps &&
+        selectedTrip.lat !== null &&
+        selectedTrip.lng !== null
+      ) {
+        map.setCenter({ lat: selectedTrip.lat, lng: selectedTrip.lng });
+        map.setZoom(15);
+      }
+    } else if (!selectedTrip) {
+      lastFittedBookingRef.current = null;
+    }
+  }, [
+    allTrips,
+    drivers,
+    filteredIds,
+    hasActiveFilter,
+    mapReady,
+    onSelectTrip,
+    routesByDriver,
+    selectedTrip,
+  ]);
+
+  if (mapError) {
+    const fallbackUrl =
+      selectedTrip?.hasCustomerGps && selectedTrip.lat !== null && selectedTrip.lng !== null
+        ? `https://www.google.com/maps/dir/?api=1&destination=${selectedTrip.lat},${selectedTrip.lng}&travelmode=driving`
+        : "https://www.google.com/maps";
+
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center bg-[var(--cs-surface-warm)] p-8 text-center">
+        <MapPin className="mb-3 text-[var(--cs-text-muted)]" size={38} />
+        <h3 className="text-lg font-bold text-[var(--cs-text)]">Live Google Map is not ready</h3>
+        <p className="mt-2 max-w-md text-sm text-[var(--cs-text-secondary)]">{mapError}</p>
+        {selectedTrip ? (
           <a
-            href={selectedRouteUrl}
+            href={fallbackUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#1F4E33] px-4 text-sm font-bold text-white transition hover:bg-[#163B26]"
+            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#155A33] px-4 text-xs font-bold text-white hover:bg-[#104728]"
           >
-            Open Customer Route
+            Open selected customer in Google Maps
             <ExternalLink size={13} />
           </a>
-        </div>
-      ) : null}
-    </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={mapContainerRef}
+      data-testid="shared-google-map"
+      className="relative z-0 isolate h-full w-full"
+    />
   );
 }
 
 export function DispatchLiveMapTab({
   data,
   onRefresh,
+  selectedBookingId: initialSelectedBookingId,
+  branchId,
 }: {
   data: DispatchData;
   onRefresh?: () => void;
+  selectedBookingId?: string;
+  branchId?: string | null;
 }) {
-  const [query, setQuery] = useState("");
-  const openBookings = useMemo(
-    () => data.items.filter((item) => isOpenHomeServiceBooking(item, data.today)),
-    [data.items, data.today]
+  const [activeFilter, setActiveFilter] = useState<TripFilterKey>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [railCollapsed, setRailCollapsed] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(
+    initialSelectedBookingId ?? null
   );
+  const [detailsOpen, setDetailsOpen] = useState<boolean>(Boolean(initialSelectedBookingId));
+  const [dismissedArrivalKey, setDismissedArrivalKey] = useState<string | null>(null);
 
-  const filteredBookings = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return openBookings;
+  const handleSelectTrip = useCallback((bookingId: string) => {
+    setSelectedBookingId(bookingId);
+    setDetailsOpen(true);
+  }, []);
 
-    return openBookings.filter((item) => {
+  const sync = useLiveCrmMapSync({
+    data,
+    branchId,
+    onRefresh,
+    onSelectBooking: handleSelectTrip,
+  });
+
+  const openBookings = useMemo(() => {
+    const byOpen = data.items.filter((item) => isOpenHomeServiceBooking(item, data.today));
+    const trackedIds = new Set(sync.tripsViewModel.trips.map((t) => t.bookingId));
+    const extras = data.items.filter(
+      (item) => trackedIds.has(item.id) && !byOpen.some((existing) => existing.id === item.id)
+    );
+    return [...byOpen, ...extras];
+  }, [data.items, data.today, sync.tripsViewModel.trips]);
+
+  const filteredTrips = useMemo(() => {
+    const normalized = searchQuery.trim().toLowerCase();
+    return sync.tripsViewModel.trips.filter((trip) => {
+      if (activeFilter !== "all" && trip.stageKey !== activeFilter) {
+        return false;
+      }
+      if (!normalized) return true;
       return [
-        item.customerName,
-        item.serviceName,
-        item.area ?? "",
-        item.formattedAddress ?? "",
-        item.driverName ?? "",
-        item.therapistName ?? "",
-        item.number,
+        trip.bookingNumber,
+        trip.customerName,
+        trip.serviceName,
+        trip.locationSummary,
+        trip.driverName ?? "",
+        trip.therapistName ?? "",
       ]
         .join(" ")
         .toLowerCase()
         .includes(normalized);
     });
-  }, [openBookings, query]);
+  }, [activeFilter, searchQuery, sync.tripsViewModel.trips]);
 
-  const [requestedSelectedId, setRequestedSelectedId] = useState<string | null>(null);
-  const selectedId = useMemo(() => {
-    if (filteredBookings.length === 0) return null;
-    if (requestedSelectedId && filteredBookings.some((item) => item.id === requestedSelectedId)) {
-      return requestedSelectedId;
-    }
-    return filteredBookings[0]?.id ?? null;
-  }, [filteredBookings, requestedSelectedId]);
-  const handleMapSelect = useCallback((bookingId: string) => {
-    setRequestedSelectedId(bookingId);
-  }, []);
+  // Keep selected trip intact across realtime location/stage updates (clear only if trip becomes terminal/missing)
+  const selectedTrip = useMemo(() => {
+    if (!selectedBookingId) return null;
+    return (
+      sync.tripsViewModel.trips.find((trip) => trip.bookingId === selectedBookingId) ?? null
+    );
+  }, [selectedBookingId, sync.tripsViewModel.trips]);
 
-  if (openBookings.length === 0) {
+  const selectedDriverId = selectedTrip?.driverId ?? null;
+
+  const sharedDriverStops = useMemo(() => {
+    if (!selectedDriverId) return [];
+    return sync.tripsViewModel.trips.filter(
+      (trip) => trip.driverId === selectedDriverId
+    );
+  }, [selectedDriverId, sync.tripsViewModel.trips]);
+
+  const selectedRoute = useMemo(() => {
+    if (!selectedDriverId) return null;
+    return sync.routesByDriver.get(selectedDriverId) ?? null;
+  }, [selectedDriverId, sync.routesByDriver]);
+
+  const latestArrival = useMemo(() => {
+    const top = sync.arrivalFeed[0] ?? null;
+    if (!top) return null;
+    if (dismissedArrivalKey === top.semanticKey) return null;
+    return top;
+  }, [dismissedArrivalKey, sync.arrivalFeed]);
+
+  const liveGpsDriverCount = useMemo(
+    () => sync.viewModel.drivers.filter((d) => d.reliability.isLive).length,
+    [sync.viewModel.drivers]
+  );
+
+  if (openBookings.length === 0 && sync.tripsViewModel.trips.length === 0) {
     return (
       <div className="flex min-h-[520px] flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface)] p-10 text-center">
         <MapPin className="mb-3 text-[var(--cs-text-muted)]" size={34} />
@@ -567,92 +592,154 @@ export function DispatchLiveMapTab({
     );
   }
 
+  const refreshAction = onRefresh ?? (() => window.location.reload());
+
   return (
-    <section className="space-y-4">
-      {openBookings.some((item) => !hasCustomerGps(item)) ? (
+    <section className="space-y-3">
+      {sync.connectionState !== "connected" ? (
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-900"
+        >
+          <WifiOff size={14} />
+          <span>
+            Realtime connection interrupted — reconnecting to restore current journey state.
+          </span>
+        </div>
+      ) : null}
+
+      <LiveMapFilterBar
+        activeFilter={activeFilter}
+        counts={sync.tripsViewModel.counts}
+        onSelectFilter={setActiveFilter}
+        onRefresh={refreshAction}
+      />
+
+      {sync.tripsViewModel.trips.some((t) => !t.hasCustomerGps) ? (
         <p
           role="status"
-          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-1.5 text-xs text-amber-900"
         >
           Home Service bookings are active, but some customer locations still need GPS.
         </p>
       ) : null}
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-[var(--cs-text)]">Live Home-Service Map</h2>
-          <p className="mt-1 text-sm text-[var(--cs-text-secondary)]">
-            Every home-service booking with saved customer GPS appears directly on the live map.
-          </p>
-        </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <label className="grid min-w-0 gap-1">
-            <span className="text-[0.68rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
-              Search map bookings
-            </span>
-            <span className="relative">
-              <Search
-                size={15}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cs-text-muted)]"
-              />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search client, service, area..."
-                className="h-10 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] pl-9 pr-3 text-sm outline-none transition focus:border-[#1F4E33] sm:w-[280px]"
-              />
-            </span>
-          </label>
+      <div className="relative h-[calc(100vh-205px)] min-h-[600px] w-full overflow-hidden rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] shadow-sm lg:min-h-[660px]">
+        <SharedGoogleMapLayer
+          allTrips={sync.tripsViewModel.trips}
+          filteredTrips={filteredTrips}
+          drivers={sync.viewModel.drivers}
+          routesByDriver={sync.routesByDriver}
+          selectedTrip={selectedTrip}
+          hasActiveFilter={activeFilter !== "all" || Boolean(searchQuery.trim())}
+          onSelectTrip={handleSelectTrip}
+        />
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => (onRefresh ? onRefresh() : window.location.reload())}
+        <FloatingTripRail
+          trips={filteredTrips}
+          totalCount={sync.tripsViewModel.counts.all}
+          selectedBookingId={selectedTrip?.bookingId ?? null}
+          collapsed={railCollapsed}
+          hiddenOnMobile={Boolean(selectedTrip && detailsOpen)}
+          searchQuery={searchQuery}
+          hasActiveFilter={activeFilter !== "all"}
+          onToggleCollapsed={() => setRailCollapsed((prev) => !prev)}
+          onSearchChange={setSearchQuery}
+          onClearFilter={() => setActiveFilter("all")}
+          onSelectTrip={handleSelectTrip}
+        />
+
+        <ContextualJourneyPanel
+          trip={selectedTrip}
+          sharedStops={sharedDriverStops}
+          route={selectedRoute}
+          open={Boolean(selectedTrip && detailsOpen)}
+          onClose={() => setDetailsOpen(false)}
+          onReopen={() => setDetailsOpen(true)}
+          onSelectTrip={handleSelectTrip}
+        />
+
+        {/* Bottom-left automated arrival notification card (top strip on mobile to avoid covering drawers) */}
+        {latestArrival ? (
+          <div
+            role="status"
+            aria-label="Latest driver arrival notification"
+            className="pointer-events-auto absolute inset-x-3 top-13 z-20 flex items-start gap-2.5 rounded-2xl border border-[var(--cs-border)] bg-white/95 p-2.5 shadow-lg backdrop-blur md:inset-x-auto md:bottom-3 md:left-4 md:top-auto md:max-w-[300px]"
           >
-            <RefreshCw size={14} />
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[320px_1fr]">
-        <aside className="h-[calc(100vh-235px)] min-h-[620px] overflow-hidden rounded-3xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-4 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-[var(--cs-text)]">Home-Service Bookings</h3>
-              <p className="mt-0.5 text-xs text-[var(--cs-text-muted)]">
-                {filteredBookings.length} shown · {openBookings.length} total
+            <Bell size={15} className="mt-0.5 shrink-0 text-[#155A33]" />
+            <div className="min-w-0 flex-1 text-xs">
+              <button
+                type="button"
+                onClick={() => handleSelectTrip(latestArrival.event.bookingId)}
+                className="text-left font-bold text-[var(--cs-text)] hover:underline"
+              >
+                {latestArrival.copy.title}
+              </button>
+              <p className="mt-0.5 line-clamp-2 text-[0.7rem] text-[var(--cs-text-secondary)]">
+                {latestArrival.copy.body}
               </p>
             </div>
-            <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
-              {openBookings.length}
-            </Badge>
+            <button
+              type="button"
+              aria-label="Close arrival alert"
+              onClick={() => setDismissedArrivalKey(latestArrival.semanticKey)}
+              className="shrink-0 rounded-md p-0.5 text-[var(--cs-text-muted)] hover:bg-[var(--cs-surface-warm)] hover:text-[var(--cs-text)]"
+            >
+              <X size={13} />
+            </button>
           </div>
+        ) : null}
 
-          <div className="h-[calc(100%-62px)] space-y-3 overflow-y-auto pr-1">
-            {filteredBookings.map((item) => (
-              <BookingSummaryCard
-                key={item.id}
-                item={item}
-                selected={selectedId === item.id}
-                onSelect={() => setRequestedSelectedId(item.id)}
-              />
-            ))}
-
-            {filteredBookings.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--cs-border)] px-4 py-8 text-center text-sm text-[var(--cs-text-muted)]">
-                No matching home-service bookings.
-              </div>
-            ) : null}
+        {/* Bottom-center compact legend pill (desktop 1024px+) */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 hidden justify-center px-4 lg:flex">
+          <div className="flex items-center gap-3 rounded-full border border-white/80 bg-white/95 px-4 py-1.5 text-[0.7rem] font-medium text-[var(--cs-text-secondary)] shadow-md backdrop-blur">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full bg-blue-600" />
+              Driver
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full bg-purple-600" />
+              Customer
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full bg-emerald-600" />
+              Service
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full bg-orange-600" />
+              Collection
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-[2.5px] w-4 rounded-full bg-[#155A33]" />
+              Active Route
+            </span>
           </div>
-        </aside>
+        </div>
 
-        <MapCanvas
-          bookings={filteredBookings}
-          businessDate={data.today}
-          selectedId={selectedId}
-          onSelect={handleMapSelect}
-        />
+        {/* Live tracking status pill (top-left on mobile above bottom sheets, bottom-right on desktop/tablet) */}
+        <div className="pointer-events-none absolute left-3 top-3 z-20 md:bottom-3 md:left-auto md:right-4 md:top-auto">
+          <div className="inline-flex max-w-[calc(100vw-48px)] items-center gap-1.5 rounded-full bg-[#103824]/95 px-2.5 py-1 text-[0.68rem] font-semibold text-white shadow-lg backdrop-blur md:max-w-none md:gap-2 md:px-3.5 md:py-1.5 md:text-xs">
+            <Radio
+              size={13}
+              className={
+                sync.connectionState !== "connected"
+                  ? "text-amber-400"
+                  : liveGpsDriverCount > 0
+                    ? "text-emerald-400"
+                    : "text-slate-300"
+              }
+            />
+            <span>
+              {sync.connectionState !== "connected"
+                ? "Reconnecting live sync"
+                : sync.viewModel.drivers.length === 0
+                  ? "Tracking Status: Awaiting driver assignment"
+                  : liveGpsDriverCount > 0
+                    ? `Live Tracking: ${sync.viewModel.drivers.length} Drivers (${liveGpsDriverCount} live GPS)`
+                    : `Tracking Status: ${sync.viewModel.drivers.length} Drivers (GPS pending/stale)`}
+            </span>
+          </div>
+        </div>
       </div>
     </section>
   );
