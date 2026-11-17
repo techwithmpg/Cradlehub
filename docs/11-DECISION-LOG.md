@@ -108,6 +108,16 @@ New decisions must include an ID, date, status (`ACTIVE`, `SUPERSEDED`, or `RETI
 | OPS-GOV-003 | 2026-10-25 | ACTIVE | OWNER DIRECTED that Operations Center issue action buttons open a focused modal with the authorized correction action instead of routine cross-module navigation, keeping the flow simple. | Reuse existing Attendance Review modal router and its server-authorized actions for supported Attendance cases. Where no safe approved inline editor exists (aggregate service/configuration checks or duplicate identity), show a short guided modal and the existing editor as a clearly labeled fallback; do not misrepresent read-only review or a sent device recovery request as a verified repair. No new server mutation or database operation authorized. | Supersedes the read-only-only UI interaction design in OPS-GOV-001, without changing its deployment, identity, or database safety limits. |
 
 
+## Native Driver Compose decisions — 2026-11-17
+
+| ID | Date | Status | Decision | Consequence | Supersedes |
+| --- | --- | --- | --- | --- | --- |
+| DRV-NAT-001 | 2026-11-17 | OWNER AUTHORIZED / LOCAL IMPLEMENTATION | Implement the five supplied references in Kotlin/Compose: Today / Trips / Scan / Map / More, raised Scan, native secondary destinations, no WebView. Tap trip opens native Map directly; one Start; End route stops guidance only. | Preserve existing PWA, authenticated contracts, CRM location writer, separate collection/return and one-scan 120-minute attendance policy. Native Android and governance scope only. | DRV-UNI-001 four-tab hybrid presentation for this candidate. |
+| DRV-NAT-002 | 2026-11-17 | LOCAL EMULATOR PASS / CONNECTED ACCEPTANCE OPEN | Owner explicitly selected local emulator verification before identifying connected TEST resources/phone. Synthetic `.localtest` fixture refuses operational authority and is absent from release sources. | Six instrumentation cases, 33 unit tests, builds, lint and actual native screenshots are local evidence only. No real routing/attendance/push claim. | Earlier emulator disk-space blocker, using a new disposable E-drive AVD only. |
+| DRV-NAT-003 | 2026-11-17 | RELEASE GATE / OPEN | Connected TEST parity, physical-device workflow/permissions/GPS/voice/QR/push/CRM acceptance, external review and separate owner release gate remain required. | No main merge/push, production operation, database activation, distribution or deployment. Existing pilot workflow needs native configuration before any future authorized use. | No prior Driver release prohibition is relaxed. |
+
+See [native handoff](reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md). Earlier unified candidate SQL execution remains unchanged historical test evidence.
+
 ## Unified Driver Android decisions — 2026-11-17
 
 | ID | Date | Status | Decision | Rationale and impact | Supersedes |

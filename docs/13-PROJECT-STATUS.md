@@ -1,5 +1,9 @@
 # Project Status
 
+## Latest native Driver UI candidate — 2026-11-17
+
+Kotlin/Compose replaces the hybrid host on `stage/driver-native-compose-20261117`, from local candidate `1e23e92f4e146d0448f9f7e58b575d284511eade`; accepted main remains `51ba200580068691a0358323e00c8c4a7a8de11e`. All five native tabs, camera, native auth and secondary destinations are implemented. 33 unit tests, six emulator instrumentation tests, native builds/release source compilation and lint pass. Five actual native screenshots and font/permission recovery evidence use explicit synthetic fixtures. **CORRECTION REQUIRED for release:** connected TEST/physical-device/external acceptance is pending. Owner requested local emulator first; no production, SQL, Web/PWA, main, push, deployment or distribution change. [Current handoff](reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md).
+
 ## Unified Driver Android candidate — 2026-11-17
 
 - Owner-authorized D0–D5 implementation on `stage/driver-unified-android-shell-20261117`, accepted base `51ba200580068691a0358323e00c8c4a7a8de11e`, implementation `e1bbba4b0258ec1fabf5bab631ea8afa13224666`. Web/Android share this repository; USB-preview work preserved.

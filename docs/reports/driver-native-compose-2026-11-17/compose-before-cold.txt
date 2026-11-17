@@ -1,0 +1,24 @@
+BASELINE RUN 1
+Starting: Intent { cmp=com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity
+TotalTime: 4396
+WaitTime: 4428
+Complete
+BASELINE RUN 2
+Starting: Intent { cmp=com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity
+TotalTime: 4900
+WaitTime: 4994
+Complete
+BASELINE RUN 3
+Starting: Intent { cmp=com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity
+TotalTime: 6211
+WaitTime: 6212
+Complete

@@ -1,5 +1,12 @@
 # Known Issues Register
 
+## Latest native Driver release gates — 2026-11-17
+
+- **DRV-NAT-R1 / P1 / OPEN:** Approved connected TEST API/Supabase project, restricted Navigation key and physical phone are not identified. Native authentication, SSR-cookie backend compatibility, runtime journey parity, QR attendance submissions, GPS/voice/reroute, camera decode, background guidance, FCM and CRM two-session acceptance remain unverified. Owner chose local emulator verification first.
+- **DRV-NAT-R2 / P1 / OPEN:** Independent external review and separate owner merge/release gate remain pending. Local implementation review is not independent acceptance. Existing signed pilot workflow lacks new native TEST config; do not bypass packaging guards or distribute the fixture APK.
+- **DRV-NAT-R3 / P2 / OPEN:** Lint passes with 38 warnings (dependency currency, legacy unused XML, Compose modifier conventions, backup-extraction guidance and KTX suggestions); Gradle reports future version deprecations. FCM preserves the reviewed token contract despite SDK deprecation; an Installation-ID contract needs separate review. Completed history is service history, not certified completed transport history. Emulator timings are variable and do not establish phone performance or an improvement. One final cold launch timed out at 20,822ms; the next two completed at 5,154/4,575ms. No application exception or Android ANR was found in the captured investigation; performance acceptance remains open.
+- Local emulator now boots from a new E-drive disposable AVD; this supersedes the prior local disk-space blocker only. First boot had a System UI ANR and emulator radio-service crash, not a verified application failure. [Native handoff](reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md).
+
 ## Unified Driver Android release gates — 2026-11-17
 
 - **DRV-UNI-R1 / P1 / OPEN:** The exact approved privileged journey/device/push/CRM package passed 22 disposable LOCAL TEST scenarios and cleanup checks. Installed Supabase TEST parity, broader concurrency/lease acceptance and separate runtime approval remain required before activation.

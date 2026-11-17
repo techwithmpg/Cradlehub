@@ -1,0 +1,12 @@
+{
+  "debug/app-debug.apk": {
+    "sha256": "4b9522cb30f1939a6001edb42ad5a6657339332aab4125fdd01ec7d98e8f4d36",
+    "bytes": 98109374,
+    "purpose": "LOCAL synthetic UI verification only; not a distributable staff artifact"
+  },
+  "androidTest/debug/app-debug-androidTest.apk": {
+    "sha256": "244e076db0c5fd2585407a7719242700146188a4c923a3d3d224fa9e9f55ad01",
+    "bytes": 1067230,
+    "purpose": "LOCAL synthetic UI verification only; not a distributable staff artifact"
+  }
+}
