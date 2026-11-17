@@ -254,6 +254,7 @@ open class NativeDriverActivity : AppCompatActivity() {
                     navigation!!.isRouteReady(),
                     navigation!!.isLoading(),
                     navigation!!.selectedStage(),
+                    navigation!!.roadEstimate(),
                 )
             )
         }

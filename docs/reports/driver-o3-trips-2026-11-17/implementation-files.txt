@@ -1,0 +1,11 @@
+native/driver-android/app/src/androidTest/java/com/mpgtechnologies/cradlehub/driver/NativeDriverComposeTest.kt
+native/driver-android/app/src/debug/java/com/mpgtechnologies/cradlehub/driver/NativeTripsFixture.kt
+native/driver-android/app/src/debug/java/com/mpgtechnologies/cradlehub/driver/NativeUiFixture.kt
+native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/DriverNavigationController.java
+native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeDriverActivity.kt
+native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeDriverModel.kt
+native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeDriverModels.kt
+native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeDriverScreens.kt
+native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeDriverTripsScreen.kt
+native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeTripsPolicy.kt
+native/driver-android/app/src/test/java/com/mpgtechnologies/cradlehub/driver/NativeTripsPolicyTest.kt

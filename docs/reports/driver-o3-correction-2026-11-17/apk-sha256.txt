@@ -1,0 +1,3 @@
+4b7fea9fe875bf03c44684ff7f375c733ce4313ae411da208934fa076c566a97  app/build/outputs/apk/debug/app-debug.apk
+33586cd506ae5f449837828bc6ded98d59e882a1c9e3a0b079d3db8415dd4d69  app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+LOCAL emulator artifacts only; not distributed.

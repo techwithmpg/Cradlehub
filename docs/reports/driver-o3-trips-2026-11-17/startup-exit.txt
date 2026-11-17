@@ -1,0 +1,28 @@
+ACTIVITY MANAGER PROCESS EXIT INFO (dumpsys activity exit-info)
+Last Timestamp of Persistence Into Persistent Storage: 2026-11-17 10:40:58.989
+  package: com.mpgtechnologies.cradlehub.driver.localtest
+    Historical Process Exit for uid=10235
+        ApplicationExitInfo #0:
+          timestamp=2026-11-17 12:36:37.391 pid=2523 realUid=10235 packageUid=10235 definingUid=10235 user=0
+          process=com.mpgtechnologies.cradlehub.driver.localtest reason=6 (ANR) subreason=34 (BIND APPLICATION ANR) status=0
+          importance=400 pss=0.00 rss=0.00 state=empty trace=/data/system/procexitstore/anr_2026-11-17-12-36-36-959.gz
+          description=bg anr: Process ProcessRecord{fa3b41 2523:com.mpgtechnologies.cradlehub.driver.localtest/u0a235} failed to complete startup
+          anrInfo=null
+        ApplicationExitInfo #1:
+          timestamp=2026-11-17 02:22:37.454 pid=7479 realUid=10235 packageUid=10235 definingUid=10235 user=0
+          process=com.mpgtechnologies.cradlehub.driver.localtest reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=100 pss=0.00 rss=0.00 state=empty trace=null
+          description=stop com.mpgtechnologies.cradlehub.driver.localtest due to from pid 7638
+          anrInfo=AnrInfo(anrId=20, anrType=3, timeoutMillis=12500, isUserPerceptible=false)
+        ApplicationExitInfo #2:
+          timestamp=2026-11-17 02:22:32.023 pid=7428 realUid=10235 packageUid=10235 definingUid=10235 user=0
+          process=com.mpgtechnologies.cradlehub.driver.localtest reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=100 pss=0.00 rss=0.00 state=empty trace=null
+          description=stop com.mpgtechnologies.cradlehub.driver.localtest due to from pid 7470
+          anrInfo=AnrInfo(anrId=409, anrType=3, timeoutMillis=12818, isUserPerceptible=false)
+        ApplicationExitInfo #3:
+          timestamp=2026-11-17 02:22:01.529 pid=6549 realUid=10235 packageUid=10235 definingUid=10235 user=0
+          process=com.mpgtechnologies.cradlehub.driver.localtest reason=16 (PACKAGE UPDATED) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=0.00 rss=0.00 state=empty trace=null
+          description=stop com.google.android.gms due to killDueToPackageUpdate
+          anrInfo=AnrInfo(anrId=20, anrType=3, timeoutMillis=12500, isUserPerceptible=false)

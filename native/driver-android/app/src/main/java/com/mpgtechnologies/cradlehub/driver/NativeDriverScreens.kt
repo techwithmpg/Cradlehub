@@ -70,7 +70,9 @@ internal fun NativeDriverApp(
                 NativeLogin(ui, model::login)
                 return@Column
             }
-            if (!navigationScreen)
+            if (ui.tab == DriverTab.TRIPS && ui.secondary == null)
+                TripsHeader(ui.tripsMode, model::tripsMode) { model.showSecondary("Notifications") }
+            else if (!navigationScreen)
                 NativeHeader(
                     ui,
                     model.backend::avatarAllowed,
@@ -104,7 +106,7 @@ internal fun NativeDriverApp(
                 else
                     when (ui.tab) {
                         DriverTab.TODAY -> TodayScreen(model)
-                        DriverTab.TRIPS -> TripsScreen(model)
+                        DriverTab.TRIPS -> NativeTripsScreen(model, owner)
                         DriverTab.SCAN ->
                             ScanScreen(model, owner, cameraAllowed, requestCamera, scan)
                         DriverTab.MORE -> MoreScreen(model)
@@ -504,105 +506,6 @@ private fun NextTripCard(trip: DriverTrip, today: LocalDate, onClick: () -> Unit
 }
 
 @Composable
-private fun TripsScreen(model: NativeDriverModel) {
-    val ui = model.ui
-    val today = ui.workspace?.today ?: LocalDate.now()
-    val trips = DriverTripPolicy.filtered(ui.workspace?.trips ?: emptyList(), ui.filter, today)
-    Column(Modifier.fillMaxSize().background(Cream).padding(horizontal = 16.dp)) {
-        Spacer(Modifier.height(18.dp))
-        Surface(shape = RoundedCornerShape(28.dp), color = Color.White, shadowElevation = 2.dp) {
-            Row(Modifier.fillMaxWidth().padding(4.dp)) {
-                TripFilter.entries.forEach { filter ->
-                    val active = ui.filter == filter
-                    Box(
-                        Modifier.weight(1f)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(if (active) DeepGreen else Color.Transparent)
-                            .selectable(active, role = Role.Tab, onClick = { model.filter(filter) })
-                            .padding(vertical = 13.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            filter.name.lowercase().replaceFirstChar { it.uppercase() },
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (active) Color.White else Forest,
-                        )
-                    }
-                }
-            }
-        }
-        StateBanner(ui, model::refresh)
-        if (trips.isEmpty())
-            EmptyOrLoading(
-                ui,
-                if (
-                    ui.filter == TripFilter.COMPLETED &&
-                        "history" in (ui.workspace?.failures ?: emptySet())
-                )
-                    "Service history unavailable"
-                else if (ui.filter == TripFilter.COMPLETED) "No service records"
-                else "No assigned trips",
-                model::refresh,
-            )
-        LazyColumn(
-            Modifier.weight(1f),
-            contentPadding = PaddingValues(top = 18.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            itemsIndexed(trips, key = { _, it -> it.id }) { index, trip ->
-                val featured = index == 0 && ui.filter == TripFilter.ACTIVE
-                val color = if (featured) Color.White else Forest
-                Surface(
-                    onClick = {
-                        if (!trip.serviceHistory && trip.stage != "complete")
-                            model.selectTrip(trip.id)
-                    },
-                    enabled = !trip.serviceHistory && trip.stage != "complete",
-                    shape = RoundedCornerShape(20.dp),
-                    color = if (featured) DeepGreen else Color.White,
-                    shadowElevation = 3.dp,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                trip.customer,
-                                color = color,
-                                fontSize = 21.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 2,
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            StatusPill(
-                                trip.label,
-                                if (trip.leg == "delivery") Color(0xFFF7E3B8) else Pale,
-                            )
-                        }
-                        LineItem(Glyph.CALENDAR, trip.scheduled(today), color)
-                        HorizontalDivider(
-                            color = if (featured) Color.White.copy(alpha = .2f) else Cream
-                        )
-                        LineItem(Glyph.BRANCH, trip.pickup, color)
-                        HorizontalDivider(
-                            color = if (featured) Color.White.copy(alpha = .2f) else Cream
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.weight(1f)) {
-                                LineItem(Glyph.PIN, trip.destination, color)
-                            }
-                            if (!trip.serviceHistory)
-                                DriverIcon(Glyph.CHEVRON, Modifier.size(18.dp), color)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ScanScreen(
     model: NativeDriverModel,
     owner: LifecycleOwner,
@@ -705,10 +608,7 @@ private fun MoreScreen(model: NativeDriverModel) {
                 Modifier.clickable(role = Role.Button) {
                     when (name) {
                         "Logout" -> model.logout()
-                        "Trip History" -> {
-                            model.filter(TripFilter.COMPLETED)
-                            model.selectTab(DriverTab.TRIPS)
-                        }
+                        "Trip History" -> model.showSecondary("Trip History")
                         else -> model.showSecondary(name)
                     }
                 }
@@ -824,6 +724,33 @@ private fun SecondaryScreen(model: NativeDriverModel, dial: (String) -> Unit) {
                     }
                 }
             }
+            "Trip History" -> {
+                val records =
+                    DriverTripPolicy.filtered(
+                        w?.trips ?: emptyList(),
+                        TripFilter.COMPLETED,
+                        w?.today ?: LocalDate.now(),
+                    )
+                if (records.isEmpty())
+                    item {
+                        Text(
+                            if ("history" in (w?.failures ?: emptySet()))
+                                "Service history unavailable"
+                            else "No service records",
+                            color = Muted,
+                        )
+                    }
+                items(records, key = { it.id }) { record ->
+                    DriverCard {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(record.customer, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(record.label, color = DeepGreen)
+                            LineItem(Glyph.PERSON, record.therapist)
+                            Text(record.scheduled(w!!.today), color = Muted, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
             "Trip details" -> {
                 val trip = w?.trips?.firstOrNull { it.id == ui.selectedId }
                 if (trip != null)
@@ -899,6 +826,17 @@ private fun NavigationFooter(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 DriverIcon(Glyph.PIN, Modifier.size(24.dp))
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    trip
+                        ?.let { NativeTripsPolicy.navigationMode(it, ui.nav.stage) }
+                        ?.let { mode ->
+                            Text(
+                                mode.badge,
+                                color = DeepGreen,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 3.dp),
+                            )
+                        }
                     Text(
                         trip?.destination ?: "Assigned destination",
                         fontSize = 16.sp,
