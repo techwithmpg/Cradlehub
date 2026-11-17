@@ -1,5 +1,12 @@
 # Known Issues Register
 
+## Latest owner-phone gates — 2026-11-17
+
+- **DRV-PHONE-R1 / P1 / OPEN:** Native Maps/Navigation key authorization fails for the owner phone package/certificate. Missing Maps SDK/key-management service activation returned a successful operation, but available account key management/IAM access is denied. Do not weaken key restrictions or reuse browser/server keys. Exact required app restriction is in the phone handoff.
+- **DRV-PHONE-R2 / P1 / OPEN:** Production does not expose the new journey/native-location/device HTTP APIs. Existing booking RLS reads and itinerary/Start support the deployed delivery flow; separate pickup/collection/return, native CRM GPS and push are not accepted as live.
+- **DRV-PHONE-R3 / P1 / OPEN:** Physical guidance/voice/background/reassignment, QR/attendance/geofence/device limits, CRM two-session acceptance and independent review remain pending. Phone sign-in/profile/attendance reads now succeed. Earlier UnknownHost failure recovered without changing device DNS; original settings were verified intact after Android refused the approved direct write.
+- **DRV-PHONE-R4 / P2 / OPEN:** Lint passes with39 warnings; existing deprecations/performance limits remain. Diagnostics log only boolean configuration, HTTP channels/status and exception classes. No passwords, tokens, exact positions or staff/customer rows are included in evidence. [Phone handoff](reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md).
+
 ## Latest native Driver release gates — 2026-11-17
 
 - **DRV-NAT-R1 / P1 / OPEN:** Approved connected TEST API/Supabase project, restricted Navigation key and physical phone are not identified. Native authentication, SSR-cookie backend compatibility, runtime journey parity, QR attendance submissions, GPS/voice/reroute, camera decode, background guidance, FCM and CRM two-session acceptance remain unverified. Owner chose local emulator verification first.

@@ -1,5 +1,9 @@
 # Project Status
 
+## Latest connected owner phone — 2026-11-17
+
+Native implementation `30218cde2f6795500e15272c164af68fe4753591` on the same review branch adds full-area Map, exact PWA icon, guarded owner-authorized production connection and deployed-API compatibility. Forty unit tests, seven emulator UI cases, fixture/production builds and lint pass. Phone Auth/RLS reads return200; authenticated Driver/On duty UI is observed. **Live Maps remains blocked by native-key authorization**; full journey/location/push API activation and independent/device acceptance remain open. No server deployment, SQL, main merge/push or general distribution. [Current handoff](reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md).
+
 ## Latest native Driver UI candidate — 2026-11-17
 
 Kotlin/Compose replaces the hybrid host on `stage/driver-native-compose-20261117`, from local candidate `1e23e92f4e146d0448f9f7e58b575d284511eade`; accepted main remains `51ba200580068691a0358323e00c8c4a7a8de11e`. All five native tabs, camera, native auth and secondary destinations are implemented. 33 unit tests, six emulator instrumentation tests, native builds/release source compilation and lint pass. Five actual native screenshots and font/permission recovery evidence use explicit synthetic fixtures. **CORRECTION REQUIRED for release:** connected TEST/physical-device/external acceptance is pending. Owner requested local emulator first; no production, SQL, Web/PWA, main, push, deployment or distribution change. [Current handoff](reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md).

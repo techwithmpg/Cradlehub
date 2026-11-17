@@ -1,0 +1,10 @@
+11-17 04:21:08.410  2005  2180 E Google Maps Android API: Error requesting API token. StatusCode=INVALID_ARGUMENT [CONTEXT service_id=71 ]
+11-17 04:21:08.438  3399  3499 E Google Navigation SDK: Authorization failure.
+11-17 04:21:08.438  3399  3499 E Google Navigation SDK: Ensure that the "Google Maps Android API" is enabled.
+11-17 04:21:08.438  3399  3499 E Google Navigation SDK: Ensure that the following Android Key exists:
+11-17 04:21:08.438  3399  3499 E Google Navigation SDK: 	Android Application (<cert_fingerprint>;<package_name>): 0B:39:6A:DC:9D:FF:8B:D6:32:47:07:A4:63:6F:E4:9C:08:0D:3B:8B;com.mpgtechnologies.cradlehub.driver.localtest
+11-17 04:21:08.438  2005  3447 E Google Maps Android API: Error requesting API token. StatusCode=INVALID_ARGUMENT [CONTEXT service_id=71 ]
+11-17 04:21:08.439  3399  3498 E Google Android Maps SDK: Authorization failure.  Please see https://developers.google.com/maps/documentation/android-sdk/start for how to correctly set up the map.
+11-17 04:21:08.441  3399  3498 E Google Android Maps SDK: Ensure that the "Maps SDK for Android" is enabled.
+11-17 04:21:08.441  3399  3498 E Google Android Maps SDK: Ensure that the following Android Key exists:
+11-17 04:21:08.441  3399  3498 E Google Android Maps SDK: 	Android Application (<cert_fingerprint>;<package_name>): 0B:39:6A:DC:9D:FF:8B:D6:32:47:07:A4:63:6F:E4:9C:08:0D:3B:8B;com.mpgtechnologies.cradlehub.driver.localtest

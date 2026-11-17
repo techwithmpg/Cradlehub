@@ -1,5 +1,7 @@
 # CradleHub AI Context
 
+> **2026-11-17 LATEST OWNER PHONE / PRODUCTION CLIENT EXCEPTION:** The owner explicitly selected existing PRODUCTION `www.cradlewellnessliving.com` / Supabase `lsrbwqhvzjfpiabeolkv` for their personal phone. Installed `.localtest` debug build has fixtures disabled, full-area Map without its brand banner, exact Staff PWA icon and compatibility with deployed itinerary/Start plus RLS booking reads. Phone Auth/data requests now return200 and authenticated Driver/On duty UI is observed. Earlier Android DNS failure recovered without any setting change; the approved direct DNS test was refused and original values were verified intact. Google Maps/Navigation still rejects the current native key; required service activation returned success, but available account key/IAM management is denied. Full journey/native-location/device APIs remain undeployed. No server deployment, SQL, main merge/push or general distribution. Live navigation/QR/CRM/push and external review remain open. See [owner-phone handoff](docs/reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md).
+
 > **2026-11-17 Driver personal phone test:** The owner explicitly authorized installing the verified native `.localtest` UI fixture on their connected RMX3081 / Android13 phone. Installation and native launch succeeded; the app was left open for owner testing. This supersedes the earlier emulator-only boundary for this personal installation only. Live backend, routing/GPS/QR/push/CRM acceptance and external review remain open. No general staff distribution, main merge, deployment or production operation. See the phone-install follow-up in the [native handoff](docs/reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md).
 
 > **2026-11-17 LATEST OWNER-AUTHORIZED NATIVE DRIVER UI — LOCAL EMULATOR PASS / RELEASE CORRECTION REQUIRED:** The latest five-screen brief supersedes the earlier four-tab hybrid host. `stage/driver-native-compose-20261117` stacks on reviewed local candidate `1e23e92f4e146d0448f9f7e58b575d284511eade`; freshly reconciled accepted main remains `51ba200580068691a0358323e00c8c4a7a8de11e`. Kotlin/Compose owns Today / Trips / Scan / Map / More, native auth/QR/secondary screens and the persistent Google SDK pane; no WebView is constructed. Local unit tests, six emulator instrumentation cases, APK builds, release source compilation and lint pass. Screenshots are labeled synthetic LOCAL UI fixtures; connected Supabase, live routing/GPS/voice/QR/push, physical-device acceptance and external review remain unverified. The owner explicitly chose local emulator verification first. Existing Web/PWA, SQL and the one-scan 120-minute early-arrival policy are unchanged. No main merge, push, production access, deployment, activation or distribution. See [current native handoff](docs/reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md).
@@ -108,6 +110,8 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 8. Production state independently proven by authorized evidence
 
 ## Active governance manifest
+
+- [Driver owner-phone current handoff](docs/reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md)
 
 - [Native Compose Driver current handoff](docs/reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md)
 
