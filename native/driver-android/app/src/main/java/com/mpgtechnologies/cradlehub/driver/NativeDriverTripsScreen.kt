@@ -181,7 +181,8 @@ internal fun rememberTripsNow(owner: LifecycleOwner, clock: () -> Instant = Inst
             }
         }
     }
-    return now
+    // Fresh data may arrive between pulses; never compare a new GPS fix with an older sample.
+    return maxOf(now, currentClock())
 }
 
 @Composable

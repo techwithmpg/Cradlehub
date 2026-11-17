@@ -2,6 +2,7 @@ package com.mpgtechnologies.cradlehub.driver
 
 import android.os.SystemClock
 import androidx.compose.material3.Text
+import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -74,6 +75,7 @@ class NativeTripsDisplayClockTest {
                 initial,
                 10.0,
             )
+        var published by mutableStateOf(estimate)
         compose.runOnUiThread {
             owner = DisplayOwner().apply { registry.currentState = Lifecycle.State.RESUMED }
             compose.activity.setContentView(
@@ -84,7 +86,7 @@ class NativeTripsDisplayClockTest {
                                 reads.incrementAndGet()
                                 current.get()
                             }
-                        val eta = NativeTripsPolicy.eta(trip, estimate, now)
+                        val eta = NativeTripsPolicy.eta(trip, published, now)
                         Text(
                             "${eta.reason ?: eta.time} | ${NativeTripsPolicy.banner(trip, now)} | ${now.epochSecond}"
                         )
@@ -95,6 +97,15 @@ class NativeTripsDisplayClockTest {
         compose
             .onNodeWithText(
                 "12 min | Service in progress · Est. completion in 1 min | ${initial.epochSecond}"
+            )
+            .assertExists()
+        compose.runOnUiThread {
+            current.set(initial.plusSeconds(1))
+            published = estimate.copy(gpsAt = current.get(), calculatedAt = current.get())
+        }
+        compose
+            .onNodeWithText(
+                "12 min | Service in progress · Est. completion in 1 min | ${initial.plusSeconds(1).epochSecond}"
             )
             .assertExists()
         current.set(initial.plusSeconds(61))
