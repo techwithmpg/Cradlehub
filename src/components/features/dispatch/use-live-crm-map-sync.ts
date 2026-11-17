@@ -23,6 +23,11 @@ import {
   type RealtimeConnectionState,
 } from "@/lib/dispatch/crm-live-map-model";
 import {
+  buildLiveMapTripsViewModel,
+  type LiveMapTripItem,
+  type TripFilterCounts,
+} from "@/lib/dispatch/trip-presentation";
+import {
   isValidGeoPoint,
   shouldRecomputeDriverRoute,
   type RouteCacheEntry,
@@ -31,7 +36,6 @@ import type { DispatchData } from "@/lib/queries/dispatch-queries";
 
 const MAP_POLL_INTERVAL_MS = 15_000;
 const FRESHNESS_TICK_MS = 15_000;
-const SERVICE_TIMER_TICK_MS = 1_000;
 
 function isSafeToastMoment(): boolean {
   if (typeof document === "undefined") return false;
@@ -62,11 +66,11 @@ function presentArrivalToast(
     duration: 8_000,
     ...(onSelectBooking
       ? {
-          action: {
-            label: "Focus",
-            onClick: () => onSelectBooking(record.event.bookingId),
-          },
-        }
+        action: {
+          label: "Focus",
+          onClick: () => onSelectBooking(record.event.bookingId),
+        },
+      }
       : {}),
   });
 }
@@ -136,6 +140,10 @@ export interface LiveCrmMapSyncState {
   nowMs: number;
   connectionState: RealtimeConnectionState;
   viewModel: LiveMapDriversViewModel;
+  tripsViewModel: {
+    trips: LiveMapTripItem[];
+    counts: TripFilterCounts;
+  };
   routesByDriver: ReadonlyMap<string, RouteCacheEntry>;
   arrivalFeed: AcceptedArrivalRecord[];
   receiveArrivalEvent: (
@@ -219,21 +227,11 @@ export function useLiveCrmMapSync(input: {
     };
   }, []);
 
-  // Periodic tick: 1s while any home service session timer is running, else 15s for GPS freshness
-  const hasActiveSessionTimer = useMemo(
-    () =>
-      data.items.some(
-        (item) =>
-          item.bookingProgressStatus === "session_started" || item.bookingStatus === "in_progress"
-      ),
-    [data.items]
-  );
-
+  // Refresh GPS freshness & map summaries every 15s (live per-second countdown stays isolated in ContextualJourneyPanel)
   useEffect(() => {
-    const intervalMs = hasActiveSessionTimer ? SERVICE_TIMER_TICK_MS : FRESHNESS_TICK_MS;
-    const timer = window.setInterval(() => setNowMs(Date.now()), intervalMs);
+    const timer = window.setInterval(() => setNowMs(Date.now()), FRESHNESS_TICK_MS);
     return () => window.clearInterval(timer);
-  }, [hasActiveSessionTimer]);
+  }, []);
 
   // Reconcile authoritative DispatchData updates without synchronous cascading state sets in effects
   useEffect(() => {
@@ -367,7 +365,7 @@ export function useLiveCrmMapSync(input: {
   useEffect(() => {
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") {
-        void Promise.resolve(refreshRef.current?.()).catch(() => {});
+        void Promise.resolve(refreshRef.current?.()).catch(() => { });
       }
     };
 
@@ -552,6 +550,19 @@ export function useLiveCrmMapSync(input: {
     ]
   );
 
+  const tripsViewModel = useMemo(
+    () =>
+      buildLiveMapTripsViewModel({
+        items: data.items,
+        transportJourneys: data.transportJourneys,
+        drivers: viewModel.drivers,
+        arrivalsByBooking,
+        connectionState,
+        nowMs,
+      }),
+    [data.items, data.transportJourneys, viewModel.drivers, arrivalsByBooking, connectionState, nowMs]
+  );
+
   // Only expose routes that still match active driver routeKeys (auto-invalidates cancelled/reassigned trips)
   const activeRoutesByDriver = useMemo(() => {
     const filtered = new Map<string, RouteCacheEntry>();
@@ -604,7 +615,7 @@ export function useLiveCrmMapSync(input: {
           setRoutesByDriver((prev) => {
             const next = new Map(prev);
             next.set(targetDriverId, {
-              routeKey: res.routeKey || targetRouteKey,
+              routeKey: targetRouteKey,
               origin,
               computedAtMs: Date.now(),
               durationMinutes: res.durationMinutes,
@@ -616,7 +627,7 @@ export function useLiveCrmMapSync(input: {
             return next;
           });
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => {
           inFlightRoutesRef.current.delete(flightKey);
         });
@@ -627,6 +638,7 @@ export function useLiveCrmMapSync(input: {
     nowMs,
     connectionState,
     viewModel,
+    tripsViewModel,
     routesByDriver: activeRoutesByDriver,
     arrivalFeed,
     receiveArrivalEvent,

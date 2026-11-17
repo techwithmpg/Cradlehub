@@ -223,7 +223,7 @@ describe("O2 CRM Routes, ETA Caching, Arrival Notification Security & Deduplicat
     expect(pickup.accepted).toBe(true);
     if (pickup.accepted) {
       expect(pickup.shouldNotify).toBe(true);
-      expect(pickup.record.copy.title).toBe("Arrived at pickup");
+      expect(pickup.record.copy.title).toBe("Driver arrived at therapist pickup");
       expect(pickup.record.copy.body).toContain("Main Branch");
     }
 
@@ -276,7 +276,7 @@ describe("O2 CRM Routes, ETA Caching, Arrival Notification Security & Deduplicat
     expect(mocks.createNotificationOnce).toHaveBeenCalledWith(
       expect.objectContaining({
         targetWorkspace: "crm",
-        title: "Arrived at customer",
+        title: "Driver arrived at customer location",
         type: "booking_status_changed",
         actionHref: `/crm/dispatch?bookingId=${BOOKING_ID}&view=map`,
       })
@@ -303,7 +303,7 @@ describe("O2 CRM Routes, ETA Caching, Arrival Notification Security & Deduplicat
     );
     expect(collection.accepted).toBe(true);
     if (collection.accepted) {
-      expect(collection.record.copy.title).toBe("Arrived for collection");
+      expect(collection.record.copy.title).toBe("Driver arrived for therapist collection");
     }
 
     // Existing notification display renders driver arrival metadata cleanly
@@ -315,7 +315,7 @@ describe("O2 CRM Routes, ETA Caching, Arrival Notification Security & Deduplicat
       recipient_staff_id: null,
       actor_staff_id: DRIVER_ID,
       type: "booking_status_changed",
-      title: "Arrived at customer",
+      title: "Driver arrived at customer location",
       body: "Driver Carlos arrived at Customer A's location with Maria.",
       entity_type: "booking",
       entity_id: BOOKING_ID,
@@ -329,7 +329,7 @@ describe("O2 CRM Routes, ETA Caching, Arrival Notification Security & Deduplicat
       metadata: { driver_arrival_kind: "customer_arrival", driver_name: "Carlos" },
       created_at: "2026-11-17T05:55:00Z",
     } as WorkspaceNotification);
-    expect(rendered.title).toBe("Arrived at customer");
+    expect(rendered.title).toBe("Driver arrived at customer location");
     expect(rendered.actionLabel).toBe("View Live Map");
   });
 

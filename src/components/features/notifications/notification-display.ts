@@ -171,11 +171,11 @@ function bookingDisplay(notification: WorkspaceNotification): NotificationDispla
   ) {
     const arrivalTitle =
       arrivalKind === "pickup_arrival"
-        ? "Arrived at pickup"
+        ? "Driver arrived at therapist pickup"
         : arrivalKind === "customer_arrival"
-          ? "Arrived at customer"
+          ? "Driver arrived at customer location"
           : arrivalKind === "collection_arrival"
-            ? "Arrived for collection"
+            ? "Driver arrived for therapist collection"
             : "Ready for collection";
     const meta = compactJoin([
       readString(metadata, ["driver_name", "driverName"]),
