@@ -1,22 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-  Bell,
-  ChevronRight,
-  ClipboardList,
-  LogOut,
-  MapPinned,
-  UserRound,
-  CalendarCheck2,
-  QrCode,
-} from "lucide-react";
-import { UserAvatar } from "@/components/shared/user-avatar";
-import {
-  StaffButton,
-  StaffCard,
-  StaffScreen,
-  StaffScreenHeader,
-} from "@/components/features/staff-pwa/native-foundation";
+import { DriverMoreContent } from "@/components/features/staff-pwa/driver/driver-more-content";
 import { getMyProfileAction } from "@/app/(dashboard)/staff-portal/actions";
 import { resolveStaffPwaOperationalGroup } from "@/lib/auth/workspace-access";
 
@@ -29,18 +12,18 @@ async function driverLogoutAction() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) await supabase.auth.signOut();
+  if (user) {
+    if (process.env.CRADLEHUB_DRIVER_JOURNEYS_ENABLED === "true") {
+      try {
+        await supabase.rpc("driver_native_revoke_session" as never);
+      } catch {
+        /* Auth sign-out still revokes the server session. */
+      }
+    }
+    await supabase.auth.signOut();
+  }
   redirect("/staff/login");
 }
-
-const links = [
-  { label: "Trips", href: "/staff/driver/trips", icon: ClipboardList },
-  { label: "Map", href: "/staff/driver/map", icon: MapPinned },
-  { label: "My profile", href: "/staff/driver/profile", icon: UserRound },
-  { label: "Scan attendance QR", href: "/staff/scan", icon: QrCode },
-  { label: "Attendance", href: "/staff/attendance", icon: CalendarCheck2 },
-  { label: "Notices", href: "/staff/notices", icon: Bell },
-] as const;
 
 export default async function StaffDriverMorePage() {
   const result = await getMyProfileAction();
@@ -51,43 +34,5 @@ export default async function StaffDriverMorePage() {
   ) {
     redirect("/staff/");
   }
-  const staff = result.staff;
-  const name = staff.nickname?.trim() || staff.full_name?.trim() || "Driver";
-
-  return (
-    <StaffScreen>
-      <StaffScreenHeader title="More" subtitle="Driver workspace and account" />
-      <StaffCard className="flex items-center gap-4 p-4">
-        <UserAvatar
-          name={name}
-          imageUrl={staff.avatar_url}
-          size="sm"
-          className="size-14 border-2 border-[#c8a96b]"
-        />
-        <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold text-[#163a2b]">{name}</h2>
-          <p className="text-xs text-[#65746b]">Driver</p>
-        </div>
-      </StaffCard>
-      <StaffCard className="mt-5 overflow-hidden">
-        {links.map(({ label, href, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className="flex min-h-14 items-center gap-3 border-b border-[#eee8dd] px-4 last:border-0 focus-visible:outline-2 focus-visible:outline-[#c8a96b]"
-          >
-            <Icon size={19} className="text-[#19563c]" aria-hidden="true" />
-            <span className="flex-1 text-sm font-medium">{label}</span>
-            <ChevronRight size={17} className="text-[#65746b]" aria-hidden="true" />
-          </Link>
-        ))}
-      </StaffCard>
-      <p className="mt-5 text-center text-xs text-[#65746b]">CradleHub Staff PWA</p>
-      <form action={driverLogoutAction} className="mt-5">
-        <StaffButton type="submit" variant="secondary" className="w-full">
-          <LogOut size={17} aria-hidden="true" /> Sign out
-        </StaffButton>
-      </form>
-    </StaffScreen>
-  );
+  return <DriverMoreContent staff={result.staff} logoutAction={driverLogoutAction} />;
 }

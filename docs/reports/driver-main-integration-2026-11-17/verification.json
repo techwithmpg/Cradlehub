@@ -1,0 +1,37 @@
+{
+  "reviewedSourceHead": "9b3f1923e6f1858b93af1310f33adc52a51cb7b4",
+  "acceptedMain": "51ba200580068691a0358323e00c8c4a7a8de11e",
+  "driverTests": {
+    "passed": 164,
+    "failed": 0
+  },
+  "typeCheckExit": 0,
+  "webBuildExit": 0,
+  "nativeCompileExit": 0,
+  "scopedLint": {
+    "errors": 0,
+    "inheritedWarnings": 1
+  },
+  "hostedEnvironmentMetadata": {
+    "variablesInspected": 29,
+    "driverActivationFlagsPresent": false,
+    "valuesOrSecretsPrinted": false
+  },
+  "approvedLocalSqlContractHashesUnchanged": true,
+  "databaseExecutionDuringMerge": false,
+  "externalReview": "PENDING; not claimed by source integration",
+  "nativeUnitTests": [
+    {
+      "name": "com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest",
+      "tests": "9",
+      "failures": "0",
+      "errors": "0"
+    },
+    {
+      "name": "com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest",
+      "tests": "31",
+      "failures": "0",
+      "errors": "0"
+    }
+  ]
+}

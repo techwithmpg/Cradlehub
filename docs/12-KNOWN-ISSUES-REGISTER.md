@@ -1,5 +1,27 @@
 # Known Issues Register
 
+## Latest owner-phone gates — 2026-11-17
+
+- **DRV-PHONE-R1 / P1 / OPEN:** Native Maps/Navigation key authorization fails for the owner phone package/certificate. Missing Maps SDK/key-management service activation returned a successful operation, but available account key management/IAM access is denied. Do not weaken key restrictions or reuse browser/server keys. Exact required app restriction is in the phone handoff.
+- **DRV-PHONE-R2 / P1 / OPEN:** Production does not expose the new journey/native-location/device HTTP APIs. Existing booking RLS reads and itinerary/Start support the deployed delivery flow; separate pickup/collection/return, native CRM GPS and push are not accepted as live.
+- **DRV-PHONE-R3 / P1 / OPEN:** Physical guidance/voice/background/reassignment, QR/attendance/geofence/device limits, CRM two-session acceptance and independent review remain pending. Phone sign-in/profile/attendance reads now succeed. Earlier UnknownHost failure recovered without changing device DNS; original settings were verified intact after Android refused the approved direct write.
+- **DRV-PHONE-R4 / P2 / OPEN:** Lint passes with39 warnings; existing deprecations/performance limits remain. Diagnostics log only boolean configuration, HTTP channels/status and exception classes. No passwords, tokens, exact positions or staff/customer rows are included in evidence. [Phone handoff](reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md).
+
+## Latest native Driver release gates — 2026-11-17
+
+- **DRV-NAT-R1 / P1 / OPEN:** Approved connected TEST API/Supabase project, restricted Navigation key and physical phone are not identified. Native authentication, SSR-cookie backend compatibility, runtime journey parity, QR attendance submissions, GPS/voice/reroute, camera decode, background guidance, FCM and CRM two-session acceptance remain unverified. Owner chose local emulator verification first.
+- **DRV-NAT-R2 / P1 / OPEN:** Independent external review and separate owner merge/release gate remain pending. Local implementation review is not independent acceptance. Existing signed pilot workflow lacks new native TEST config; do not bypass packaging guards or distribute the fixture APK.
+- **DRV-NAT-R3 / P2 / OPEN:** Lint passes with 38 warnings (dependency currency, legacy unused XML, Compose modifier conventions, backup-extraction guidance and KTX suggestions); Gradle reports future version deprecations. FCM preserves the reviewed token contract despite SDK deprecation; an Installation-ID contract needs separate review. Completed history is service history, not certified completed transport history. Emulator timings are variable and do not establish phone performance or an improvement. One final cold launch timed out at 20,822ms; the next two completed at 5,154/4,575ms. No application exception or Android ANR was found in the captured investigation; performance acceptance remains open.
+- Local emulator now boots from a new E-drive disposable AVD; this supersedes the prior local disk-space blocker only. First boot had a System UI ANR and emulator radio-service crash, not a verified application failure. [Native handoff](reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md).
+
+## Unified Driver Android release gates — 2026-11-17
+
+- **DRV-UNI-R1 / P1 / OPEN:** The exact approved privileged journey/device/push/CRM package passed 22 disposable LOCAL TEST scenarios and cleanup checks. Installed Supabase TEST parity, broader concurrency/lease acceptance and separate runtime approval remain required before activation.
+- **DRV-UNI-R2 / P1 / OPEN:** Real Android SDK/GPS/voice/camera/push/lifecycle evidence unavailable; no physical device; existing read-only emulator failed its disk-space check. Actual target devices unspecified.
+- **DRV-UNI-R3 / P1 / OPEN:** External review and owner release/merge gate pending. Implementation self-review is not independent acceptance.
+- **DRV-UNI-R4 / P2 / OPEN:** Fifteen broad-suite failures reproduce on accepted source; details retained. Conservative dispatch capacity/branch return constraints and completed-service CRM map limitations remain under R5/R6. Existing lint/Gradle warnings under R7.
+- [Current Driver handoff](reports/DRIVER-UNIFIED-ANDROID-HANDOFF-2026-11-17.md). All runtime controls inactive; database changes were confined to the approved disposable synthetic test, now removed. No production/deployment/main change.
+
 ## Attendance V2 release gates — 2026-11-16
 
 - **ATT-V2-R1 / OPEN:** Native PostgreSQL LOCAL TEST with synthetic schema does not establish installed Supabase functions, grants, notification recipient policies, Auth, PostgREST, Vault or pg_net parity. Verify exact prerequisites without replaying historical local-only migrations.

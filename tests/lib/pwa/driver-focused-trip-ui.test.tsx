@@ -85,61 +85,94 @@ describe("Driver focused trip UI (review only)", () => {
     calls.progress.mockResolvedValue({ ok: false, message: "Trip reassigned." });
     render(<DriverFocusedTripRoute job={trip()} />);
     fireEvent.click(screen.getByRole("button", { name: /Start Trip/i }));
-    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Trip reassigned."));
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toContain("Trip reassigned.")
+    );
     expect(calls.progress).toHaveBeenCalledExactlyOnceWith({
-      bookingId: trip().id, nextStatus: "travel_started",
+      bookingId: trip().id,
+      nextStatus: "travel_started",
     });
   });
 
   it("does not allow starting a trip with unverified customer coordinates", () => {
     render(<DriverFocusedTripRoute job={trip({ needsLocationReview: true })} />);
-    expect((screen.getByRole("button", { name: /Start Trip/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: /Start Trip/i }) as HTMLButtonElement).disabled
+    ).toBe(true);
     expect(calls.progress).not.toHaveBeenCalled();
   });
 
   it("shows Resume navigation for an en-route booking, not another Start", () => {
-    render(<DriverFocusedTripRoute job={trip({
-      bookingProgressStatus: "travel_started", dispatchStatus: "in_route",
-    })} />);
+    render(
+      <DriverFocusedTripRoute
+        job={trip({
+          bookingProgressStatus: "travel_started",
+          dispatchStatus: "in_route",
+        })}
+      />
+    );
     expect(screen.getByRole("button", { name: /Resume navigation/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Start Trip/i })).toBeNull();
   });
 
   it("shows authoritative recorded arrival without completing the provider's service", () => {
-    render(<DriverFocusedTripRoute job={trip({
-      bookingProgressStatus: "arrived", dispatchStatus: "arrived_at_customer",
-    })} />);
+    render(
+      <DriverFocusedTripRoute
+        job={trip({
+          bookingProgressStatus: "arrived",
+          dispatchStatus: "arrived_at_customer",
+        })}
+      />
+    );
     expect(screen.getByText(/Arrival recorded in CradleHub/i)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Start Trip/i })).toBeNull();
   });
 
   it("limits canonical Driver tabs to trips, moving attendance to More", () => {
-    expect(getDriverBottomNavItems("canonical").map(item => item.label))
-      .toEqual(["Trips", "QR Scanner", "Navigation", "More"]);
-    expect(getDriverBottomNavItems("driver").map(item => item.label))
-      .toContain("Scan");
+    expect(getDriverBottomNavItems("canonical").map((item) => item.label)).toEqual([
+      "Trips",
+      "Navigate",
+      "Scan",
+      "More",
+    ]);
+    expect(getDriverBottomNavItems("driver").map((item) => item.label)).toContain("Scan");
     const more = readFileSync("src/app/(dashboard)/staff/driver/more/page.tsx", "utf8");
-    expect(more).toContain("Scan attendance QR");
-    expect(more).toContain("/staff/attendance");
+    expect(more).toContain("DriverMoreContent");
+    expect(
+      readFileSync("src/components/features/staff-pwa/driver/driver-more-content.tsx", "utf8")
+    ).toContain("Scan attendance QR");
+    expect(
+      readFileSync("src/components/features/staff-pwa/driver/driver-more-content.tsx", "utf8")
+    ).toContain("/staff/attendance");
+    expect(getDriverBottomNavItems("canonical").find((item) => item.key === "scan")).toMatchObject({
+      documentNavigation: true,
+    });
   });
 
-  it("native shell has no competing button, and native arrival does not write booking state", () => {
+  it("native host embeds guidance, and GPS uses the authorized journey API", () => {
     const shell = readFileSync(
-      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/DriverShellActivity.java", "utf8"
+      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeDriverActivity.kt",
+      "utf8"
     );
     const nativeRoute = readFileSync(
-      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeNavigationActivity.java", "utf8"
+      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/DriverNavigationController.java",
+      "utf8"
     );
-    const layout = readFileSync(
-      "native/driver-android/app/src/main/res/layout/activity_driver_shell.xml", "utf8"
+    const screens = readFileSync(
+      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeDriverScreens.kt",
+      "utf8"
     );
-    expect(shell).toContain("maybeLaunchNavigation");
+    expect(shell).toContain("NativeDriverApp(");
+    expect(shell).toContain("initializeNavigation()");
     expect(shell).toContain("onNewIntent");
-    expect(shell).toContain("BOOKING_ID.matcher(id).matches()");
-    expect(layout).not.toContain("openNativeNavigation");
+    expect(shell).toContain("DriverTripPolicy.validId(it)");
+    expect(shell).toContain('findFragmentByTag("native-driver-map")');
+    expect(shell).not.toContain("WebView");
+    expect(screens).toContain("AndroidView(");
     expect(nativeRoute).toContain("navigator.stopGuidance()");
-    expect(nativeRoute).toContain("startButton.setOnClickListener(view -> startConfirmedGuidance())");
-    expect(nativeRoute).toContain("postExplicitTravelStart()");
+    expect(nativeRoute).toContain("transport.call(");
+    expect(nativeRoute).toContain("gps_arrival");
+    expect(nativeRoute).toContain("NativeDriverCompatibility.legacyRead");
     expect(nativeRoute).not.toContain("nextStatus");
   });
 });

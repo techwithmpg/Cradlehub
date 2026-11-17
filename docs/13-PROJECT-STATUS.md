@@ -1,5 +1,24 @@
 # Project Status
 
+## Owner-approved main and remote integration — 2026-11-17
+
+The owner authorizes source integration of this chat’s accepted Attendance and reviewed Driver stack. Driver164/native40 tests, types, isolated Web build, pilot source compilation and scoped lint pass. Generic Scan failure is a reproduced accepted-main baseline. Runtime journey/location/push controls and SQL remain inactive/unapplied; Maps and external/device acceptance remain open. [Integration review](reports/DRIVER-MAIN-INTEGRATION-2026-11-17.md).
+
+## Latest connected owner phone — 2026-11-17
+
+Native implementation `30218cde2f6795500e15272c164af68fe4753591` on the same review branch adds full-area Map, exact PWA icon, guarded owner-authorized production connection and deployed-API compatibility. Forty unit tests, seven emulator UI cases, fixture/production builds and lint pass. Phone Auth/RLS reads return200; authenticated Driver/On duty UI is observed. **Live Maps remains blocked by native-key authorization**; full journey/location/push API activation and independent/device acceptance remain open. No server deployment, SQL, main merge/push or general distribution. [Current handoff](reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md).
+
+## Latest native Driver UI candidate — 2026-11-17
+
+Kotlin/Compose replaces the hybrid host on `stage/driver-native-compose-20261117`, from local candidate `1e23e92f4e146d0448f9f7e58b575d284511eade`; accepted main remains `51ba200580068691a0358323e00c8c4a7a8de11e`. All five native tabs, camera, native auth and secondary destinations are implemented. 33 unit tests, six emulator instrumentation tests, native builds/release source compilation and lint pass. Five actual native screenshots and font/permission recovery evidence use explicit synthetic fixtures. **CORRECTION REQUIRED for release:** connected TEST/physical-device/external acceptance is pending. Owner requested local emulator first; no production, SQL, Web/PWA, main, push, deployment or distribution change. [Current handoff](reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md).
+
+## Unified Driver Android candidate — 2026-11-17
+
+- Owner-authorized D0–D5 implementation on `stage/driver-unified-android-shell-20261117`, accepted base `51ba200580068691a0358323e00c8c4a7a8de11e`, implementation `e1bbba4b0258ec1fabf5bab631ea8afa13224666`. Web/Android share this repository; USB-preview work preserved.
+- One host and embedded SDK pane; four primary tabs; complete guarded transport lifecycle, existing CRM location store, trusted camera cleanup and inactive native push candidate.
+- **CORRECTION REQUIRED:** 164 Driver / nine native tests pass; native APK, Web build, types and scoped lint pass with one inherited warning. Broader suite has 1,130 passes / 15 baseline failures. All 22 owner-approved disposable LOCAL TEST database scenarios pass; independent cleanup checks pass. Device/installed Supabase acceptance and external review remain open.
+- No main merge/push, production action, flags/Cron activation or staff APK distribution. The exact approved manifest was executed unchanged on verified loopback PostgreSQL 17.11; the synthetic database was removed and test cluster stopped again. [Handoff and evidence](reports/DRIVER-UNIFIED-ANDROID-HANDOFF-2026-11-17.md).
+
 ## Attendance V2 Web review candidate — 2026-11-16
 
 - Owner-authorized isolated branch `stage/web-attendance-v2-automation-20261116` from fetched main `a9ff58e9da53bc10a71a714839ce6d77dc895bb0`; unrelated worktrees preserved.

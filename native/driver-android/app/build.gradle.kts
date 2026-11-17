@@ -1,7 +1,9 @@
 import java.net.URI
+import java.util.Base64
 
 plugins {
   id("com.android.application")
+  id("org.jetbrains.kotlin.plugin.compose")
 }
 
 // Existing Android companion; do not add a second Driver PWA or backend.
@@ -38,6 +40,29 @@ fun isApprovedTestOrigin(raw: String): Boolean = try {
     uri.query == null && uri.fragment == null
 } catch (_: Exception) { false }
 
+// Native clients are inert until a classified TEST target is explicitly configured.
+// Reject privileged keys before generating any BuildConfig/APK constant.
+val nativeTarget = providers.gradleProperty("CRADLE_NATIVE_TARGET").orElse("UNCONFIGURED").get()
+val nativeApi = providers.gradleProperty("CRADLE_NATIVE_API_ORIGIN").orElse("https://driver-native.invalid").get()
+val nativeSupabase = providers.gradleProperty("CRADLE_NATIVE_SUPABASE_URL").orElse("https://driver-native.invalid").get()
+val nativePublicKey = providers.gradleProperty("CRADLE_NATIVE_PUBLIC_KEY").orElse(providers.environmentVariable("CRADLE_NATIVE_PUBLIC_KEY")).orElse("").get()
+val nativeOwnerPhone = providers.gradleProperty("CRADLE_NATIVE_PRODUCTION_OWNER_PHONE").orNull == "true"
+require(nativeTarget in setOf("TEST", "UNCONFIGURED", "PRODUCTION")) { "Native target must be explicitly classified." }
+require(!nativeOwnerPhone || nativeTarget == "PRODUCTION") { "Owner-phone configuration requires the PRODUCTION classification." }
+if (nativeTarget == "PRODUCTION") {
+ require(nativePublicKey.isNotBlank()) { "Owner phone requires the existing public client key." }
+ require(nativeOwnerPhone && nativeApi == "https://www.cradlewellnessliving.com" && nativeSupabase == "https://lsrbwqhvzjfpiabeolkv.supabase.co") { "Production requires the explicitly owner-authorized phone build and exact accepted host/project pair." }
+ require(providers.gradleProperty("CRADLE_NATIVE_UI_FIXTURE").orNull != "true") { "Production cannot contain UI fixtures." }
+}
+for (origin in listOf(nativeApi,nativeSupabase)) {
+ require(Regex("^https://[A-Za-z0-9.-]+(?::443)?/?$").matches(origin)) { "Native origins require one HTTPS host without credentials or paths." }
+ require(nativeTarget == "PRODUCTION" || URI(origin).host.lowercase() !in setOf("www.cradlewellnessliving.com","cradlewellnessliving.com","lsrbwqhvzjfpiabeolkv.supabase.co")) { "Production targets require the owner-authorized phone configuration." }
+}
+if(nativePublicKey.isNotEmpty()) {
+ val anon = runCatching { val parts=nativePublicKey.split('.');parts.size==3 && Regex("\"role\"\\s*:\\s*\"anon\"").containsMatchIn(String(Base64.getUrlDecoder().decode(parts[1]))) }.getOrDefault(false)
+ require(Regex("^[A-Za-z0-9_.-]+$").matches(nativePublicKey) && (nativePublicKey.startsWith("sb_publishable_") || anon)) { "Only a publishable or anon public key may be embedded; privileged keys are forbidden." }
+}
+
 android {
   namespace = "com.mpgtechnologies.cradlehub.driver"
   compileSdk = 36
@@ -47,7 +72,14 @@ android {
     minSdk = 24
     targetSdk = 36
     versionCode = pilotVersion ?: 1
-    versionName = "0.1.0-preview"
+    versionName = "0.3.0-native-compose-review"
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    buildConfigField("boolean", "NATIVE_UI_FIXTURE", "false")
+    buildConfigField("boolean", "NATIVE_OWNER_PHONE", nativeOwnerPhone.toString())
+    buildConfigField("String", "NATIVE_TARGET", "\"${nativeTarget}\"")
+    buildConfigField("String", "NATIVE_API_ORIGIN", "\"${nativeApi}\"")
+    buildConfigField("String", "NATIVE_SUPABASE_URL", "\"${nativeSupabase}\"")
+    buildConfigField("String", "NATIVE_PUBLIC_KEY", "\"${nativePublicKey}\"")
     // Default/release builds retain the accepted main production origin.
     // Only the separately signed ".pilot" variant uses an isolated TEST URL.
     buildConfigField("String", "DRIVER_WEB_ORIGIN", "\"https://www.cradlewellnessliving.com\"")
@@ -73,6 +105,21 @@ android {
   }
 
   buildTypes {
+    getByName("debug") {
+      val origin=providers.gradleProperty("CRADLE_DRIVER_DEBUG_ORIGIN").orElse("https://www.cradlewellnessliving.com").get()
+      require(origin in setOf("https://www.cradlewellnessliving.com","http://localhost:7100")) { "Debug origin must be the accepted host or USB-only localhost:7100." }
+      buildConfigField("String","DRIVER_WEB_ORIGIN","\"$origin\"")
+      if (nativeOwnerPhone) {
+        require(origin == "https://www.cradlewellnessliving.com") { "Owner phone must use the accepted production origin." }
+        applicationIdSuffix = ".localtest"
+        versionNameSuffix = "-owner-phone"
+      } else if(providers.gradleProperty("CRADLE_DRIVER_LOCAL_TEST").orNull == "true") {
+        require(origin=="http://localhost:7100") { "LOCAL TEST cannot target a remote host." }
+        applicationIdSuffix=".localtest"
+        versionNameSuffix="-local-test"
+        if (providers.gradleProperty("CRADLE_NATIVE_UI_FIXTURE").orNull == "true") buildConfigField("boolean", "NATIVE_UI_FIXTURE", "true")
+      }
+    }
     getByName("release") {
       isMinifyEnabled = false // preserve accepted native baseline
     }
@@ -87,13 +134,14 @@ android {
     }
   }
 
-  buildFeatures { buildConfig = true }
+  buildFeatures { buildConfig = true; compose = true }
 }
 
 // Fail before packaging any pilot APK without all review-gated inputs.
 // Unit/compile checks can still build the isolated pilot source without secrets.
 val validateDriverPilot = tasks.register("validateDriverPilot") {
   doLast {
+    check(nativeTarget == "TEST" && nativeApi.trimEnd('/') == pilotWebOrigin.trimEnd('/') && nativePublicKey.isNotBlank()) { "Native pilot requires the same explicitly configured TEST API origin and a public Supabase key." }
     check(isApprovedTestOrigin(pilotWebOrigin)) {
       "Pilot APK requires an approved non-production HTTPS origin."
     }
@@ -112,6 +160,23 @@ tasks.matching { it.name == "packagePilot" || it.name == "assemblePilot" }
   .configureEach { dependsOn(validateDriverPilot) }
 
 dependencies {
+  implementation(platform("androidx.compose:compose-bom:2026.02.01"))
+  implementation("androidx.compose.ui:ui")
+  implementation("androidx.compose.foundation:foundation")
+  implementation("androidx.compose.material3:material3")
+  implementation("androidx.compose.ui:ui-tooling-preview")
+  debugImplementation("androidx.compose.ui:ui-tooling")
+  implementation("androidx.camera:camera-camera2:1.4.2")
+  implementation("androidx.camera:camera-lifecycle:1.4.2")
+  implementation("androidx.camera:camera-view:1.4.2")
+  implementation("com.google.mlkit:barcode-scanning:17.3.0")
+  testImplementation("org.json:json:20240303")
+  androidTestImplementation(platform("androidx.compose:compose-bom:2026.02.01"))
+  androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+  androidTestImplementation("androidx.test.ext:junit:1.3.0")
+  androidTestImplementation("androidx.test:runner:1.7.0")
+  androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+
   implementation("com.google.android.libraries.navigation:navigation:8.1.0")
   implementation("androidx.appcompat:appcompat:1.7.1")
   implementation("androidx.core:core:1.17.0")
@@ -119,4 +184,10 @@ dependencies {
   implementation("com.google.firebase:firebase-messaging")
   coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
   testImplementation("junit:junit:4.13.2")
+}
+
+// This explicit production exception is only for the owner's debug-signed phone.
+// Release/pilot packaging still requires a separately authorized release stage.
+tasks.matching { it.name in setOf("packageRelease", "packagePilot", "assembleRelease", "assemblePilot") }.configureEach {
+  doFirst { check(!nativeOwnerPhone) { "The owner-phone production exception cannot package release or pilot artifacts." } }
 }

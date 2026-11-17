@@ -329,12 +329,15 @@ export function useStaffScanner({
           // Retry once after 150ms if mobile browser was still dismissing permission sheet
           window.setTimeout(() => {
             if (!isCurrent()) return;
-            void video.play().then(startDecoder).catch(() => {
-              if (isCurrent()) {
-                stopScan();
-                setState("camera_unavailable");
-              }
-            });
+            void video
+              .play()
+              .then(startDecoder)
+              .catch(() => {
+                if (isCurrent()) {
+                  stopScan();
+                  setState("camera_unavailable");
+                }
+              });
           }, 150);
         });
       } else {
@@ -394,11 +397,17 @@ export function useStaffScanner({
       }
     }
 
+    function pauseNativeCamera() {
+      stopScan();
+      setState("paused");
+    }
+    window.addEventListener("cradle-driver-camera-pause", pauseNativeCamera);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       cancelled = true;
       mountedRef.current = false;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("cradle-driver-camera-pause", pauseNativeCamera);
       stopScan();
     };
   }, [autoStart, startScan, stopScan]);

@@ -1,5 +1,6 @@
 "use client";
 
+import {DriverTransportJourneys} from "./driver-transport-journeys";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
@@ -180,6 +181,7 @@ export function HomeServiceDispatchWorkspace({
 
   return (
     <section className="space-y-5 p-4 md:p-0">
+      <DriverTransportJourneys journeys={data.transportJourneys} error={data.transportError}/>
       <nav aria-label="Home Service booking dates" className="flex gap-2">
         <Link
           href="/crm/dispatch?tab=today"

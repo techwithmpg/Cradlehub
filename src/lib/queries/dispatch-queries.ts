@@ -1,3 +1,4 @@
+import {readDispatchJourneys,type DispatchJourney} from "@/lib/driver/dispatch";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
@@ -62,6 +63,8 @@ export interface DispatchStats {
 }
 
 export interface DispatchData {
+  transportJourneys?: DispatchJourney[];
+  transportError?: string;
   items: RealDispatchItem[];
   stats: DispatchStats;
   alerts: DispatchAlert[];
@@ -328,6 +331,10 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       throw new Error("Staff assignment is required.");
     }
     const supabase = args.supabase ?? (await createClient());
+    if (process.env.CRADLEHUB_DRIVER_JOURNEYS_ENABLED === "true" && args.role !== "driver" && args.role !== "therapist" && !args.upcoming) {
+      try { empty.transportJourneys = await readDispatchJourneys(supabase,args.branchId); }
+      catch { empty.transportError = "Transport and collection status unavailable. Refresh before dispatching."; }
+    }
     const branchRouteOrigin = await getHomeServiceBranchRouteOrigin(args.branchId, {
       client: supabase,
       throwOnError: args.throwOnError,
@@ -613,6 +620,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
     const items = mappedItems;
 
     return {
+      ...empty,
       items,
       stats: computeStats(items),
       alerts: computeAlerts(items),

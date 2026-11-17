@@ -1,0 +1,23 @@
+--------- beginning of main
+11-17 03:10:52.124 10293 10293 I CradleDriverPerf: trips_loading elapsed_ms=10444 mode=fixture
+11-17 03:10:59.438 10293 10293 I CradleDriverPerf: trips_loading elapsed_ms=7310 mode=fixture
+11-17 03:10:59.492 10293 10293 I CradleDriverPerf: activity_to_first_compose_frame elapsed_ms=17812 mode=fixture
+11-17 03:11:08.856 10293 10293 I CradleDriverPerf: trips_loading elapsed_ms=6764 mode=fixture
+11-17 03:11:34.253 10293 10293 I CradleDriverPerf: trips_loading elapsed_ms=217 mode=fixture
+11-17 03:11:45.753 10377 10377 I CradleDriverPerf: trips_loading elapsed_ms=117 mode=fixture
+11-17 03:11:49.778 10377 10377 I CradleDriverPerf: trips_loading elapsed_ms=4025 mode=fixture
+11-17 03:11:49.814 10377 10377 I CradleDriverPerf: activity_to_first_compose_frame elapsed_ms=4177 mode=fixture
+11-17 03:11:50.176 10377 10377 I CradleDriverPerf: trips_loading elapsed_ms=209 mode=fixture
+11-17 03:11:50.704 10377 10377 I CradleDriverPerf: trips_loading elapsed_ms=5 mode=fixture
+11-17 03:11:55.659 10526 10526 I CradleDriverPerf: trips_loading elapsed_ms=124 mode=fixture
+11-17 03:11:59.264 10526 10526 I CradleDriverPerf: trips_loading elapsed_ms=3604 mode=fixture
+11-17 03:11:59.284 10526 10526 I CradleDriverPerf: activity_to_first_compose_frame elapsed_ms=3748 mode=fixture
+11-17 03:12:01.270 10526 10526 I CradleDriverPerf: tab_switch elapsed_ms=229 mode=fixture
+11-17 03:12:02.808 10526 10526 I CradleDriverPerf: trips_loading elapsed_ms=2 mode=fixture
+11-17 03:12:06.060 10526 10526 I CradleDriverPerf: trip_tap_to_native_map elapsed_ms=2541 mode=fixture
+11-17 03:12:08.308 10526 10526 I CradleDriverPerf: tab_switch elapsed_ms=368 mode=fixture
+11-17 03:12:08.942 10526 10526 I CradleDriverPerf: trips_loading elapsed_ms=5 mode=fixture
+11-17 03:12:10.669 10526 10714 I CradleDriverPerf: qr_camera_first_frame elapsed_ms=2545 mode=fixture
+11-17 03:12:11.993 10526 10526 I CradleDriverPerf: trips_loading elapsed_ms=52 mode=fixture
+11-17 03:12:18.017 10526 10526 I CradleDriverPerf: trips_loading elapsed_ms=42 mode=fixture
+11-17 03:12:20.145 10526 10526 I CradleDriverPerf: tab_switch elapsed_ms=212 mode=fixture

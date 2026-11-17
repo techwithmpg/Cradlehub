@@ -1,0 +1,23 @@
+FINAL RUN 1
+Starting: Intent { cmp=com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity }
+Status: timeout
+LaunchState: UNKNOWN (-1)
+Activity: com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity
+WaitTime: 20822
+Complete
+FINAL RUN 2
+Starting: Intent { cmp=com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity
+TotalTime: 5154
+WaitTime: 5158
+Complete
+FINAL RUN 3
+Starting: Intent { cmp=com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity
+TotalTime: 4575
+WaitTime: 4579
+Complete

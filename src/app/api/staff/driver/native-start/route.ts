@@ -1,3 +1,4 @@
+import { legacyDriverRouteAllowed, readDriverJourneys } from "@/lib/driver/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getMyDriverJobByIdAction,
@@ -26,13 +27,19 @@ export async function POST(request: NextRequest) {
   if (
     request.headers.get("origin") !== request.nextUrl.origin ||
     !request.headers.get("content-type")?.startsWith("application/json")
-  ) return privateJson({ ok: false, error: "Invalid navigation request." }, 403);
+  )
+    return privateJson({ ok: false, error: "Invalid navigation request." }, 403);
 
   let body: unknown;
-  try { body = await request.json(); }
-  catch { return privateJson({ ok: false, error: "Invalid request." }, 400); }
-  const id = body && typeof body === "object" && "bookingId" in body
-    ? (body as { bookingId: unknown }).bookingId : null;
+  try {
+    body = await request.json();
+  } catch {
+    return privateJson({ ok: false, error: "Invalid request." }, 400);
+  }
+  const id =
+    body && typeof body === "object" && "bookingId" in body
+      ? (body as { bookingId: unknown }).bookingId
+      : null;
   if (typeof id !== "string" || !ID.test(id)) {
     return privateJson({ ok: false, error: "Invalid trip reference." }, 400);
   }
@@ -42,11 +49,26 @@ export async function POST(request: NextRequest) {
     return privateJson({ ok: false, error: "Trip is unavailable." }, 403);
   }
   const { staff, job } = assigned;
-  if (!(staff.system_role === "driver" || staff.staff_type === "driver") ||
-      !staff.branch_id || job.driverId !== staff.id ||
-      !["confirmed", "in_progress"].includes(job.bookingStatus) ||
-      !isValidDriverDestination(job)) {
+  if (
+    !(staff.system_role === "driver" || staff.staff_type === "driver") ||
+    !staff.branch_id ||
+    job.driverId !== staff.id ||
+    !["confirmed", "in_progress"].includes(job.bookingStatus) ||
+    !isValidDriverDestination(job)
+  ) {
     return privateJson({ ok: false, error: "Trip cannot be started." }, 409);
+  }
+
+  if (process.env.CRADLEHUB_DRIVER_JOURNEYS_ENABLED === "true") {
+    try {
+      if (!(await legacyDriverRouteAllowed(id)) || (await readDriverJourneys(id)).length)
+        return privateJson(
+          { ok: false, error: "Use the current journey leg to start navigation." },
+          409
+        );
+    } catch {
+      return privateJson({ ok: false, error: "Journey status could not be verified." }, 503);
+    }
   }
 
   // Idempotent on reconnect, but never permit a stale/cancelled assignment.

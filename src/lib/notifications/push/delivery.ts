@@ -1,4 +1,5 @@
 import "server-only";
+import { preferredNativeDriverIds } from "@/lib/driver/native-push";
 import { createHash } from "node:crypto";
 import { staffNotificationWorkspace, staffNoticeHref, isCurrentNotice, safeAttendanceNoticeCopy } from "@/lib/staff-pwa/notice-policy";
 
@@ -376,6 +377,10 @@ export async function deliverWorkspaceNotificationPush(
       ])
     );
 
+    const nativePreferred = notification.target_workspace === "driver" && notification.entity_type === "booking" &&
+      ["home_service_assigned", "booking_reassigned", "booking_cancelled", "booking_rescheduled", "booking_status_changed"].includes(notification.type)
+      ? await preferredNativeDriverIds(staffIds)
+      : new Set<string>();
     const eligible = subscriptions.filter((subscription) =>
       subscriptionMatchesNotification(
         subscription,
@@ -386,7 +391,7 @@ export async function deliverWorkspaceNotificationPush(
         ownerPreferences.get(subscription.auth_user_id) ??
           "home_service_and_urgent",
         options?.validatedAttendanceRecipient
-      ) && !options?.skipSubscriptionIds?.has(subscription.id) &&
+      ) && !(subscription.staff_id && nativePreferred.has(subscription.staff_id)) && !options?.skipSubscriptionIds?.has(subscription.id) &&
       (!options?.eligibleStaffIds || (Boolean(subscription.staff_id) && options.eligibleStaffIds.has(subscription.staff_id!)))
     );
     result.attempted = eligible.length;

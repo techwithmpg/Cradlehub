@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useNativeDriverHost } from "@/lib/driver/native-host";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { MobileNavigationProgressProvider } from "@/components/features/mobile-shell/mobile-navigation-progress-provider";
@@ -23,6 +24,7 @@ type DriverMobileShellProps = {
 export function DriverMobileShell({ staff, children, mode, identity }: DriverMobileShellProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const pathname = usePathname();
+  const nativeHost = useNativeDriverHost();
   const isScan = Boolean(pathname?.startsWith("/staff/scan"));
   const branchId = staff?.branch_id ?? (identity ? identity.split(":")[4] || null : null);
 
@@ -31,9 +33,15 @@ export function DriverMobileShell({ staff, children, mode, identity }: DriverMob
       {children}
     </div>
   ) : mode === "canonical" ? (
-    <StaffCanvas className="min-h-full pb-[calc(88px+env(safe-area-inset-bottom))] md:contents md:pb-0">
+    <StaffCanvas
+      className={
+        nativeHost
+          ? "min-h-full pb-4"
+          : "min-h-full pb-[calc(88px+env(safe-area-inset-bottom))] md:contents md:pb-0"
+      }
+    >
       <MobileRetainedTabHost branchId={branchId}>{children}</MobileRetainedTabHost>
-      <DriverMobileBottomNav mode={mode} />
+      {!nativeHost && <DriverMobileBottomNav mode={mode} />}
     </StaffCanvas>
   ) : (
     <div className="min-h-dvh bg-[var(--cs-bg)] pb-[calc(84px+env(safe-area-inset-bottom))] md:contents md:bg-transparent md:pb-0">

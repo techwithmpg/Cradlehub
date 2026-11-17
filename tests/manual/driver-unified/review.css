@@ -1,0 +1,17 @@
+body {
+  margin: 0;
+  background: #f7f5ee;
+  font-family: Arial, sans-serif;
+}
+.preview-notice {
+  font: 10px Arial;
+  padding: 8px;
+  text-align: center;
+  background: #fff3cf;
+  color: #644f20;
+  position: relative;
+  z-index: 60;
+}
+#root {
+  min-height: 100dvh;
+}

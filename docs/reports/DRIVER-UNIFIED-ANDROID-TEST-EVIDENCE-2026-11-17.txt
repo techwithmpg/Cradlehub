@@ -1,0 +1,164 @@
+D0 Driver baseline — .tmp/d0-driver-tests.log
+     44|     await harness.pending;
+     45|     expect(harness.navigate).toHaveBeenCalledTimes(1);
+       |                              ^
+     46|   });
+     47|   it.each(["denied", "network"])(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 11 passed (12)
+      Tests  1 failed | 114 passed (115)
+   Start at  00:23:45
+   Duration  50.39s (transform 1.72s, setup 0ms, import 17.24s, tests 731ms, environment 77.95s)
+
+
+D0 native baseline — .tmp/d0-android-build.log
+> Task :app:processDebugUnitTestJavaRes NO-SOURCE
+> Task :app:testDebugUnitTest NO-SOURCE
+
+[Incubating] Problems report is available at: file:///E:/cradlehub/.worktrees/driver-unified-android-shell/native/driver-android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 31s
+21 actionable tasks: 21 executed
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.0/userguide/configuration_cache_enabling.html
+
+D5 Driver-focused — .tmp/d5-driver-tests.log
+
+ RUN  v4.1.5 E:/cradlehub/.worktrees/driver-unified-android-shell
+
+
+ Test Files  19 passed (19)
+      Tests  164 passed (164)
+   Start at  01:35:25
+   Duration  23.50s (transform 2.42s, setup 0ms, import 23.47s, tests 1.16s, environment 63.50s)
+
+
+D5 broad regression — .tmp/d5-affected-tests-final.log
+     53|   it("routes Driver and Provider updates to canonical scoped work", ()…
+     54|     expect(staffNoticeHref(notice, "driver")).toBe("/staff/driver/trip…
+       |                                               ^
+     55|     expect(staffNoticeHref(notice, "staff")).toBe("/staff/progress");
+     56|     expect(staffNoticeHref({ ...notice, type: "attendance_clock_out_re…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/15]⎯
+
+
+ Test Files  6 failed | 140 passed (146)
+      Tests  15 failed | 1130 passed (1145)
+   Start at  01:46:13
+   Duration  34.66s (transform 6.42s, setup 0ms, import 39.18s, tests 12.71s, environment 47.21s)
+
+
+D5 Web build — .tmp/d5-web-build-final.log
+▲ Next.js 16.2.4 (webpack)
+✓ Compiled successfully in 2.4min
+  Finished TypeScript in 70s ...
+  Generating static pages using 15 workers (0/159) ...
+  Generating static pages using 15 workers (39/159)
+  Generating static pages using 15 workers (79/159)
+  Generating static pages using 15 workers (119/159)
+✓ Generating static pages using 15 workers (159/159) in 14.9s
+ƒ Proxy (Middleware)
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+D5 native build — .tmp/d5-android-build.log
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleDebug
+
+[Incubating] Problems report is available at: file:///E:/cradlehub/.worktrees/driver-unified-android-shell/native/driver-android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 38s
+42 actionable tasks: 7 executed, 35 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.0/userguide/configuration_cache_enabling.html
+
+D5 type check — .tmp/d5-types.log
+
+> cradlehub@0.1.0 type-check E:\cradlehub\.worktrees\driver-unified-android-shell
+> tsc --noEmit
+
+
+D5 scoped lint — .tmp/d5-lint.log
+
+E:\cradlehub\.worktrees\driver-unified-android-shell\src\app\(dashboard)\staff-portal\actions.ts
+  326:10  warning  'getStaffBranchName' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+
+
+D5 approval guard only; no connection — .tmp/d5-local-approval-guard.log
+file:///E:/cradlehub/.worktrees/driver-unified-android-shell/tests/database/driver-unified-local-test.mjs:14
+  throw new Error(
+        ^
+
+Error: STOP: separate owner approval of the exact LOCAL TEST manifest is required before connecting.
+    at file:///E:/cradlehub/.worktrees/driver-unified-android-shell/tests/database/driver-unified-local-test.mjs:14:9
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:661:26)
+
+Expanded accepted-source comparison (application source diff empty at base; docs-only review worktree)
+ FAIL  tests/lib/bookings/service-transition-notification-once.test.ts > one-time service transition notifications > persists and pushes a new event only after winning the insert
+ FAIL  tests/lib/notifications/cradlehub-push-service-worker.test.ts > cradlehub-push-sw > lets a visible RLS-authorized tab reconcile instead of duplicating an OS card
+ FAIL  tests/lib/notifications/cradlehub-push-service-worker.test.ts > cradlehub-push-sw > opens a matching Staff PWA window instead of diverting a visible CRM tab
+ FAIL  tests/lib/notifications/cradlehub-push-service-worker.test.ts > cradlehub-push-sw > does not allow the out-of-scope Manager workspace as a push click target
+ FAIL  tests/lib/notifications/n3-popup-contract.test.ts > N3 popup safety contracts > server dismiss only permits nonactionable active updates
+ FAIL  tests/lib/notifications/n3-popup-contract.test.ts > N3 popup safety contracts > isolates popup history by logged-in user and workspace
+ FAIL  tests/lib/pwa/staff-pwa-foundation.test.ts > PWA-C5: Canonical Staff Runtime Scope Containment > verifies Driver canonical bottom nav never emits /driver, /staff-portal, or legacy /scan
+ FAIL  tests/lib/pwa/staff-pwa-foundation.test.ts > PWA-C6: Staff Navigation Document Navigation Contract > enforces central Scan navigation uses standard anchor to force same-origin document navigation to /staff/scan
+ FAIL  tests/lib/pwa/staff-scanner-shell.test.tsx > W1A: Scanner Shell Isolation & Foundation > 4. DriverMobileShell preserves driver navigation when on standard route /staff/driver
+ FAIL  tests/lib/pwa/staff-scanner-shell.test.tsx > W1A: Scanner Shell Isolation & Foundation > clears Driver summary memory when the authenticated identity changes
+ FAIL  tests/lib/pwa/staff-scanner-shell.test.tsx > W1A: Scanner Shell Isolation & Foundation > 7. preserves C6 full-document navigation for central Scan button
+ FAIL  tests/lib/pwa/staff-scanner-shell.test.tsx > W1A: Scanner Shell Isolation & Foundation > 8. preserves exactly one scanner shell structure in /staff/scan/page.tsx
+ FAIL  tests/lib/pwa/work-notice-contracts.test.ts > Cross-role notice authority > requires explicit recipient for driver
+ FAIL  tests/lib/pwa/work-notice-contracts.test.ts > Cross-role notice authority > requires explicit recipient for utility
+ FAIL  tests/lib/pwa/work-notice-contracts.test.ts > Cross-role notice authority > requires explicit recipient for staff
+ FAIL  tests/lib/pwa/work-notice-contracts.test.ts > Cross-role notice authority > routes Driver and Provider updates to canonical scoped work
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/16]⎯
+
+
+ Test Files  6 failed (6)
+      Tests  16 failed | 58 passed (74)
+   Start at  01:28:32
+   Duration  6.85s (transform 2.97s, setup 0ms, import 5.48s, tests 1.70s, environment 1.51s)
+
+Owner-approved unchanged LOCAL TEST execution — 2026-11-17
+LOCAL TEST identity verified; new synthetic database created. No Supabase parity is implied.
+PASS installed contract defaults inactive
+PASS driver cannot read private registry
+PASS cross-branch actor sees no assignments
+PASS snapshot identifies pickup without starting
+PASS off-shift start rejected atomically
+PASS pickup start and identical retry are idempotent
+PASS request ID cannot change payload
+PASS boarding before arrival rejected
+PASS inaccurate GPS rejected
+PASS far GPS cannot establish arrival
+PASS pickup GPS arrival is not boarding
+PASS explicit boarding opens delivery
+PASS legacy canonical writer cannot bypass driver GPS arrival
+PASS delivery start uses the accepted canonical booking writer
+PASS customer GPS arrival uses the canonical arrived transition
+PASS therapist service start remains authoritative
+PASS service completion creates readiness, never collection
+PASS CRM reads completed-service collection separately
+PASS driver cannot request CRM branch projection
+PASS collection requires a fresh return and explicit boarding
+PASS branch return and explicit drop-off finish transport
+PASS native token is session owned and revocable
+LOCAL TEST: 22 scenarios passed. Supabase Auth/PostgREST/RLS deployment parity and device evidence remain separate gates.
+LOCAL TEST cleanup verified: {"host":"127.0.0.1","port":55439,"version":"17.11","disposableDatabases":0,"parentDriverSchemas":0,"otherConnections":0}
+Existing approved test cluster restored to its original stopped state by smart shutdown.

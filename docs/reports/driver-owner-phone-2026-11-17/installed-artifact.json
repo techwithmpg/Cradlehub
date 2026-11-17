@@ -1,0 +1,10 @@
+{
+  "sha256": "fab626563b9350ae17fd1bffc383f5d5297b0854c831f753a1938b47cc677509",
+  "bytes": 98236333,
+  "applicationId": "com.mpgtechnologies.cradlehub.driver.localtest",
+  "versionName": "0.3.0-native-compose-review-owner-phone",
+  "target": "PRODUCTION",
+  "fixture": false,
+  "signerSha1": "0B:39:6A:DC:9D:FF:8B:D6:32:47:07:A4:63:6F:E4:9C:08:0D:3B:8B",
+  "purpose": "Owner-authorized personal connected test only; not a general release"
+}

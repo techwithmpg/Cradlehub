@@ -29,6 +29,7 @@ export type StaffNavItem = {
   icon: ComponentType<{ className?: string; size?: number; "aria-hidden"?: boolean | "true" | "false" }>;
   badgeCount?: number;
   isScan?: boolean;
+  documentNavigation?: boolean;
   disabled?: boolean;
   blockedNotice?: string;
 };

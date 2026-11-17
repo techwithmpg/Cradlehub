@@ -1,66 +1,87 @@
-# CradleHub Driver — Android Native Navigation Foundation
+# CradleHub Driver — native Android candidate
 
-**Status: native foundation in accepted Web main, but not verified on real driver devices or certified for distribution.**\n\nFor the separately signed TEST-only installation pipeline and driver distribution gates, see [PILOT-INSTALLATION.md](PILOT-INSTALLATION.md). The Chrome-installed PWA does not contain the native Android SDK.
+The current candidate uses Kotlin and Jetpack Compose for **Today | Trips | Scan | Map | More**. No WebView is constructed. CameraX and bundled ML Kit handle QR capture; the existing Google Navigation SDK 8.1.0 owns the native map, voice and routing. The Driver PWA remains intact as a fallback.
 
-## Why this exists
+Status: **OWNER PHONE CONNECTED BUILD / RELEASE CORRECTION REQUIRED**. See [the current handoff](../../docs/reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md) for evidence, screenshots and remaining gates. No staff distribution, main merge, production activation or deployment is authorized.
 
-Keep CradleHub's existing Next.js Driver PWA, Supabase permissions and CRM workflow as the source of truth. Add a small Android companion that presents the existing Driver workspace inside a restricted native WebView and opens Google's **native Navigation SDK 8.1.0** as a full-screen in-app turn-by-turn navigator.
+## Architecture and authority
 
-This avoids pretending the Google native Navigation SDK runs in the browser. It also avoids a second database, new attendance policies, direct client service-role access or replacing the current Web/PWA.
+`NativeDriverActivity` owns Compose and a persistent native SDK fragment. `NativeDriverModel` retains presentation state and refreshes existing authenticated contracts. `NativeDriverBackend` uses Supabase password authentication, verifies the user, stores refresh credentials in AndroidKeyStore-backed encrypted private preferences, and sends the existing SSR cookie wire format to the existing Driver/attendance APIs. No password is retained. No new backend, privileged key, database or local business-status writer is introduced.
 
-## What is implemented
+Tap a trip to open Map directly. The server resolves the current authorized leg. Start explicitly authorizes travel and begins guidance. End route stops guidance only. GPS never establishes boarding, therapist service completion or attendance. Existing pickup/delivery/service/collection/return/drop-off checks remain server-owned. No second attendance scan is introduced: arrival up to 120 minutes early is retained, credited time starts at scheduled shift start.
 
-- Isolated Android Gradle application using **AGP 9.0.1, Gradle 9.1.0, Java 17, compile/target API 36, minimum API 24**, Google Navigation SDK **8.1.0**, Firebase Android BOM **35.1.0** and Firebase Messaging.
-- Native Driver workspace at `https://www.cradlewellnessliving.com/staff/driver`. The WebView is restricted to that origin, requires HTTPS and has no injected JavaScript-to-native bridge.
-- Driver views their booking in the existing authenticated workspace. When the canonical `/staff/driver/map?bookingId=<uuid>` is active, **Open live navigation** launches the native Navigation UI. An untrusted booking UUID is never interpreted as authorization or a destination.
-- The native app makes a one-hop same-origin HTTPS GET to `/api/staff/driver/native-itinerary` with its WebView session cookie. This server endpoint reuses the existing driver-specific assignment query. It requires confirmed/in-progress, currently assigned driver, `travel_started`, `in_route`, branch identity and reviewed destination coordinates. It returns only the single current authorized stop, no names, notes, payments, credentials or additional upcoming trip destinations.
-- Native SDK renders the route, provides voice guidance and rerouting, and observes Google arrival callbacks. **The callback does NOT write a booking status.** Next-stop sequencing remains a separate approved release task because a driver may be waiting for the Home Service session to finish after reaching the first customer.
-- FirebaseMessagingService is registered and displays a generic notification with an opaque booking ID if a valid, correctly targeted FCM message is received. Firebase token registration and server sender are intentionally **not active**, because they require an authenticated staff-bound device registration design.
-- Runtime notification and precise-location permissions use normal Android prompts.
+Profile, attendance, service history, durable notifications and support are native destinations. History labels completed **service**, without pretending that collection/return is complete. Authentication currently supports existing email/password credentials; an OAuth-only account needs a separately reviewed system-browser/PKCE flow.
 
-## Install and configure locally
+## Local emulator UI verification
 
-1. Open `native/driver-android` in Android Studio (current SDK/API 36 tools; Gradle 9.1.0; Java 17).
-2. **Provisional Android application ID**: `com.mpgtechnologies.cradlehub.driver`. Owner must approve this permanent package ID **before Firebase registration**.
-3. In Firebase Console **Cradle Massage Wellness Maps** (`cradle-massage-wellness-maps`), select **Add app → Android**, register the **exact accepted app ID**, and download `google-services.json` into `native/driver-android/app/`. This file is locally ignored; do not commit it or any Firebase Admin SDK credentials.
-4. In Google Cloud **the same project**, enable **Navigation SDK for Android**, configure billing/quota alarms, generate a key restricted to the **Navigation SDK API** + Android app package name **and the actual debug/release signing certificate SHA-1**. Do not reuse an unrestricted Web/browser key. Store it **outside the repo** in `~/.gradle/gradle.properties`:
+Use JBR 21 with the installed Gradle 9.6.0 / Android SDK toolchain. AGP 9.0.1 provides built-in Kotlin; Compose compiler is 2.2.10, compile/target 36, min 24. From the repository root:
 
-   ```properties
-   CRADLE_NAVIGATION_API_KEY=YOUR_ANDROID_RESTRICTED_KEY
-   ```
+```powershell
+gradle -p native/driver-android --no-daemon `
+  -PCRADLE_DRIVER_DEBUG_ORIGIN=http://localhost:7100 `
+  -PCRADLE_DRIVER_LOCAL_TEST=true `
+  -PCRADLE_NATIVE_UI_FIXTURE=true `
+  -PCRADLE_NAVIGATION_API_KEY=LOCAL_TEST_NOT_CONFIGURED `
+  :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
+```
 
-5. Build `gradle :app:assembleDebug`. For normal testing, install via Android Studio on a real Android device with Google Play services and accurate GPS. Terms of Service consent and Google attributions/legal screens must be accepted/implemented before any release.
-6. Sign in as a driver in the native CradleHub workspace. Choose an assigned **confirmed** Home Service booking and tap **Start travel** in CradleHub. Open its route page then **Open live navigation**. The server must re-verify the booking before the native map starts.
+The debug fixture requires the `.localtest` package, has a visible UI TEST brand and synthetic identities, and refuses operational API calls. Its class exists only in `src/debug`. It proves rendering and local interactions, not connected business acceptance. Never distribute this fixture APK to drivers. Normal builds default to inert `UNCONFIGURED` targets; there is no sample-data fallback in release sources.
 
-**Do not run an end-to-end test on live bookings without an approved TEST setup.** The endpoint is read-only; the existing PWA Start travel button is a real booking mutation.
+Install the local app/test APKs only in the disposable emulator, then run:
 
-## Explicit limitations / decisions to freeze
+```powershell
+adb -s emulator-5580 shell am instrument -w -r com.mpgtechnologies.cradlehub.driver.localtest.test/androidx.test.runner.AndroidJUnitRunner
+```
 
-- **No native Android APK or real-device test was produced in the repo-authoring environment.** GitHub Actions is the first independent compile check; its exact run and SHA must be recorded. A successful Android compile does not prove Firebase delivery, Navigation key authorization, voice, GPS or CRM arrival accuracy.
-- Native Google Maps Navigation SDK for Android 8.1.0 requires a suitable Google Cloud project and device. Google Navigation is paid per destinations requested, subject to free usage, quotas, billing and Terms of Service.
-- Native WebView does not share Android browser/standalone PWA cookies. Drivers must sign in once **inside this companion**. Google OAuth may disallow embedded WebView sign-in; if driver authentication depends on Google OAuth, STOP for an approved system-browser/PKCE design before release.
-- **Firebase console project creation is not Android app registration.** `google-services.json`, app signing fingerprint and Android Navigation restricted API key have not been verified.
-- Firebase Messaging receiver alone will not deliver production push. No FCM token writer, sender, retry or opt-out is implemented; existing Web Push remains unchanged.
-- Arrival callback is local, read-only evidence. Auto-updating server booking status must be authorized and verified with anti-spoofing, accuracy, dwell time and server-side assignment/branch checks. Never auto-start/end massage sessions or attendance.
-- Multi-stop onward navigation and schedule prioritization must preserve existing confirmed appointment and Home Service dispatch semantics. Google supports up to 25 waypoints but **this safe foundation intentionally requests one active stop**.
-- iOS requires a separate native SDK integration and Apple distribution arrangement; this Android foundation is not an iOS PWA upgrade.
-- Google Navigation SDK legal NOTICE/LICENSE documents and first-run terms/warnings must be surfaced to drivers and independently verified before release. Do not alter or hide Google's navigation turn cards or safety UI.
-- The **Web** and **Desktop** tracks do not share automatic authorization. This is a separately owned **Android** foundation; no Desktop migration or new Web workstream is authorized by it.
+Optional debug-only capture intents accept `fixtureScreen` Today/Trips/Scan/Map/More. Use the full activity component `com.mpgtechnologies.cradlehub.driver.localtest/com.mpgtechnologies.cradlehub.driver.NativeDriverActivity`. For the disconnected Map fixture, pass synthetic `bookingId=11111111-1111-4111-8111-111111111111`. Routing/ETA/turns are deliberately unavailable without verified backend authority and a restricted Navigation key.
 
-## Quality and rollback
+## Connected TEST configuration — pending owner identification
 
-- Server: `pnpm type-check`, `pnpm exec vitest run tests/lib/pwa/driver-native-itinerary.test.ts`, targeted ESLint.
-- Android: isolated `gradle :app:assembleDebug` without production keys; no APK upload or production device registration.
-- Required follow-up: signed-in Android phone + CRM two-session acceptance, Google API terms/key billing/quota validation, notification token ownership and revocation, OAuth sign-in path, arrival policy acceptance and native app signing/distribution plan.
-- Rollback before merge: close the unmerged PR. No schema, production data or deployments to reverse.
-- No automatic `main` merge; review and owner approval required.
+Use existing approved TEST resources only; never paste secrets into chat. Set outside the repository:
 
-## Official references
+```properties
+CRADLE_NATIVE_TARGET=TEST
+CRADLE_NATIVE_API_ORIGIN=https://APPROVED_TEST_API_HOST
+CRADLE_NATIVE_SUPABASE_URL=https://APPROVED_TEST_PROJECT.supabase.co
+CRADLE_NATIVE_PUBLIC_KEY=APPROVED_PUBLISHABLE_OR_ANON_PUBLIC_KEY
+CRADLE_NAVIGATION_API_KEY=ANDROID_RESTRICTED_TEST_KEY
+```
 
-- https://developers.google.com/maps/documentation/navigation/android-sdk/setup-overview
-- https://developers.google.com/maps/documentation/navigation/android-sdk/android-studio-setup
-- https://developers.google.com/maps/documentation/navigation/android-sdk/release-notes
-- https://developers.google.com/maps/documentation/navigation/android-sdk/multi-destination
-- https://developers.google.com/maps/documentation/navigation/android-sdk/policies
-- https://firebase.google.com/docs/android/setup
-- https://firebase.google.com/docs/cloud-messaging/android/get-started
+Production hosts require the exact owner-phone exception below; privileged keys are always rejected. Unknown targets are a stop condition. No TEST resource has been selected for connected acceptance yet. No existing `.env` or live staff session was reused. Optional Firebase `app/google-services.json` must match the separately approved TEST package/signing configuration; it is ignored by Git. Existing FCM token registration remains inactive without that configuration. Migrating to the newer Firebase Installation ID contract would require a separately reviewed backend change.
+
+## Verification and release limits
+
+Run native tests, lint, debug/test APK builds and release source compilation. Real-device acceptance must cover sign-in/refresh/logout/revocation, QR decode and duplicate retry, offline/reassignment, accurate GPS, voice/reroute, background/resume, camera lifecycle, notifications/opt-out and two-session CRM parity. The earlier 22 disposable LOCAL TEST SQL scenarios remain evidence for the unchanged preceding candidate, not proof of connected Supabase parity.
+
+[Controlled pilot gates](PILOT-INSTALLATION.md) remain open. The older hybrid workflow is superseded; do not run its signed-artifact workflow for this candidate until native TEST configuration is explicitly wired, reviewed and accepted. Self-review is not external acceptance. Rollback before acceptance is to park this branch and retain the existing app/PWA; no runtime database change needs reversing.
+
+## Primary references
+
+- [Android AGP built-in Kotlin](https://developer.android.com/build/migrate-to-built-in-kotlin)
+- [CameraX image analysis](https://developer.android.com/media/camera/camerax/analyze)
+- [ML Kit QR scanning](https://developers.google.com/ml-kit/vision/barcode-scanning/android)
+- [Navigation SDK setup](https://developers.google.com/maps/documentation/navigation/android-sdk/setup-overview)
+- [AndroidX test releases](https://developer.android.com/jetpack/androidx/releases/test)
+
+## Owner-authorized production phone connection — 2026-11-17
+
+The owner explicitly selected the existing PRODUCTION system for their personal phone test. This supersedes the prior TEST-only boundary for this single client configuration. It does not authorize server deployment, SQL installation, a main merge, staff distribution or an Auth/RLS bypass.
+
+The debug-only owner phone build uses `.localtest` to update the owner's existing test app, while `NATIVE_UI_FIXTURE=false`. Configure public client inputs outside source:
+
+```properties
+CRADLE_NATIVE_TARGET=PRODUCTION
+CRADLE_NATIVE_PRODUCTION_OWNER_PHONE=true
+CRADLE_NATIVE_API_ORIGIN=https://www.cradlewellnessliving.com
+CRADLE_NATIVE_SUPABASE_URL=https://lsrbwqhvzjfpiabeolkv.supabase.co
+```
+
+`CRADLE_NATIVE_PUBLIC_KEY` may be supplied as a process environment variable containing only the existing publishable/anon public key. The existing Android-restricted Navigation key stays in owner-managed Gradle settings. Never copy a service-role key, server Maps key, password or refresh token into client configuration. Production fixtures, other host/project pairs and release/pilot packaging through this exception are rejected.
+
+The deployed journey endpoint is absent (404); native code therefore reads assigned Home Service bookings through existing authenticated RLS and still reauthorizes destinations/Start through deployed `native-itinerary` and `native-start`. A 401/403, other service failure or malformed successful journey response cannot downgrade to that compatibility path. Pickup/collection/return/native-location/push API activation remains separate. This connection does not make the unmerged full journey backend live.
+
+Map uses the available SDK pane without a brand header or opaque empty-state cover, including before selecting a trip. Google attribution and safety UI remain. Launcher assets copy the Staff PWA's gold icons byte for byte. Attendance captures raw native location only after a recognized QR and normal permission prompt; the existing server still owns geofence, device and attendance decisions.
+
+The owner's phone initially returned `UnknownHostException`; even Android shell DNS could not resolve Google, CradleHub or Supabase. Public Auth settings work from the workstation with both existing public keys. Phone Auth and RLS reads subsequently returned200 and authenticated Driver/On duty UI is visible. The approved direct DNS write was refused by Android; original settings were verified unchanged. The native key separately returns Google Maps/Navigation authorization failure. A request to enable missing Maps SDK/key-management services completed; key management remains denied to the available local account. The owner is correcting the existing Android key restrictions in Google Cloud Console. Do not claim successful live map rendering, user sign-in or trip/attendance acceptance until new evidence exists. Debug diagnostics contain only channels, status codes, boolean config flags and exception class names, never credentials, headers, payloads or staff/customer identifiers.
+
+See the current [owner-phone connection report](../../docs/reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md) for the exact artifact, tests and unresolved conditions.

@@ -191,7 +191,7 @@ export function BookingProgressActions({ booking, onSuccess }: BookingProgressAc
         setActionFeedback({
           type: "success",
           title: feedback.successTitle,
-          description: feedback.successDescription,
+          description: [feedback.successDescription,result.collectionWarning].filter(Boolean).join(" "),
           variant: feedback.variant ?? "success",
         });
         if (onSuccess) {

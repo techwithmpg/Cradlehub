@@ -1,5 +1,6 @@
 "use server";
 
+import {confirmDriverCollectionReady} from "@/lib/driver/collection-ready";
 import { cache } from "react";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -823,6 +824,7 @@ export type BookingProgressResult =
       timestamp: string;
       turnoverSyncStatus?: "synced" | "failed" | "skipped";
       turnoverWarning?: string;
+      collectionWarning?: string;
     }
   | {
       ok: false;
@@ -976,6 +978,7 @@ export async function updateBookingProgressAction({
           ? "skipped"
           : "synced";
 
+      const collectionWarning=booking.delivery_type==="home_service"?await confirmDriverCollectionReady(supabase,bookingId):undefined;
       revalidateStaffAndOperationalSurfaces(booking.branch_id);
 
       return {
@@ -984,6 +987,7 @@ export async function updateBookingProgressAction({
         status: "completed",
         timestamp: new Date().toISOString(),
         turnoverSyncStatus,
+        ...(collectionWarning?{collectionWarning}:{}),
         ...(turnoverSyncStatus === "failed"
           ? {
               turnoverWarning:
@@ -1127,6 +1131,9 @@ export async function updateBookingProgressAction({
     }
   }
 
+  const collectionWarning=nextStatus==="completed"&&booking.delivery_type==="home_service"
+    ?await confirmDriverCollectionReady(supabase,bookingId):undefined;
+
   logBusinessEvent("staff_progress.updated", {
     bookingId,
     branchId: booking.branch_id,
@@ -1146,6 +1153,7 @@ export async function updateBookingProgressAction({
     timestamp,
     ...(turnoverSyncStatus ? { turnoverSyncStatus } : {}),
     ...(turnoverWarning ? { turnoverWarning } : {}),
+    ...(collectionWarning?{collectionWarning}:{}),
   };
 }
 
