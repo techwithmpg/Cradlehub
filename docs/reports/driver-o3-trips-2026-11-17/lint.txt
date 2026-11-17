@@ -1,0 +1,305 @@
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\build.gradle.kts:73: Warning: Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the android.os.Build.VERSION_CODES javadoc for details. [OldTargetApi]
+    targetSdk = 36
+    ~~~~~~~~~~~~~~
+
+   Explanation for issues of type "OldTargetApi":
+   When your application or sdk runs on a version of Android that is more
+   recent than your targetSdk specifies that it has been tested with, various
+   compatibility modes kick in. This ensures that your application continues
+   to work, but it may look out of place. For example, if the targetSdk is
+   less than 14, your app may get an option button in the UI.
+
+   To fix this issue, set the targetSdk to the highest available value. Then
+   test your app to make sure everything works correctly. You may want to
+   consult the compatibility notes to see what changes apply to each version
+   you are adding support for:
+   https://developer.android.com/reference/android/os/Build.VERSION_CODES.html
+   as well as follow this guide:
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.
+   html
+
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.html
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:6: Warning: Replace the <fragment> tag with FragmentContainerView. [FragmentTagUsage from androidx.fragment]
+   <fragment android:id="@+id/navigation_fragment" android:name="com.google.android.libraries.navigation.NavigationFragment" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    ~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_navigation.xml:4: Warning: Replace the <fragment> tag with FragmentContainerView. [FragmentTagUsage from androidx.fragment]
+  <fragment
+   ~~~~~~~~
+
+   Explanation for issues of type "FragmentTagUsage":
+   FragmentContainerView replaces the <fragment> tag as the preferred         
+          way of adding fragments via XML. Unlike the <fragment> tag,
+   FragmentContainerView                 uses a normal FragmentTransaction
+   under the hood to add the initial fragment,                 allowing
+   further FragmentTransaction operations on the FragmentContainerView        
+           and providing a consistent timing for lifecycle events.
+
+   https://developer.android.com/reference/androidx/fragment/app/FragmentContainerView.html
+
+   Vendor: Android Open Source Project
+   Identifier: androidx.fragment
+   Feedback: https://issuetracker.google.com/issues/new?component=460964
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\java\com\mpgtechnologies\cradlehub\driver\NativeDriverDesign.kt:71: Warning: Optional Modifier parameter should have a default value of Modifier [ModifierParameter from androidx.compose.ui]
+    modifier: Modifier = Modifier.size(24.dp),
+    ~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\java\com\mpgtechnologies\cradlehub\driver\NativeDriverDesign.kt:258: Warning: Optional Modifier parameter should have a default value of Modifier [ModifierParameter from androidx.compose.ui]
+    modifier: Modifier = Modifier.size(54.dp),
+    ~~~~~~~~
+
+   Explanation for issues of type "ModifierParameter":
+   The first (or only) Modifier parameter in a Composable function should
+   follow the following rules:
+   - Be named modifier
+   - Have a type of Modifier
+   - Either have no default value, or have a default value of Modifier
+   - If optional, be the first optional parameter in the parameter list
+
+   Vendor: Jetpack Compose
+   Identifier: androidx.compose.ui
+   Feedback: https://issuetracker.google.com/issues/new?component=612128
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\AndroidManifest.xml:23: Warning: Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios. [DiscouragedApi]
+      android:screenOrientation="unspecified"
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "DiscouragedApi":
+   Discouraged APIs are allowed and are not deprecated, but they may be unfit
+   for common use (e.g. due to slow performance or subtle behavior).
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\AndroidManifest.xml:13: Warning: The attribute android:allowBackup is deprecated from Android 12 and higher and may be removed in future versions. Consider adding the attribute android:dataExtractionRules specifying an @xml resource which configures cloud backups and device transfers on Android 12 and higher. [DataExtractionRules]
+    android:allowBackup="false"
+                         ~~~~~
+
+   Explanation for issues of type "DataExtractionRules":
+   Before Android 12, the attributes android:allowBackup and
+   android:fullBackupContent were used to configure all forms of backup,
+   including cloud backups, device-to-device transfers and adb backup.
+
+   In Android 12 and higher, these attributes have been deprecated and will
+   only apply to cloud backups. You should instead use the attribute
+   android:dataExtractionRules, specifying an @xml resource that configures
+   which files to back up, for cloud backups and for device-to-device
+   transfers, separately. If your minSdkVersion supports older versions,
+   you'll still want to specify an android:fullBackupContent resource if the
+   default behavior is not right for your app.
+
+   https://developer.android.com/about/versions/12/backup-restore#xml-changes
+   https://goo.gle/DataExtractionRules
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:2: Warning: Possible overdraw: Root element paints background #F7F3EB with a theme that also paints a background (inferred theme is @style/Theme.CradleDriver) [Overdraw]
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/driverRoot" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F7F3EB">
+                                                                                                                                                                                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "Overdraw":
+   If you set a background drawable on a root view, then you should use a
+   custom theme where the theme background is null. Otherwise, the theme
+   background will be painted first, only to have your custom background
+   completely cover it; this is called "overdraw".
+
+   NOTE: This detector relies on figuring out which layouts are associated
+   with which activities based on scanning the Java code, and it's currently
+   doing that using an inexact pattern matching algorithm. Therefore, it can
+   incorrectly conclude which activity the layout is associated with and then
+   wrongly complain that a background-theme is hidden.
+
+   If you want your custom background on multiple pages, then you should
+   consider making a custom theme with your custom background and just using
+   that theme instead of a root element background.
+
+   Of course it's possible that your custom drawable is translucent and you
+   want it to be mixed with the background. However, you will get better
+   performance if you pre-mix the background with your drawable and use that
+   resulting image or color as a custom theme background instead.
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:2: Warning: The resource R.layout.activity_driver_shell appears to be unused [UnusedResources]
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/driverRoot" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#F7F3EB">
+^
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_navigation.xml:2: Warning: The resource R.layout.activity_navigation appears to be unused [UnusedResources]
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+^
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\values\strings.xml:4: Warning: The resource R.string.navigate appears to be unused [UnusedResources]
+  <string name="navigate">Open live navigation</string>
+          ~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\values\strings.xml:5: Warning: The resource R.string.back_to_driver appears to be unused [UnusedResources]
+  <string name="back_to_driver">Back to CradleHub</string>
+          ~~~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\values\strings.xml:6: Warning: The resource R.string.nav_loading appears to be unused [UnusedResources]
+  <string name="nav_loading">Loading assigned route…</string>
+          ~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\values\strings.xml:7: Warning: The resource R.string.nav_error appears to be unused [UnusedResources]
+  <string name="nav_error">Navigation unavailable. Return to CradleHub and ask CRM.</string>
+          ~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\values\styles.xml:9: Warning: The resource R.style.DriverTab appears to be unused [UnusedResources]
+  <style name="DriverTab" parent="Widget.AppCompat.Button.Borderless"><item name="android:textAllCaps">false</item><item name="android:textSize">12sp</item><item name="android:minHeight">48dp</item><item name="android:padding">4dp</item></style>
+         ~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "UnusedResources":
+   Unused resources make applications larger and slow down builds.
+
+
+   The unused resource check can ignore tests. If you want to include
+   resources that are only referenced from tests, consider packaging them in a
+   test source set instead.
+
+   You can include test sources in the unused resource check by setting the
+   system property lint.unused-resources.include-tests =true, and to exclude
+   them (usually for performance reasons), use
+   lint.unused-resources.exclude-tests =true.
+   ,
+
+   Available options:
+
+   **skip-libraries** (default is true):
+   Whether the unused resource check should skip reporting unused resources in libraries.
+
+   Many libraries will declare resources that are part of the library surface; other modules depending on the library will also reference the resources. To avoid reporting all these resources as unused (in the context of a library), the unused resource check normally skips reporting unused resources in libraries. Instead, run the unused resource check on the consuming app module (along with `checkDependencies=true`).
+
+   However, there are cases where you want to check that all the resources declared in a library are used; in that case, you can disable the skip option.
+
+   To configure this option, use a `lint.xml` file with an <option> like this:
+
+   ```xml
+   <lint>
+       <issue id="UnusedResources">
+           <option name="skip-libraries" value="true" />
+       </issue>
+   </lint>
+   ```
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\mipmap-nodpi\ic_launcher.png: Warning: Launcher icon used as round icon did not have a circular shape [IconLauncherShape]
+
+   Explanation for issues of type "IconLauncherShape":
+   According to the Android Design Guide
+   (https://d.android.com/r/studio-ui/designer/material/iconography) your
+   launcher icons should "use a distinct silhouette", a "three-dimensional,
+   front view, with a slight perspective as if viewed from above, so that
+   users perceive some depth."
+
+   The unique silhouette implies that your launcher icon should not be a
+   filled square.
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\drawable\staff_pwa_icon_maskable.png: Warning: Found bitmap drawable res/drawable/staff_pwa_icon_maskable.png in densityless folder [IconLocation]
+
+   Explanation for issues of type "IconLocation":
+   The res/drawable folder is intended for density-independent graphics such
+   as shapes defined in XML. For bitmaps, move it to drawable-mdpi and
+   consider providing higher and lower resolution versions in drawable-ldpi,
+   drawable-hdpi and drawable-xhdpi. If the icon really is density independent
+   (for example a solid color) you can place it in drawable-nodpi.
+
+   https://developer.android.com/guide/practices/screens_support.html
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\java\com\mpgtechnologies\cradlehub\driver\NativeDriverActivity.kt:83: Warning: Use the KTX extension function SharedPreferences.edit instead? [UseKtx]
+                    getPreferences(MODE_PRIVATE).edit().putBoolean("alertsAsked", true).apply()
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\java\com\mpgtechnologies\cradlehub\driver\NativeDriverActivity.kt:121: Warning: Use the KTX extension function String.toUri instead? [UseKtx]
+                                        Uri.parse("package:$packageName"),
+                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\java\com\mpgtechnologies\cradlehub\driver\NativeDriverActivity.kt:125: Warning: Use the KTX extension function SharedPreferences.edit instead? [UseKtx]
+                                getPreferences(MODE_PRIVATE)
+                                ^
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\java\com\mpgtechnologies\cradlehub\driver\NativeSessionStore.kt:61: Warning: Use the KTX extension function SharedPreferences.edit instead? [UseKtx]
+        prefs
+        ^
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\java\com\mpgtechnologies\cradlehub\driver\NativeSessionStore.kt:76: Warning: Use the KTX extension function SharedPreferences.edit instead? [UseKtx]
+        prefs.edit().clear().apply()
+        ~~~~~~~~~~~~
+
+   Explanation for issues of type "UseKtx":
+   The Android KTX libraries decorates the Android platform SDK as well as
+   various libraries with more convenient extension functions available from
+   Kotlin, allowing you to use default parameters, named parameters, and
+   more.
+
+   Available options:
+
+   **remove-defaults** (default is true):
+   Whether to skip arguments that match the defaults provided by the extension.
+
+   Extensions often provide default values for some of the parameters. For example:
+   ```kotlin
+   fun Path.readLines(charset: Charset = Charsets.UTF_8): List<String> { return Files.readAllLines(this, charset) }
+   ```
+   This lint check will by default automatically omit parameters that match the default, so if your code was calling
+
+   ```kotlin
+   Files.readAllLines(file, Charset.UTF_8)
+   ```
+   lint would replace this with
+   ```kotlin
+   file.readLines()
+   ```
+   rather than
+
+   ```kotlin
+   file.readLines(Charset.UTF_8
+   ```
+   You can turn this behavior off using this option.
+
+   To configure this option, use a `lint.xml` file with an <option> like this:
+
+   ```xml
+   <lint>
+       <issue id="UseKtx">
+           <option name="remove-defaults" value="true" />
+       </issue>
+   </lint>
+   ```
+
+   **require-present** (default is true):
+   Whether to only offer extensions already available.
+
+   This option lets you only have lint suggest extension replacements if those extensions are already available on the class path (in other words, you're already depending on the library containing the extension method.)
+
+   To configure this option, use a `lint.xml` file with an <option> like this:
+
+   ```xml
+   <lint>
+       <issue id="UseKtx">
+           <option name="require-present" value="true" />
+       </issue>
+   </lint>
+   ```
+
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:7: Warning: Hardcoded string "Choose an assigned trip from Trips", should use @string resource [HardcodedText]
+   <TextView android:id="@+id/navigationStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:padding="12dp" android:text="Choose an assigned trip from Trips" android:textColor="#163A2B" android:textSize="14sp" android:accessibilityLiveRegion="polite"/>
+                                                                                                                                                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:8: Warning: Hardcoded string "Pause guidance", should use @string resource [HardcodedText]
+   <Button android:id="@+id/pauseNavigation" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginHorizontal="12dp" android:text="Pause guidance" android:textAllCaps="false" android:visibility="gone"/>
+                                                                                                                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:9: Warning: Hardcoded string "Start navigation", should use @string resource [HardcodedText]
+   <Button android:id="@+id/startNavigation" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginHorizontal="12dp" android:layout_marginBottom="8dp" android:backgroundTint="#185D40" android:text="Start navigation" android:textColor="#FFFFFF" android:textAllCaps="false" android:enabled="false"/>
+                                                                                                                                                                                                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:13: Warning: Hardcoded string "Trips", should use @string resource [HardcodedText]
+  <Button android:id="@+id/tabTrips" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="Trips" style="@style/DriverTab"/>
+                                                                                                                               ~~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:14: Warning: Hardcoded string "Navigate", should use @string resource [HardcodedText]
+  <Button android:id="@+id/tabNavigate" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="Navigate" style="@style/DriverTab"/>
+                                                                                                                                  ~~~~~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:15: Warning: Hardcoded string "Scan", should use @string resource [HardcodedText]
+  <Button android:id="@+id/tabScan" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="Scan" style="@style/DriverTab"/>
+                                                                                                                              ~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_driver_shell.xml:16: Warning: Hardcoded string "More", should use @string resource [HardcodedText]
+  <Button android:id="@+id/tabMore" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="More" style="@style/DriverTab"/>
+                                                                                                                              ~~~~~~~~~~~~~~~~~~~
+E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\res\layout\activity_navigation.xml:32: Warning: Hardcoded string "Start Navigation", should use @string resource [HardcodedText]
+      android:text="Start Navigation"
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "HardcodedText":
+   Hardcoding text attributes directly in layout files is bad for several
+   reasons:
+
+   * When creating configuration variations (for example for landscape or
+   portrait) you have to repeat the actual text (and keep it up to date when
+   making changes)
+
+   * The application cannot be translated to other languages by just adding
+   new translations for existing string resources.
+
+   There are quickfixes to automatically extract this hardcoded string into a
+   resource lookup.
+
+0 errors, 30 warnings

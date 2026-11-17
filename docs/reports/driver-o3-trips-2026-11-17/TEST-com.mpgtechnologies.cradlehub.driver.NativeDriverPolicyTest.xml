@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" tests="31" skipped="0" failures="0" errors="0" timestamp="2026-11-17T12:32:03.861Z" hostname="LAPTOP-38TK65AQ" time="0.118">
+  <properties/>
+  <testcase name="cookieNameCannotInjectHeaders" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.021"/>
+  <testcase name="serviceHistoryCannotBecomeNavigationTask" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.045"/>
+  <testcase name="fractionalRevisionIsRejected" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.003"/>
+  <testcase name="inServiceIsNotAStartableJourney" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.001"/>
+  <testcase name="unknownServerStageIsRejected" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="activationQrCannotBecomeAttendanceScan" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.004"/>
+  <testcase name="deployedBookingProjectsDeliveryWithoutInventingPickupOrCollection" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.003"/>
+  <testcase name="ssrCookieMatchesInstalledWireFormat" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.007"/>
+  <testcase name="legacyRejectsAnotherBranch" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="noTargetIsInert" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.001"/>
+  <testcase name="legacyRejectsAnotherDriver" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.001"/>
+  <testcase name="negativeRevisionIsRejected" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="sameOriginBranchQrIsRecognized" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.003"/>
+  <testcase name="remainingCollectionFromYesterdayIsStillActive" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.001"/>
+  <testcase name="mismatchedServerLegIsRejected" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="validSnapshotIsParsed" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.004"/>
+  <testcase name="productionRequiresOwnerPhoneAndExactHostPair" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.001"/>
+  <testcase name="legacyCompatibilityNeverDowngradesDeniedOrFailedAuthority" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.001"/>
+  <testcase name="onlyExplicitTestPublicConfigurationIsAccepted" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="knownProductionOriginIsRejected" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.001"/>
+  <testcase name="privilegedKeyIsRejected" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="legacyMissingCoordinatesRequiresReview" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="qrWithQueryCannotOverrideOperation" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.001"/>
+  <testcase name="tomorrowDoesNotAppearUnderActive" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="staleUnstartedPickupIsNotPresentedAsActive" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="longSsrSessionIsChunkedWithoutLosingBytes" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.005"/>
+  <testcase name="completedServiceWithOpenCollectionStaysActive" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="scheduleOrderIsPreservedWithoutNearestFirst" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.004"/>
+  <testcase name="tomorrowAppearsUnderUpcoming" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="otherOriginQrIsRejected" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <testcase name="legacyRejectsCancelledBooking" classname="com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,5 +1,9 @@
 # Project Status
 
+## O3 native Driver Trips — 2026-11-17
+
+Owner-authorized native Trips Drop-off/Pick-up implementation is isolated on `stage/o3-native-driver-trips-ui-20261117` from accepted main `169f75400fdcfc9f5f7e41aa0cf2ebe981018392`. Implementation `9483e963619074f149769c07279a94e43197ded1`: 64 JVM / 10 final-APK emulator / 7 Driver source-contract tests, debug packaging, release-source compilation and lint pass. A recorded emulator startup ANR recovered before the successful final retry. Counts, therapist cards, road ETA guards, readiness and explicit pooled stops preserve existing native navigation and server authority. **CORRECTION REQUIRED for connected acceptance**; local O3 UI verification is complete. Connected service/pooled/dispatch contracts and actual guidance acceptance remain O4 dependencies. Latest O3 instruction prohibits merge/push/deployment/SQL and O3 APK distribution. [O3 handoff and verification](reports/DRIVER-O3-NATIVE-TRIPS-HANDOFF-2026-11-17.md).
+
 ## Owner-approved main and remote integration — 2026-11-17
 
 The owner authorizes source integration of this chat’s accepted Attendance and reviewed Driver stack. Driver164/native40 tests, types, isolated Web build, pilot source compilation and scoped lint pass. Generic Scan failure is a reproduced accepted-main baseline. Runtime journey/location/push controls and SQL remain inactive/unapplied; Maps and external/device acceptance remain open. [Integration review](reports/DRIVER-MAIN-INTEGRATION-2026-11-17.md).

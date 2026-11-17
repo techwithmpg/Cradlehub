@@ -1,0 +1,3 @@
+2f128a9f4c97ed5ed5950e93c1749464aff8de915e0812aeadf9f537d7864602  app/build/outputs/apk/debug/app-debug.apk
+39a49caef38b46910eec50e112cc1579ed1291ca1b19b233e87595456c0a2caa  app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+LOCAL review artifacts only; not distributed.

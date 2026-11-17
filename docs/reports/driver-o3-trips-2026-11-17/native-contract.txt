@@ -1,0 +1,9 @@
+
+ RUN  v4.1.5 E:/cradlehub/.worktrees/driver-o3-trips-ui
+
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  20:03:55
+   Duration  31.24s (transform 346ms, setup 0ms, import 6.22s, tests 154ms, environment 24.29s)
+
