@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" tests="31" skipped="0" failures="0" errors="0" timestamp="2026-11-17T12:59:58.580Z" hostname="LAPTOP-38TK65AQ" time="0.025">
+  <properties/>
+  <testcase name="vehicleArrivalIsNotBoardingOrDropoff" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.003"/>
+  <testcase name="splitDriversUseCollectionAssignmentOwner" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.003"/>
+  <testcase name="destinationRequiresBoardingAndRequiredCollectionForRelevantPassengers" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.001"/>
+  <testcase name="pickupEtaTargetsTherapistNotReturnBranch" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.002"/>
+  <testcase name="modeCannotRouteOppositeTransportLegOrUnknownPassengers" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="missingParticipantDeadlineDoesNotPredictAllReady" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="pooledProgressUsesRelevantStopPassengers" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.001"/>
+  <testcase name="readinessIsEvaluatedAtRelevantCollectionStop" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="terminalNavigationCannotMislabelCompletedPickupAsDropoff" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="branchOnlyEtaIsNotTimeToDrop" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.001"/>
+  <testcase name="modesCountOnlyAssignedJourneys" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="terminalOrReviewStageCannotOpenAnUnconfirmedStop" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="approvedStopOrderDeterminesCorrectBooking" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.001"/>
+  <testcase name="acceptedUnifiedArrivalKeepsBoardingWithoutClaimingDropoff" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.006"/>
+  <testcase name="authoritativeCompletionEnablesAssignedCollection" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.001"/>
+  <testcase name="invalidTargetAndReadOnlyAssignmentNeverOpenRoute" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="expiredRouteAndNoEstimateDoNotInventNumbers" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="staleInaccurateAndFutureGpsAreExplicit" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="serviceCountdownIsSeparateFromRoadTravel" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.001"/>
+  <testcase name="alreadyCollectedDropUsesActualCustomerLeg" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="fullDropIncludesRequiredBranchPrefix" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="missingStopPlanCannotDeclareDropoffConfirmed" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.001"/>
+  <testcase name="legacyDeliveryPendingDoesNotProveBoardingOrCreateCollection" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="etaForNextCustomerDoesNotClaimAllPassengersDelivered" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.001"/>
+  <testcase name="unknownBoardingCannotOmitRequiredBranchTravelFromDropEta" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="wrongBookingOrCoordinatesNeverBorrowEta" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="zeroAndLateTimerDoNotDeclareReady" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="unknownPooledReadinessCannotBorrowAnotherTherapistsDeadline" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="poolIsOneVehicleAndUnrelatedBookingsNeverMerge" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="independentDepartureAndUndecidedNeverInventCollection" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.0"/>
+  <testcase name="unknownReadinessIsNotFalselyLabeledReady" classname="com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

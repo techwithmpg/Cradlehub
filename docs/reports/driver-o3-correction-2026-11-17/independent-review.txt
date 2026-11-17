@@ -1,0 +1,16 @@
+Independent read-only source-integration review
+Reviewer: /root/o3_merge_review (separate agent explicitly authorized by owner)
+Source head: 4e80a5643993568f3c53fef8be4a75ee354ae170
+Accepted main: 169f75400fdcfc9f5f7e41aa0cf2ebe981018392
+Verdict: PASS for local-main source integration; no remaining concrete source blockers.
+
+Reviewed ETA/countdown ageing, fresh fixes between pulses, relevant-stop passenger progress,
+collection requirement/boarding actions, unknown readiness, accepted unified arrival,
+terminal/review state labels, lifecycle test and authority/fixture boundaries.
+Server reauthorization, Auth and transport/arrival writers remain unchanged.
+Full-diff whitespace checks pass. Recorded 71 JVM tests/build output inspected.
+At review time, final emulator execution was pending and remains the parent agent's gate.
+No edits, Git mutations, devices, external messaging, cloud or database operations performed.
+
+Live guidance, backend/service/CRM/push parity, physical-device acceptance and O4 stay gated.
+Scheduled pulses stop below STARTED; normal data-driven recompositions can cheaply read time.

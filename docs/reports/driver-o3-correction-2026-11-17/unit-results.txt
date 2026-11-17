@@ -1,0 +1,3 @@
+com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest: tests=9, failures=0, errors=0
+com.mpgtechnologies.cradlehub.driver.NativeDriverPolicyTest: tests=31, failures=0, errors=0
+com.mpgtechnologies.cradlehub.driver.NativeTripsPolicyTest: tests=31, failures=0, errors=0

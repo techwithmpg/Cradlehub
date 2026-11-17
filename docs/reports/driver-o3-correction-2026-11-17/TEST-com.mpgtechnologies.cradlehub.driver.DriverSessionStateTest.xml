@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-11-17T12:59:58.607Z" hostname="LAPTOP-38TK65AQ" time="0.002">
+  <properties/>
+  <testcase name="anotherTripResponseIsIgnored" classname="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" time="0.0"/>
+  <testcase name="signOutErasesRestorationHints" classname="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" time="0.001"/>
+  <testcase name="newLegRequiresFreshRouteWithoutChangingBookingAuthority" classname="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" time="0.0"/>
+  <testcase name="arrivalNeverMeansBoarding" classname="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" time="0.0"/>
+  <testcase name="delayedReplyCannotReopenEarlierLeg" classname="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" time="0.0"/>
+  <testcase name="cannotReplaceAnActiveTrip" classname="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" time="0.0"/>
+  <testcase name="rejectsMismatchedLeg" classname="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" time="0.0"/>
+  <testcase name="sameTripDoesNotResetGuidance" classname="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" time="0.001"/>
+  <testcase name="rejectsUnknownServerStage" classname="com.mpgtechnologies.cradlehub.driver.DriverSessionStateTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,5 +1,7 @@
 # O3 native Android Trips handoff — 2026-11-17
 
+> Later owner-authorized corrections and local-main source integration supersede this report's no-local-merge boundary only; its original evidence remains historical. See [current correction/integration review](DRIVER-O3-CORRECTION-MERGE-2026-11-17.md). O4/live release acceptance remains gated.
+
 ## Authorization and baseline
 
 The owner's attached O3 brief authorizes implementation of Drop-off / Pick-up inside the existing Kotlin/Compose Driver app, local build/tests and native emulator evidence. It explicitly stops before main merge, push, deployment, APK distribution or O4 integration. This supersedes earlier source-integration permission for this new slice.
