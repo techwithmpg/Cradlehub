@@ -1,5 +1,7 @@
 # CradleHub AI Context
 
+> **2026-11-17 LATEST OWNER-APPROVED MAIN / REMOTE SOURCE INTEGRATION:** Owner explicitly requests merging all work from this chat into local main and pushing remote. This supersedes earlier no-merge/no-push limits for source integration. Reconciled base `51ba200580068691a0358323e00c8c4a7a8de11e` already includes Attendance V2; reviewed Driver code/test head `9b3f1923e6f1858b93af1310f33adc52a51cb7b4` includes the unified/native/owner-phone stack and investigation history. Driver164/164, native40/40, full type-check, isolated Web build, pilot compilation and scoped lint pass. The generic Scan contract failure reproduces on accepted main and remains a known baseline issue. New operations SQL is unapplied and all hosted Driver activation flags are absent; no runtime activation, SQL, Cron or general APK distribution is authorized. Live Maps/device and independent external release acceptance remain open. Source integration is owner-approved without representing those gates as passed. See [integration review](docs/reports/DRIVER-MAIN-INTEGRATION-2026-11-17.md).
+
 > **2026-11-17 LATEST OWNER PHONE / PRODUCTION CLIENT EXCEPTION:** The owner explicitly selected existing PRODUCTION `www.cradlewellnessliving.com` / Supabase `lsrbwqhvzjfpiabeolkv` for their personal phone. Installed `.localtest` debug build has fixtures disabled, full-area Map without its brand banner, exact Staff PWA icon and compatibility with deployed itinerary/Start plus RLS booking reads. Phone Auth/data requests now return200 and authenticated Driver/On duty UI is observed. Earlier Android DNS failure recovered without any setting change; the approved direct DNS test was refused and original values were verified intact. Google Maps/Navigation still rejects the current native key; required service activation returned success, but available account key/IAM management is denied. Full journey/native-location/device APIs remain undeployed. No server deployment, SQL, main merge/push or general distribution. Live navigation/QR/CRM/push and external review remain open. See [owner-phone handoff](docs/reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md).
 
 > **2026-11-17 Driver personal phone test:** The owner explicitly authorized installing the verified native `.localtest` UI fixture on their connected RMX3081 / Android13 phone. Installation and native launch succeeded; the app was left open for owner testing. This supersedes the earlier emulator-only boundary for this personal installation only. Live backend, routing/GPS/QR/push/CRM acceptance and external review remain open. No general staff distribution, main merge, deployment or production operation. See the phone-install follow-up in the [native handoff](docs/reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md).
@@ -110,6 +112,8 @@ The recorded SHAs are stable closeout anchors, not declarations of the current `
 8. Production state independently proven by authorized evidence
 
 ## Active governance manifest
+
+- [Driver main integration review](docs/reports/DRIVER-MAIN-INTEGRATION-2026-11-17.md)
 
 - [Driver owner-phone current handoff](docs/reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md)
 

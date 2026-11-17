@@ -108,6 +108,10 @@ New decisions must include an ID, date, status (`ACTIVE`, `SUPERSEDED`, or `RETI
 | OPS-GOV-003 | 2026-10-25 | ACTIVE | OWNER DIRECTED that Operations Center issue action buttons open a focused modal with the authorized correction action instead of routine cross-module navigation, keeping the flow simple. | Reuse existing Attendance Review modal router and its server-authorized actions for supported Attendance cases. Where no safe approved inline editor exists (aggregate service/configuration checks or duplicate identity), show a short guided modal and the existing editor as a clearly labeled fallback; do not misrepresent read-only review or a sent device recovery request as a verified repair. No new server mutation or database operation authorized. | Supersedes the read-only-only UI interaction design in OPS-GOV-001, without changing its deployment, identity, or database safety limits. |
 
 
+## Driver source integration — 2026-11-17
+
+**DRV-NAT-005 / OWNER APPROVED:** The latest owner instruction explicitly authorizes local-main integration and remote push of this chat's Attendance/Driver investigation/unified/native/phone work. Pre-merge implementation review and applicable checks are recorded in the [integration report](reports/DRIVER-MAIN-INTEGRATION-2026-11-17.md). This supersedes earlier no-merge/no-push source boundaries; it does not pass pending independent/device acceptance, install the manual SQL, activate flags/Cron or authorize general APK distribution. Main's normal automatic Web deployment may follow its authorized push. Unrelated worktrees/assets remain outside scope.
+
 ## Native Driver Compose decisions — 2026-11-17
 
 | ID | Date | Status | Decision | Consequence | Supersedes |

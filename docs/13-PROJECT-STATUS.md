@@ -1,5 +1,9 @@
 # Project Status
 
+## Owner-approved main and remote integration — 2026-11-17
+
+The owner authorizes source integration of this chat’s accepted Attendance and reviewed Driver stack. Driver164/native40 tests, types, isolated Web build, pilot source compilation and scoped lint pass. Generic Scan failure is a reproduced accepted-main baseline. Runtime journey/location/push controls and SQL remain inactive/unapplied; Maps and external/device acceptance remain open. [Integration review](reports/DRIVER-MAIN-INTEGRATION-2026-11-17.md).
+
 ## Latest connected owner phone — 2026-11-17
 
 Native implementation `30218cde2f6795500e15272c164af68fe4753591` on the same review branch adds full-area Map, exact PWA icon, guarded owner-authorized production connection and deployed-API compatibility. Forty unit tests, seven emulator UI cases, fixture/production builds and lint pass. Phone Auth/RLS reads return200; authenticated Driver/On duty UI is observed. **Live Maps remains blocked by native-key authorization**; full journey/location/push API activation and independent/device acceptance remain open. No server deployment, SQL, main merge/push or general distribution. [Current handoff](reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md).

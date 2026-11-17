@@ -1,0 +1,232 @@
+▲ Next.js 16.2.4 (webpack)
+- Experiments (use with caution):
+  · serverActions
+  · staleTimes
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.7min
+  Running TypeScript ...
+  Finished TypeScript in 90s ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/159) ...
+  Generating static pages using 15 workers (39/159)
+  Generating static pages using 15 workers (79/159)
+  Generating static pages using 15 workers (119/159)
+✓ Generating static pages using 15 workers (159/159) in 15.0s
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)                                               Revalidate  Expire
+┌ ƒ /
+├ ○ /_not-found                                                   1h      1y
+├ ƒ /about
+├ ƒ /account/setup
+├ ƒ /api/agent/act
+├ ƒ /api/agent/coach
+├ ƒ /api/agent/follow-up
+├ ƒ /api/attendance/automation
+├ ƒ /api/attendance/closing-interventions
+├ ƒ /api/attendance/public-scan
+├ ƒ /api/attendance/recent-scans
+├ ƒ /api/booking/available-slots
+├ ƒ /api/booking/crm-availability
+├ ƒ /api/booking/service-line-quotes
+├ ƒ /api/branches
+├ ƒ /api/crm/availability
+├ ƒ /api/crm/bookings
+├ ƒ /api/crm/master-sheet/references
+├ ƒ /api/crm/schedule
+├ ƒ /api/crm/staff-schedule/overview
+├ ƒ /api/customer-sms/dispatch
+├ ƒ /api/customers/lookup
+├ ƒ /api/customers/search
+├ ƒ /api/desktop/v1/attendance
+├ ƒ /api/desktop/v1/attendance/history
+├ ƒ /api/desktop/v1/attendance/mutations
+├ ƒ /api/desktop/v1/bookings
+├ ƒ /api/desktop/v1/bookings/[bookingId]
+├ ƒ /api/desktop/v1/bookings/[bookingId]/cancel
+├ ƒ /api/desktop/v1/bookings/[bookingId]/reschedule
+├ ƒ /api/desktop/v1/customers
+├ ƒ /api/desktop/v1/customers/[customerId]
+├ ƒ /api/desktop/v1/home-service
+├ ƒ /api/desktop/v1/home-service/drivers
+├ ƒ /api/desktop/v1/home-service/mutations
+├ ƒ /api/desktop/v1/home-service/recommendations
+├ ƒ /api/desktop/v1/schedule
+├ ƒ /api/desktop/v1/schedule/mutations
+├ ƒ /api/desktop/v1/schedule/staff-availability
+├ ƒ /api/desktop/v1/schedule/staff/[staffId]
+├ ƒ /api/desktop/v1/staff/[staffId]
+├ ƒ /api/desktop/v1/staff/[staffId]/deactivate
+├ ƒ /api/desktop/v1/staff/[staffId]/role
+├ ƒ /api/desktop/v1/staff/onboarding/[requestId]/approve
+├ ƒ /api/desktop/v1/staff/onboarding/[requestId]/reject
+├ ƒ /api/desktop/v1/today
+├ ƒ /api/desktop/v1/today/mutations
+├ ƒ /api/driver-native-push
+├ ƒ /api/home-service/distance
+├ ƒ /api/manager/context
+├ ƒ /api/manager/resource-check
+├ ƒ /api/notifications/pending-booking-reminders
+├ ƒ /api/notifications/preferences
+├ ƒ /api/notifications/push/subscription
+├ ƒ /api/notifications/push/test
+├ ƒ /api/public/booking-context
+├ ƒ /api/public/dispatch-slots
+├ ƒ /api/public/waitlist
+├ ƒ /api/service-start-reminders
+├ ƒ /api/service-transition-push
+├ ƒ /api/staff/driver/journeys
+├ ƒ /api/staff/driver/native-device
+├ ƒ /api/staff/driver/native-itinerary
+├ ƒ /api/staff/driver/native-location
+├ ƒ /api/staff/driver/native-start
+├ ƒ /auth/callback
+├ ƒ /book
+├ ƒ /book/[branchId]
+├ ƒ /book/[branchId]/[serviceId]
+├ ƒ /book/confirm
+├ ƒ /book/success
+├ ƒ /branches
+├ ƒ /contact
+├ ƒ /crm
+├ ƒ /crm/[customerId]
+├ ƒ /crm/attendance
+├ ƒ /crm/availability
+├ ƒ /crm/bookings
+├ ƒ /crm/bookings/new
+├ ƒ /crm/boutique
+├ ƒ /crm/cash-flow
+├ ƒ /crm/control
+├ ƒ /crm/customers
+├ ƒ /crm/dispatch
+├ ƒ /crm/lapsed
+├ ƒ /crm/live-operations
+├ ƒ /crm/master-sheet
+├ ƒ /crm/notifications
+├ ƒ /crm/operations-center
+├ ƒ /crm/reconciliation
+├ ƒ /crm/repeats
+├ ƒ /crm/schedule
+├ ƒ /crm/services
+├ ƒ /crm/setup
+├ ƒ /crm/spaces-rules
+├ ƒ /crm/staff
+├ ƒ /crm/staff-applications
+├ ƒ /crm/staff-availability
+├ ƒ /crm/today
+├ ƒ /crm/waitlist
+├ ƒ /dev
+├ ƒ /driver
+├ ƒ /driver/dispatch
+├ ƒ /driver/jobs
+├ ƒ /driver/jobs/[bookingId]
+├ ƒ /driver/map
+├ ○ /forgot-password                                              1h      1y
+├ ƒ /home-service-massage-bacolod
+├ ƒ /login
+├ ƒ /manager
+├ ƒ /manager/bookings
+├ ƒ /manager/control
+├ ƒ /manager/dispatch
+├ ƒ /manager/live-operations
+├ ƒ /manager/notifications
+├ ƒ /manager/operations
+├ ƒ /manager/reports
+├ ƒ /manager/resources
+├ ƒ /manager/schedule
+├ ƒ /manager/services
+├ ƒ /manager/settings
+├ ƒ /manager/spaces-rules
+├ ƒ /manager/staff
+├ ƒ /manager/staff-availability
+├ ƒ /manager/staff/[staffId]
+├ ƒ /manager/staff/onboarding
+├ ƒ /manager/today
+├ ○ /manifest-staff.webmanifest
+├ ƒ /marketing
+├ ƒ /marketing/media
+├ ƒ /massage-spa-bacolod
+├ ○ /onboard                                                      1h      1y
+├ ƒ /onboard/[staffId]
+├ ƒ /owner
+├ ƒ /owner/attendance
+├ ƒ /owner/bookings
+├ ƒ /owner/branches
+├ ƒ /owner/branches/[branchId]
+├ ƒ /owner/branches/new
+├ ƒ /owner/cash-flow
+├ ƒ /owner/dispatch
+├ ƒ /owner/marketing
+├ ƒ /owner/notifications
+├ ƒ /owner/payroll
+├ ƒ /owner/reports
+├ ƒ /owner/schedule
+├ ƒ /owner/services
+├ ƒ /owner/services/[serviceId]
+├ ƒ /owner/services/new
+├ ƒ /owner/spaces-rules
+├ ƒ /owner/staff
+├ ƒ /owner/staff/[staffId]
+├ ƒ /owner/staff/invite
+├ ƒ /owner/staff/new
+├ ƒ /owner/staff/onboarding
+├ ƒ /products
+├ ƒ /reset-password
+├ ○ /robots.txt
+├ ƒ /scan
+├ ƒ /scan/[publicCode]
+├ ƒ /scan/activate/[token]
+├ ƒ /select-workspace
+├ ƒ /services
+├ ○ /sitemap.xml
+├ ƒ /staff
+├ ○ /staff-onboarding                                             1h      1y
+├ ƒ /staff-portal
+├ ƒ /staff-portal/attendance
+├ ƒ /staff-portal/dispatch
+├ ƒ /staff-portal/jobs
+├ ƒ /staff-portal/jobs/[bookingId]
+├ ƒ /staff-portal/jobs/active
+├ ƒ /staff-portal/map
+├ ƒ /staff-portal/more
+├ ƒ /staff-portal/notifications
+├ ƒ /staff-portal/profile
+├ ƒ /staff-portal/schedule
+├ ƒ /staff-portal/service-progress
+├ ƒ /staff-portal/stats
+├ ƒ /staff-portal/today
+├ ƒ /staff-portal/week
+├ ƒ /staff/attendance
+├ ƒ /staff/driver
+├ ƒ /staff/driver/map
+├ ƒ /staff/driver/more
+├ ƒ /staff/driver/profile
+├ ƒ /staff/driver/routes/[bookingId]
+├ ƒ /staff/driver/trips
+├ ƒ /staff/driver/trips/[bookingId]
+├ ○ /staff/login                                                  1h      1y
+├ ƒ /staff/more
+├ ƒ /staff/notices
+├ ƒ /staff/profile
+├ ƒ /staff/progress
+├ ƒ /staff/scan
+├ ƒ /staff/scan/activate/[token]
+├ ƒ /staff/scan/process/[publicCode]
+├ ƒ /staff/schedule
+├ ƒ /staff/utility
+├ ƒ /staff/utility/more
+├ ƒ /staff/utility/notices
+├ ƒ /staff/utility/rooms
+├ ƒ /staff/utility/work
+├ ƒ /staff/utility/work/[taskId]
+├ ƒ /staff/work
+├ ƒ /track/[token]
+└ ƒ /utility
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand

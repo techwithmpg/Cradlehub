@@ -1,0 +1,14 @@
+    689|     );
+    690|     // Central Scan action must use raw <a> to bypass Next client navi…
+    691|     expect(bottomNavSource).toMatch(/<a\s+href=\{item\.href\}\s+aria-l…
+       |                             ^
+    692|     // Other navigation destinations must continue using Next.js Link
+    693|     expect(bottomNavSource).toMatch(/<Link\s+key=\{item\.key\}\s+href=…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 27 skipped (28)
+   Start at  13:08:15
+   Duration  720ms (transform 97ms, setup 0ms, import 461ms, tests 9ms, environment 0ms)
