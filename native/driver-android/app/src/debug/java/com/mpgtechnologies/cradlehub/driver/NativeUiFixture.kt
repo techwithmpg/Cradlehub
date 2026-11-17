@@ -36,9 +36,20 @@ internal object NativeUiFixture {
                 ),
                 first.copy(
                     id = "33333333-3333-4333-8333-333333333333",
-                    date = today.plusDays(1),
+                    date = today,
+                    stage = "delivery_enroute",
+                    leg = "delivery",
+                    destination = "Customer · Bacolod",
                     customer = "UI Test Customer C",
                     time = "09:00:00",
+                ),
+                first.copy(
+                    id = "77777777-7777-4777-8777-777777777777",
+                    stage = "service_active",
+                    leg = null,
+                    customer = "UI Test Customer D",
+                    destination = "Customer · Bacolod",
+                    time = "14:45:00",
                 ),
                 first.copy(
                     id = "44444444-4444-4444-8444-444444444444",
@@ -49,26 +60,28 @@ internal object NativeUiFixture {
                     serviceHistory = true,
                 ),
             )
-        return DriverWorkspace(
-            DriverProfile(
-                "55555555-5555-4555-8555-555555555555",
-                "Alex · UI TEST",
-                "66666666-6666-4666-8666-666666666666",
-                "Main · Bacolod",
-            ),
-            trips,
-            "On duty",
-            listOf(AttendanceRecord(today.toString(), "Checked in", "09:00", null)),
-            listOf(
-                DriverNotice(
-                    "test-notice",
-                    "UI test assignment",
-                    "Fixture only; no backend or push delivery",
-                    first.id,
-                )
-            ),
-            Instant.now(),
-            today,
-        )
+        val workspace =
+            DriverWorkspace(
+                DriverProfile(
+                    "55555555-5555-4555-8555-555555555555",
+                    "Alex · UI TEST",
+                    "66666666-6666-4666-8666-666666666666",
+                    "Main · Bacolod",
+                ),
+                trips,
+                "On duty",
+                listOf(AttendanceRecord(today.toString(), "Checked in", "09:00", null)),
+                listOf(
+                    DriverNotice(
+                        "test-notice",
+                        "UI test assignment",
+                        "Fixture only; no backend or push delivery",
+                        first.id,
+                    )
+                ),
+                Instant.now(),
+                today,
+            )
+        return workspace.copy(tripPlans = NativeTripsFixture.plans(workspace))
     }
 }

@@ -207,6 +207,19 @@ internal class NativeDriverModel(context: Context) : ViewModel() {
         ui = ui.copy(secondary = null)
     }
 
+    fun tripsMode(value: TripsMode) {
+        ui = ui.copy(tripsMode = value)
+    }
+
+    fun openRoute(journey: TripsJourney) {
+        if (ui.stale) return
+        val driver = ui.workspace?.profile?.id ?: return
+        val stop = NativeTripsPolicy.route(journey, driver) ?: return
+        selectTrip(
+            stop.bookingId
+        ) // Existing itinerary reauthorizes its current stop; no destination override.
+    }
+
     fun filter(value: TripFilter) {
         ui = ui.copy(filter = value)
     }

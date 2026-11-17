@@ -43,6 +43,7 @@ internal data class DriverTrip(
     val lat: Double? = null,
     val lng: Double? = null,
     val serviceHistory: Boolean = false,
+    val legacy: Boolean = false,
 ) {
     val label: String
         get() =
@@ -110,6 +111,7 @@ internal data class DriverWorkspace(
     val today: LocalDate,
     val partialError: String? = null,
     val failures: Set<String> = emptySet(),
+    val tripPlans: List<TripsJourney>? = null,
 )
 
 internal data class NativeNavUi(
@@ -120,6 +122,7 @@ internal data class NativeNavUi(
     val routeReady: Boolean = false,
     val loading: Boolean = false,
     val stage: String? = null,
+    val eta: TripsRoadEta? = null,
 )
 
 internal data class NativeDriverUi(
@@ -130,6 +133,7 @@ internal data class NativeDriverUi(
     val stale: Boolean = false,
     val tab: DriverTab = DriverTab.TODAY,
     val filter: TripFilter = TripFilter.ACTIVE,
+    val tripsMode: TripsMode = TripsMode.DROP_OFF,
     val secondary: String? = null,
     val selectedId: String? = null,
     val nav: NativeNavUi = NativeNavUi(),
@@ -218,6 +222,7 @@ internal object DriverTripPolicy {
             location ?: "Location needs review",
             if (valid) lat else null,
             if (valid) lng else null,
+            legacy = true,
         )
     }
 

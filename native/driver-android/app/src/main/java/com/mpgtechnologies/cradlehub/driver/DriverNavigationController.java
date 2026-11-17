@@ -30,6 +30,12 @@ final class DriverNavigationController {
   private final DriverSessionState state = DriverSessionState.runtime();
   private Navigator navigator;
   private Navigator.ArrivalListener arrival;
+  private Navigator.RemainingTimeOrDistanceChangedListener remainingListener;
+  private TimeAndDistance remaining;
+  private java.time.Instant remainingAt;
+  private String remainingBooking, remainingLeg;
+  private long remainingGeneration;
+  private double remainingLat, remainingLng;
   private final LocationManager locations;
   private Location point;
   private boolean watching, loading, destroyed, foreground = true, initializing, autoStart;
@@ -52,6 +58,7 @@ final class DriverNavigationController {
       new LocationListener() {
         public void onLocationChanged(Location value) {
           point = value;
+          changed(); // Read-only Trips ETA projection; no additional location subscription.
           if (!state.guiding) return;
           long age =
               android.os.SystemClock.elapsedRealtimeNanos() - value.getElapsedRealtimeNanos();
@@ -95,6 +102,30 @@ final class DriverNavigationController {
   boolean isRouteReady() { return state.routeReady; }
   String selectedStage() { return state.stage; }
   boolean isLoading() { return loading || initializing || routing || state.pending; }
+  // Read-only SDK output. It cannot change route destinations or authorize a journey.
+  private void readRemaining() {
+    if (destroyed || navigator == null || !state.routeReady || routing) return;
+    remaining = navigator.getCurrentTimeAndDistance();
+    remainingAt = java.time.Instant.now();
+    remainingBooking = state.bookingId;
+    remainingLeg = state.leg;
+    remainingGeneration = state.generation;
+    remainingLat = targetLat;
+    remainingLng = targetLng;
+    changed();
+  }
+  TripsRoadEta roadEstimate() {
+    if (remaining == null || remainingAt == null || point == null || !state.routeReady
+        || routing || !Objects.equals(remainingBooking, state.bookingId)
+        || !Objects.equals(remainingLeg, state.leg) || remainingGeneration != state.generation
+        || !hasTarget || remainingLat != targetLat || remainingLng != targetLng) return null;
+    long age = SystemClock.elapsedRealtimeNanos() - point.getElapsedRealtimeNanos();
+    java.time.Instant gps = java.time.Instant.now().minusNanos(age);
+    return new TripsRoadEta(remainingBooking, remainingLeg, remainingLat, remainingLng,
+        remaining.getSeconds(), remaining.getMeters(), remainingAt, gps,
+        point.hasAccuracy() ? point.getAccuracy() : Double.NaN, null, Collections.emptyList());
+  }
+
   void endRoute() { stopGuidance(); render(); }
   private boolean voice = true;
   void toggleVoice() {
@@ -363,7 +394,11 @@ final class DriverNavigationController {
           public void onNavigatorReady(Navigator ready) {
             initializing = false;
             if (!current(id, generation)) return;
+            if (navigator != null && remainingListener != null)
+              navigator.removeRemainingTimeOrDistanceChangedListener(remainingListener);
             navigator = ready;
+            remainingListener = () -> readRemaining();
+            ready.addRemainingTimeOrDistanceChangedListener(10, 25, remainingListener);
             recenter();
             if (arrival != null) ready.removeArrivalListener(arrival);
             arrival =
@@ -387,6 +422,7 @@ final class DriverNavigationController {
             ready.addArrivalListener(arrival);
             if (state.guiding && ready.isGuidanceRunning()) {
               state.routeReady = true;
+              readRemaining();
               startLocations();
               render();
               return;
@@ -408,6 +444,7 @@ final class DriverNavigationController {
                               if (!current(id, generation)) return;
                               if (result == Navigator.RouteStatus.OK) {
                                 state.routeReady = true;
+                                readRemaining();
                                 ready.setAudioGuidanceSettings(
                                     AudioGuidanceSettings.builder()
                                         .setGuidanceMode(
@@ -684,6 +721,7 @@ final class DriverNavigationController {
     if (watching) locations.removeUpdates(listener);
     if (navigator != null) {
       if (arrival != null) navigator.removeArrivalListener(arrival);
+      if (remainingListener != null) navigator.removeRemainingTimeOrDistanceChangedListener(remainingListener);
       if (finishing) {
         stopGuidance();
         navigator.clearDestinations();

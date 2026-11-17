@@ -58,14 +58,72 @@ class NativeDriverComposeTest {
     }
 
     @Test
-    fun upcomingAndCompletedFiltersStayDistinct() {
+    fun tripsModesKeepCorrectCountsReadinessAndHistory() {
         ready()
         compose.onNodeWithText("Trips", useUnmergedTree = true).performClick()
-        compose.onNodeWithText("Upcoming").performClick()
-        compose.onNodeWithText("UI Test Customer C").assertExists()
-        compose.onNodeWithText("UI Test Customer A").assertDoesNotExist()
-        compose.onNodeWithText("Completed").performClick()
-        compose.onNodeWithText("Service completed").assertExists()
+        compose.onNodeWithText("Drop-off").assertIsSelected()
+        compose.onNodeWithText("2 Trips").assertIsDisplayed()
+        compose.onNodeWithText("12 min").assertIsDisplayed()
+        compose.onNodeWithText("Therapist A · TEST").assertIsDisplayed()
+        compose.onNodeWithText("Pick-up").performClick()
+        compose.onNodeWithText("Pick-up").assertIsSelected()
+        compose.onNodeWithText("2 Trips").assertIsDisplayed()
+        compose.onNodeWithText("9 min").assertIsDisplayed()
+        compose.onNodeWithText("Service completed · Ready for pickup").assertIsDisplayed()
+        compose.onNodeWithTag("route-fixture-pick-wait").assertDoesNotExist()
+        compose.onNodeWithTag("trips-list").performScrollToNode(hasText("24 min"))
+        compose.onNodeWithText("24 min").assertIsDisplayed()
+        compose
+            .onNodeWithText("Service in progress · Est. completion in 28 min")
+            .assertIsDisplayed()
+        compose.onNodeWithText("Drop-off").performClick()
+        compose.onNodeWithText("12 min").assertIsDisplayed()
+        compose.onNodeWithText("More", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Trip History").performClick()
+        compose.onNodeWithText("UI Test Service Record").assertIsDisplayed()
+        compose.onNodeWithText("Service completed").assertIsDisplayed()
+    }
+
+    @Test
+    fun dropOffRouteOpensExistingMapDirectly() {
+        ready()
+        compose.onNodeWithText("Trips", useUnmergedTree = true).performClick()
+        compose.onNodeWithTag("route-fixture-drop-a").performClick()
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithText("Trip details").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("DROP-OFF").assertIsDisplayed()
+        compose.onNodeWithText("‹ Back").assertDoesNotExist()
+        compose.onNodeWithText("UI TEST · Branch pickup").assertIsDisplayed()
+    }
+
+    @Test
+    fun pickupRouteOpensCollectionNotDelivery() {
+        ready()
+        compose.onNodeWithText("Trips", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Pick-up").performClick()
+        compose.onNodeWithTag("route-fixture-pick-ready").performClick()
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithText("Trip details").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("PICK-UP").assertIsDisplayed()
+        compose.onNodeWithText("UI TEST · Collection point").assertIsDisplayed()
+        compose.onNodeWithText("‹ Back").assertDoesNotExist()
+    }
+
+    @Test
+    fun pooledCardNamesSeparateCustomerStops() {
+        ready()
+        compose.onNodeWithText("Trips", useUnmergedTree = true).performClick()
+        compose.onNodeWithTag("trips-list").performScrollToNode(hasText("2 Therapists (Pooled)"))
+        compose.onNodeWithText("Lina · TEST & Nura · TEST").assertExists()
+        compose.onNodeWithText("Lina · TEST · Customer · Bacolod · Pending").assertExists()
+        compose.onNodeWithText("Nura · TEST · Customer · Alijis · Pending").assertExists()
+        compose.onNodeWithTag("route-fixture-drop-pool").performScrollTo().performClick()
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithText("Trip details").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Customer · Bacolod").assertIsDisplayed()
     }
 
     @Test
