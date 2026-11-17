@@ -17,10 +17,12 @@ import {
 
 export interface RealDispatchItem {
   id: string;
+  branchId?: string;
   number: string;
   bookingDate: string;
   startTime: string;
   endTime: string;
+  durationMinutes?: number | null;
   customerName: string;
   serviceName: string;
   area: string | null;
@@ -49,9 +51,30 @@ export interface RealDispatchItem {
   travelStartedAt: string | null;
   arrivedAt: string | null;
   sessionStartedAt: string | null;
+  sessionDueAt?: string | null;
+  sessionCompletedAt?: string | null;
+  sessionCompletionSource?: string | null;
   completedAt: string | null;
   rating: null;
-  currentLocation: { lat: number; lng: number; recorded_at: string } | null;
+  collectionRequirement?: {
+    decision: "required" | "not_required" | "undecided";
+    reasonCode?: string | null;
+    source?: string | null;
+    approvedBy?: string | null;
+    approvedAt?: string | null;
+    collectionDriverId?: string | null;
+    collectionDriverName?: string | null;
+    collectionConfirmed?: boolean;
+    conflictingApproval?: boolean;
+  } | null;
+  currentLocation: {
+    lat: number;
+    lng: number;
+    recorded_at: string;
+    accuracyMeters?: number | null;
+    source?: string | null;
+    staffId?: string | null;
+  } | null;
 }
 
 export interface DispatchStats {
@@ -342,13 +365,13 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
     let query = supabase
       .from("bookings")
       .select(
-        `id, booking_date, start_time, end_time,
+        `id, branch_id, booking_date, start_time, end_time,
          status, booking_progress_status,
          driver_id, staff_id,
          payment_status, metadata,
          travel_started_at, arrived_at,
-         session_started_at, completed_at,
-         services ( name ),
+         session_started_at, session_due_at, session_completed_at, session_completion_source, session_duration_minutes_snapshot, completed_at,
+         services ( name, duration_minutes ),
          therapist:staff!staff_id ( id, full_name, nickname ),
          customers ( full_name ),
          branches ( name, latitude, longitude, maps_embed_url )`
@@ -451,7 +474,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       args.role === "driver"
         ? supabase
             .from("staff_location_snapshots")
-            .select("booking_id, lat, lng, recorded_at")
+            .select("booking_id, staff_id, lat, lng, recorded_at, accuracy_meters, source")
             .eq("branch_id", args.branchId)
             .eq("staff_id", args.staffId!)
             .in("booking_id", bookingIds)
@@ -464,7 +487,7 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
                 .map(async (booking) => {
                   const result = await supabase
                     .from("staff_location_snapshots")
-                    .select("booking_id, lat, lng, recorded_at")
+                    .select("booking_id, staff_id, lat, lng, recorded_at, accuracy_meters, source")
                     .eq("branch_id", args.branchId)
                     .eq("booking_id", booking.id)
                     .eq("staff_id", booking.driver_id!)
@@ -481,16 +504,19 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
           : bookingIds.length > 0
             ? supabase
                 .from("staff_location_snapshots")
-                .select("booking_id, staff_id, lat, lng, recorded_at")
+                .select("booking_id, staff_id, lat, lng, recorded_at, accuracy_meters, source")
                 .in("booking_id", bookingIds)
                 .eq("branch_id", args.branchId)
                 .order("recorded_at", { ascending: false })
             : Promise.resolve({
                 data: [] as {
                   booking_id: string | null;
+                  staff_id?: string | null;
                   lat: number;
                   lng: number;
                   recorded_at: string;
+                  accuracy_meters?: number | null;
+                  source?: string | null;
                 }[],
                 error: null,
               });
@@ -511,7 +537,17 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
     }
 
     const driverByBooking = new Map(rawBookings.map((booking) => [booking.id, booking.driver_id]));
-    const locationMap = new Map<string, { lat: number; lng: number; recorded_at: string }>();
+    const locationMap = new Map<
+      string,
+      {
+        lat: number;
+        lng: number;
+        recorded_at: string;
+        accuracyMeters?: number | null;
+        source?: string | null;
+        staffId?: string | null;
+      }
+    >();
     for (const snapshot of snapshotsRes.data ?? []) {
       if (!snapshot.booking_id || locationMap.has(snapshot.booking_id)) continue;
       if (
@@ -530,18 +566,86 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       )
         continue;
 
+      const accuracyRaw = "accuracy_meters" in snapshot ? Number(snapshot.accuracy_meters) : NaN;
       locationMap.set(snapshot.booking_id, {
         lat,
         lng,
         recorded_at: snapshot.recorded_at,
+        ...(Number.isFinite(accuracyRaw) && accuracyRaw > 0 ? { accuracyMeters: accuracyRaw } : {}),
+        ...("source" in snapshot && typeof snapshot.source === "string"
+          ? { source: snapshot.source }
+          : {}),
+        ...("staff_id" in snapshot && typeof snapshot.staff_id === "string"
+          ? { staffId: snapshot.staff_id }
+          : {}),
       });
     }
+
+    const readSafeCollectionRequirement = (
+      dispatch: Record<string, unknown> | null
+    ): RealDispatchItem["collectionRequirement"] => {
+      if (!dispatch) return undefined;
+      const rawReq = asRecord(dispatch.collection_requirement ?? dispatch.collectionRequirement);
+      if (!rawReq) {
+        if (dispatch.independent_departure_approved === true) {
+          return {
+            decision: "not_required",
+            reasonCode:
+              readString(dispatch.collection_reason_code) ?? "APPROVED_INDEPENDENT_DEPARTURE",
+            source: readString(dispatch.independent_departure_source),
+            approvedBy: readString(dispatch.independent_departure_approved_by),
+            approvedAt: readString(dispatch.independent_departure_approved_at),
+            conflictingApproval: dispatch.collection_required === true,
+          };
+        }
+        if (dispatch.collection_required === true) {
+          const collectionDriverId = readString(dispatch.collection_driver_id);
+          return {
+            decision: "required",
+            reasonCode: readString(dispatch.collection_reason_code),
+            source: readString(dispatch.collection_decision_source),
+            collectionDriverId,
+            collectionDriverName: collectionDriverId
+              ? (driverNameMap.get(collectionDriverId) ?? null)
+              : null,
+            collectionConfirmed: dispatch.collection_confirmed === true,
+          };
+        }
+        return undefined;
+      }
+
+      const rawDecision = readString(rawReq.decision);
+      if (
+        rawDecision !== "required" &&
+        rawDecision !== "not_required" &&
+        rawDecision !== "undecided"
+      ) {
+        return undefined;
+      }
+      const collectionDriverId = readString(rawReq.collection_driver_id ?? rawReq.collectionDriverId);
+      return {
+        decision: rawDecision,
+        reasonCode: readString(rawReq.reason_code ?? rawReq.reasonCode),
+        source: readString(rawReq.source),
+        approvedBy: readString(rawReq.approved_by ?? rawReq.approvedBy),
+        approvedAt: readString(rawReq.approved_at ?? rawReq.approvedAt),
+        collectionDriverId,
+        collectionDriverName:
+          readString(rawReq.collection_driver_name ?? rawReq.collectionDriverName) ??
+          (collectionDriverId ? (driverNameMap.get(collectionDriverId) ?? null) : null),
+        collectionConfirmed:
+          rawReq.collection_confirmed === true || rawReq.collectionConfirmed === true,
+        conflictingApproval:
+          rawReq.conflicting_approval === true || rawReq.conflictingApproval === true,
+      };
+    };
 
     const mappedItems: RealDispatchItem[] = rawBookings.map((booking, index) => {
       const metadata = asRecord(booking.metadata);
       const destination = resolveBookingHomeServiceDestination(metadata);
       const dispatch = asRecord(metadata?.dispatch);
       const liveEta = parseLiveEta(dispatch?.live_eta);
+      const collectionRequirement = readSafeCollectionRequirement(dispatch);
 
       const driverId = booking.driver_id ?? null;
       const therapistId = booking.staff_id ?? "";
@@ -551,7 +655,9 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
       const therapist = first(
         booking.therapist as OneOrMany<{ id: string; full_name: string; nickname?: string | null }>
       );
-      const service = first(booking.services as OneOrMany<{ name: string }>);
+      const service = first(
+        booking.services as OneOrMany<{ name: string; duration_minutes?: number | null }>
+      );
       const customer = first(booking.customers as OneOrMany<{ full_name: string }>);
       const branch = first(
         booking.branches as OneOrMany<{
@@ -565,12 +671,23 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
 
       const dispatchStatus = computeDispatchStatus(bookingStatus, progressStatus, driverId);
 
+      const durationMinutes =
+        typeof booking.session_duration_minutes_snapshot === "number" &&
+        Number.isFinite(booking.session_duration_minutes_snapshot)
+          ? booking.session_duration_minutes_snapshot
+          : typeof service?.duration_minutes === "number" &&
+              Number.isFinite(service.duration_minutes)
+            ? service.duration_minutes
+            : null;
+
       return {
         id: booking.id,
+        branchId: booking.branch_id ?? args.branchId,
         number: `#${String(index + 1).padStart(3, "0")}`,
         bookingDate: booking.booking_date,
         startTime: booking.start_time,
         endTime: booking.end_time,
+        ...(durationMinutes !== null ? { durationMinutes } : {}),
         customerName: customer?.full_name ?? "Guest Customer",
         serviceName: service?.name ?? "—",
         ...destination,
@@ -611,8 +728,18 @@ export async function getDispatchData(args: GetDispatchDataArgs): Promise<Dispat
         travelStartedAt: booking.travel_started_at ?? null,
         arrivedAt: booking.arrived_at ?? null,
         sessionStartedAt: booking.session_started_at ?? null,
+        ...(booking.session_due_at !== undefined
+          ? { sessionDueAt: booking.session_due_at ?? null }
+          : {}),
+        ...(booking.session_completed_at !== undefined
+          ? { sessionCompletedAt: booking.session_completed_at ?? null }
+          : {}),
+        ...(booking.session_completion_source !== undefined
+          ? { sessionCompletionSource: booking.session_completion_source ?? null }
+          : {}),
         completedAt: booking.completed_at ?? null,
         rating: null,
+        ...(collectionRequirement ? { collectionRequirement } : {}),
         currentLocation: locationMap.get(booking.id) ?? null,
       };
     });

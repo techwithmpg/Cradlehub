@@ -162,6 +162,35 @@ function bookingDisplay(notification: WorkspaceNotification): NotificationDispla
       iconName: "calendar",
     };
   }
+  const arrivalKind = readString(metadata, ["driver_arrival_kind", "driverArrivalKind"]);
+  if (
+    arrivalKind === "pickup_arrival" ||
+    arrivalKind === "customer_arrival" ||
+    arrivalKind === "collection_arrival" ||
+    arrivalKind === "collection_ready"
+  ) {
+    const arrivalTitle =
+      arrivalKind === "pickup_arrival"
+        ? "Arrived at pickup"
+        : arrivalKind === "customer_arrival"
+          ? "Arrived at customer"
+          : arrivalKind === "collection_arrival"
+            ? "Arrived for collection"
+            : "Ready for collection";
+    const meta = compactJoin([
+      readString(metadata, ["driver_name", "driverName"]),
+      readString(metadata, ["therapist_name", "therapistName"]),
+    ]);
+    return {
+      title: safeTitle(notification, arrivalTitle),
+      detail: safeDetail(notification),
+      meta: meta || undefined,
+      actionLabel: "View Live Map",
+      tone: arrivalKind === "collection_ready" ? "success" : "booking",
+      href: resolvedHref(notification),
+      iconName: "calendar",
+    };
+  }
   const customer =
     readString(metadata, ["customer_name", "customerName", "customer", "full_name", "fullName"]) ??
     titleSubject(notification.title);

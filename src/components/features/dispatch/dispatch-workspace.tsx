@@ -42,6 +42,7 @@ export interface HomeServiceDispatchWorkspaceProps {
   upcoming?: boolean;
   selectedBookingId?: string;
   ownerBranchId?: string;
+  initialView?: TabId;
 }
 
 function statusText(value: unknown): string {
@@ -78,6 +79,7 @@ export function HomeServiceDispatchWorkspace({
   upcoming = false,
   selectedBookingId,
   ownerBranchId,
+  initialView = "flow",
 }: HomeServiceDispatchWorkspaceProps) {
   const isCrmRetainedDispatch = !ownerBranchId;
   const ownerKey = useWorkspaceSWRKey(["owner-dispatch", ownerBranchId, initialData.today, upcoming]);
@@ -123,7 +125,7 @@ export function HomeServiceDispatchWorkspace({
     ? (crmDispatch.data ?? initialData)
     : (legacyDispatch.data ?? initialData);
   const error = isCrmRetainedDispatch ? crmDispatch.error : legacyDispatch.error;
-  const [activeTab, setActiveTab] = useState<TabId>("flow");
+  const [activeTab, setActiveTab] = useState<TabId>(initialView);
   const {
     data: mapData,
     error: mapError,
@@ -311,7 +313,12 @@ export function HomeServiceDispatchWorkspace({
       >
         {activeTab === "map" ? (
           mapData ? (
-            <DispatchLiveMapTab data={mapData} onRefresh={() => void mutateMap()} />
+            <DispatchLiveMapTab
+              data={mapData}
+              selectedBookingId={selectedBookingId}
+              branchId={ownerBranchId}
+              onRefresh={() => void mutateMap()}
+            />
           ) : (
             <p role="status">
               {mapError
