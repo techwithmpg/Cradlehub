@@ -98,3 +98,11 @@ Next permitted work after local verification is review and identification of exi
 The existing pilot packaging workflow has not been updated to inject native TEST configuration. It is not an authorized distribution path for this candidate; packaging guards intentionally block missing/mismatched TEST inputs. Keep the synthetic fixture APK away from staff.
 
 No production rollback is needed because nothing was deployed, merged, activated or distributed. To abandon the candidate, park this branch and retain the accepted app/PWA. A later authorized installation rollback must restore the previously accepted signed package under its own release procedure. Do not delete unrelated worktrees or change SQL/production controls as part of rollback.
+
+## Owner phone installation follow-up — 2026-11-17
+
+The owner explicitly requested installing the app on their connected Android phone to test it. This narrowly authorizes the personal test installation after the earlier emulator-only instruction; it does not authorize general staff distribution, backend activation or production work.
+
+The recorded debug APK SHA-256 `4b9522cb30f1939a6001edb42ad5a6657339332aab4125fdd01ec7d98e8f4d36` matched the artifact. Android apksigner verification passed. ADB installed the separate `com.mpgtechnologies.cradlehub.driver.localtest` package successfully on RMX3081 / Android13 / API33, version `0.3.0-native-compose-review-local-test`. No earlier copy of this test package was detected; no app was uninstalled and no existing production app/session was replaced. Native activity launch returned Status ok, cold TotalTime4577ms / WaitTime4616ms, and the package's NativeDriverActivity was confirmed top-resumed. This is one phone launch measurement, not performance certification.
+
+The app was left open for the owner. It still uses the explicit synthetic UI TEST fixture, inert backend target and invalid Navigation key. No live sign-in, attendance submission, guidance, GPS, push or CRM operation was performed. Camera and other runtime permission decisions remain with the owner. Physical hardware is now available for owner UI testing; connected workflow acceptance and external review remain open. No phone screenshot or private phone content was collected. Main, production and deployment remain unchanged.
