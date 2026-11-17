@@ -2,8 +2,8 @@
 <resources>
   <style name="Theme.CradleDriver" parent="Theme.AppCompat.Light.NoActionBar">
     <item name="colorAccent">#163A2B</item>
-    <item name="android:windowLightStatusBar">true</item>
-    <item name="android:statusBarColor">#F6F8F5</item>
+    <item name="android:windowLightStatusBar">false</item>
+    <item name="android:statusBarColor">#163A2B</item>
     <item name="android:navigationBarColor">#163A2B</item>
   </style>
   <style name="DriverTab" parent="Widget.AppCompat.Button.Borderless"><item name="android:textAllCaps">false</item><item name="android:textSize">12sp</item><item name="android:minHeight">48dp</item><item name="android:padding">4dp</item></style>

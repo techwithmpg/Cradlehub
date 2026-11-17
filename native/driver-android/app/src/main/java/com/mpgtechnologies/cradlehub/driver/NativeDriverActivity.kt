@@ -28,6 +28,8 @@ open class NativeDriverActivity : AppCompatActivity() {
     private var cameraAllowed by mutableStateOf(false)
     private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var attendanceCode: String? = null
+    private var attendanceLocation: NativeAttendanceLocation? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +54,9 @@ open class NativeDriverActivity : AppCompatActivity() {
                         ?: View.generateViewId()
             }
         action = Button(this)
+        model.openMap = {
+            handler.postDelayed({ if (map.isAttachedToWindow) initializeNavigation() }, 32)
+        }
         model.openTrip = { id ->
             handler.postDelayed(
                 {
@@ -88,7 +93,7 @@ open class NativeDriverActivity : AppCompatActivity() {
             object : View.OnAttachStateChangeListener {
                 override fun onViewAttachedToWindow(view: View) {
                     handler.post {
-                        if (model.ui.tab == DriverTab.MAP && model.ui.selectedId != null)
+                        if (model.ui.tab == DriverTab.MAP)
                             handler.postDelayed({ initializeNavigation() }, 32)
                     }
                 }
@@ -128,6 +133,7 @@ open class NativeDriverActivity : AppCompatActivity() {
                                 )
                             }
                         },
+                        ::scanAttendance,
                         {
                             DriverPerformance.begin("start_to_guidance")
                             action.performClick()
@@ -204,6 +210,18 @@ open class NativeDriverActivity : AppCompatActivity() {
                         .add(map.id, it, "native-driver-map")
                         .commitNow()
                 }
+        fragment.getMapAsync { googleMap ->
+            if (model.ui.selectedId == null)
+                googleMap.moveCamera(
+                    com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(
+                        com.google.android.gms.maps.model.LatLng(12.8797, 121.7740),
+                        5f,
+                    )
+                )
+            googleMap.setOnMapLoadedCallback {
+                android.util.Log.i("CradleDriverPerf", "native_map_tiles_loaded")
+            }
+        }
         val status = TextView(this)
         val pause = Button(this)
         navigation =
@@ -252,6 +270,49 @@ open class NativeDriverActivity : AppCompatActivity() {
         return id?.takeIf { DriverTripPolicy.validId(it) }
     }
 
+    private fun scanAttendance(raw: String) {
+        if (model.fixture) {
+            model.scan(raw)
+            return
+        }
+        if (attendanceCode != null) return
+        try {
+            model.backend.validateScan(raw)
+        } catch (error: IllegalArgumentException) {
+            model.scanLocationFailed("Use your branch attendance QR")
+            return
+        }
+        attendanceCode = raw
+        model.scanLocationStarted()
+        if (
+            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) !=
+                PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ),
+                206,
+            )
+        } else locateAttendance()
+    }
+
+    private fun locateAttendance() {
+        val raw = attendanceCode ?: return
+        attendanceLocation = NativeAttendanceLocation(this)
+        attendanceLocation!!.capture { point ->
+            attendanceCode = null
+            attendanceLocation = null
+            if (point == null)
+                model.scanLocationFailed(
+                    "Location unavailable. Enable precise location and scan again."
+                )
+            else model.scanWithLocation(raw, point)
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -276,6 +337,12 @@ open class NativeDriverActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        if (attendanceCode != null) {
+            attendanceLocation?.cancel()
+            attendanceLocation = null
+            attendanceCode = null
+            model.scanLocationFailed("Scan interrupted. Scan again.")
+        }
         navigation?.pause()
         super.onStop()
     }
@@ -292,6 +359,17 @@ open class NativeDriverActivity : AppCompatActivity() {
             NativeDeviceRegistry.reset()
             NativeDeviceRegistry.register(this, model.backend)
         }
+        if (requestCode == 206 && attendanceCode != null) {
+            if (
+                checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+                    PackageManager.PERMISSION_GRANTED
+            )
+                locateAttendance()
+            else {
+                attendanceCode = null
+                model.scanLocationFailed("Precise location permission needed. Scan again.")
+            }
+        }
         navigation?.resume()
     }
 
@@ -303,6 +381,7 @@ open class NativeDriverActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(null)
         navigation?.destroy(isFinishing)
         model.openTrip = null
+        model.openMap = null
         model.endGuidance = null
         model.onAuthenticated = null
         super.onDestroy()

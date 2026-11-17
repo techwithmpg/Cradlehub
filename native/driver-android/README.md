@@ -2,7 +2,7 @@
 
 The current candidate uses Kotlin and Jetpack Compose for **Today | Trips | Scan | Map | More**. No WebView is constructed. CameraX and bundled ML Kit handle QR capture; the existing Google Navigation SDK 8.1.0 owns the native map, voice and routing. The Driver PWA remains intact as a fallback.
 
-Status: **LOCAL EMULATOR VERIFICATION / RELEASE CORRECTION REQUIRED**. See [the current handoff](../../docs/reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md) for evidence, screenshots and remaining gates. No staff distribution, main merge, production activation or deployment is authorized.
+Status: **OWNER PHONE CONNECTED BUILD / RELEASE CORRECTION REQUIRED**. See [the current handoff](../../docs/reports/DRIVER-NATIVE-COMPOSE-HANDOFF-2026-11-17.md) for evidence, screenshots and remaining gates. No staff distribution, main merge, production activation or deployment is authorized.
 
 ## Architecture and authority
 
@@ -47,7 +47,7 @@ CRADLE_NATIVE_PUBLIC_KEY=APPROVED_PUBLISHABLE_OR_ANON_PUBLIC_KEY
 CRADLE_NAVIGATION_API_KEY=ANDROID_RESTRICTED_TEST_KEY
 ```
 
-Production hosts and privileged keys are rejected at build time and runtime. Unknown targets are a stop condition. No TEST resource has been selected for connected acceptance yet. No existing `.env` or live staff session was reused. Optional Firebase `app/google-services.json` must match the separately approved TEST package/signing configuration; it is ignored by Git. Existing FCM token registration remains inactive without that configuration. Migrating to the newer Firebase Installation ID contract would require a separately reviewed backend change.
+Production hosts require the exact owner-phone exception below; privileged keys are always rejected. Unknown targets are a stop condition. No TEST resource has been selected for connected acceptance yet. No existing `.env` or live staff session was reused. Optional Firebase `app/google-services.json` must match the separately approved TEST package/signing configuration; it is ignored by Git. Existing FCM token registration remains inactive without that configuration. Migrating to the newer Firebase Installation ID contract would require a separately reviewed backend change.
 
 ## Verification and release limits
 
@@ -62,3 +62,26 @@ Run native tests, lint, debug/test APK builds and release source compilation. Re
 - [ML Kit QR scanning](https://developers.google.com/ml-kit/vision/barcode-scanning/android)
 - [Navigation SDK setup](https://developers.google.com/maps/documentation/navigation/android-sdk/setup-overview)
 - [AndroidX test releases](https://developer.android.com/jetpack/androidx/releases/test)
+
+## Owner-authorized production phone connection — 2026-11-17
+
+The owner explicitly selected the existing PRODUCTION system for their personal phone test. This supersedes the prior TEST-only boundary for this single client configuration. It does not authorize server deployment, SQL installation, a main merge, staff distribution or an Auth/RLS bypass.
+
+The debug-only owner phone build uses `.localtest` to update the owner's existing test app, while `NATIVE_UI_FIXTURE=false`. Configure public client inputs outside source:
+
+```properties
+CRADLE_NATIVE_TARGET=PRODUCTION
+CRADLE_NATIVE_PRODUCTION_OWNER_PHONE=true
+CRADLE_NATIVE_API_ORIGIN=https://www.cradlewellnessliving.com
+CRADLE_NATIVE_SUPABASE_URL=https://lsrbwqhvzjfpiabeolkv.supabase.co
+```
+
+`CRADLE_NATIVE_PUBLIC_KEY` may be supplied as a process environment variable containing only the existing publishable/anon public key. The existing Android-restricted Navigation key stays in owner-managed Gradle settings. Never copy a service-role key, server Maps key, password or refresh token into client configuration. Production fixtures, other host/project pairs and release/pilot packaging through this exception are rejected.
+
+The deployed journey endpoint is absent (404); native code therefore reads assigned Home Service bookings through existing authenticated RLS and still reauthorizes destinations/Start through deployed `native-itinerary` and `native-start`. A 401/403, other service failure or malformed successful journey response cannot downgrade to that compatibility path. Pickup/collection/return/native-location/push API activation remains separate. This connection does not make the unmerged full journey backend live.
+
+Map uses the available SDK pane without a brand header or opaque empty-state cover, including before selecting a trip. Google attribution and safety UI remain. Launcher assets copy the Staff PWA's gold icons byte for byte. Attendance captures raw native location only after a recognized QR and normal permission prompt; the existing server still owns geofence, device and attendance decisions.
+
+The owner's phone initially returned `UnknownHostException`; even Android shell DNS could not resolve Google, CradleHub or Supabase. Public Auth settings work from the workstation with both existing public keys. The owner is checking phone connectivity. The native key separately returns Google Maps/Navigation authorization failure. The local Cloud account lacks project service access; a user-controlled Google authorization flow is pending. Do not claim successful live map rendering, user sign-in or trip/attendance acceptance until new evidence exists. Debug diagnostics contain only channels, status codes, boolean config flags and exception class names, never credentials, headers, payloads or staff/customer identifiers.
+
+See the current [owner-phone connection report](../../docs/reports/DRIVER-OWNER-PHONE-CONNECTION-2026-11-17.md) for the exact artifact, tests and unresolved conditions.

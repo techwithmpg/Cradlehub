@@ -178,7 +178,7 @@ class NativeDriverPolicyTest {
 
     @Test
     fun ssrCookieMatchesInstalledWireFormat() {
-        val json = "{\"access_token\":\"SYNTHETIC\",\"user\":{\"name\":\"用户\"}}"
+        val json = "{\"access_token\":\"SYNTHETIC\",\"user\":{\"name\":\"ç”¨æˆ·\"}}"
         val cookie = NativeSsrSession.cookies("sb-test-auth-token", json)
         val decoded =
             String(Base64.getUrlDecoder().decode(cookie.substringAfter("base64-")), Charsets.UTF_8)
@@ -239,5 +239,91 @@ class NativeDriverPolicyTest {
     @Test
     fun privilegedKeyIsRejected() {
         assertFalse(NativeTargetPolicy.publicKey("sb_secret_" + "x".repeat(50)))
+    }
+
+    private fun legacyBooking(): JSONObject =
+        JSONObject()
+            .put("id", "11111111-1111-4111-8111-111111111111")
+            .put("driver_id", "22222222-2222-4222-8222-222222222222")
+            .put("branch_id", "33333333-3333-4333-8333-333333333333")
+            .put("delivery_type", "home_service")
+            .put("status", "confirmed")
+            .put("booking_date", "2026-11-17")
+            .put("start_time", "14:00:00")
+            .put("booking_progress_status", "not_started")
+            .put(
+                "metadata",
+                JSONObject()
+                    .put(
+                        "home_service_address",
+                        JSONObject()
+                            .put("full_address", "SYNTHETIC TEST ADDRESS")
+                            .put("lat", 10.6)
+                            .put("lng", 122.9),
+                    ),
+            )
+
+    private fun legacy(row: JSONObject) =
+        DriverTripPolicy.parseLegacy(
+            row,
+            "22222222-2222-4222-8222-222222222222",
+            "33333333-3333-4333-8333-333333333333",
+        )
+
+    @Test
+    fun legacyCompatibilityNeverDowngradesDeniedOrFailedAuthority() {
+        assertTrue(NativeDriverCompatibility.legacyRead(404, ""))
+        assertTrue(NativeDriverCompatibility.legacyRead(503, "journeys_inactive"))
+        for (status in listOf(200, 401, 403, 409, 500, 503)) assertFalse(
+            NativeDriverCompatibility.legacyRead(status, "other")
+        )
+    }
+
+    @Test
+    fun deployedBookingProjectsDeliveryWithoutInventingPickupOrCollection() {
+        val trip = legacy(legacyBooking())
+        assertEquals("delivery_pending", trip.stage)
+        assertEquals("delivery", trip.leg)
+        assertEquals(
+            "delivery_enroute",
+            legacy(legacyBooking().put("booking_progress_status", "travel_started")).stage,
+        )
+        assertEquals(
+            "service_active",
+            legacy(legacyBooking().put("booking_progress_status", "session_started")).stage,
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun legacyRejectsAnotherDriver() {
+        legacy(legacyBooking().put("driver_id", "44444444-4444-4444-8444-444444444444"))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun legacyRejectsAnotherBranch() {
+        legacy(legacyBooking().put("branch_id", "44444444-4444-4444-8444-444444444444"))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun legacyRejectsCancelledBooking() {
+        legacy(legacyBooking().put("status", "cancelled"))
+    }
+
+    @Test
+    fun legacyMissingCoordinatesRequiresReview() {
+        assertEquals("review", legacy(legacyBooking().put("metadata", JSONObject())).stage)
+    }
+
+    @Test
+    fun productionRequiresOwnerPhoneAndExactHostPair() {
+        val key = "sb_publishable_" + "x".repeat(40)
+        val api = "https://www.cradlewellnessliving.com"
+        val db = "https://lsrbwqhvzjfpiabeolkv.supabase.co"
+        assertFalse(NativeTargetPolicy.allowed("PRODUCTION", api, db, key))
+        assertTrue(NativeTargetPolicy.allowed("PRODUCTION", api, db, key, true))
+        assertFalse(
+            NativeTargetPolicy.allowed("PRODUCTION", "https://other.example.com", db, key, true)
+        )
+        assertFalse(NativeTargetPolicy.allowed("TEST", api, db, key, true))
     }
 }

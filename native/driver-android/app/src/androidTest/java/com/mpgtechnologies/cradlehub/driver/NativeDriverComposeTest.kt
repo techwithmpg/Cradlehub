@@ -37,6 +37,16 @@ class NativeDriverComposeTest {
     }
 
     @Test
+    fun emptyMapHasNoBrandBannerOrOpaqueEmptyState() {
+        ready()
+        compose.onNodeWithText("Map", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("View trips").assertIsDisplayed()
+        compose.onNodeWithText("CRADLEHUB DRIVER · UI TEST").assertDoesNotExist()
+        compose.onNodeWithText("No trip selected").assertDoesNotExist()
+        compose.onNodeWithText("Trip details").assertDoesNotExist()
+    }
+
+    @Test
     fun tripTapOpensNativeMapWithoutDetailsModal() {
         ready()
         compose.onNodeWithText("Open trip").performClick()

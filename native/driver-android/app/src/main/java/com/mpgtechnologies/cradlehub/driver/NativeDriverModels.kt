@@ -138,6 +138,12 @@ internal data class NativeDriverUi(
     val scanOk: Boolean? = null,
 )
 
+internal object NativeDriverCompatibility {
+    @JvmStatic
+    fun legacyRead(status: Int, code: String): Boolean =
+        status == 404 || (status == 503 && code == "journeys_inactive")
+}
+
 internal object DriverTripPolicy {
     private val stages =
         setOf(
@@ -162,6 +168,58 @@ internal object DriverTripPolicy {
         UUID.fromString(id).toString().equals(id, true)
     }
         .getOrDefault(false)
+
+    /**
+     * Display projection of the existing RLS-scoped booking; itinerary/start reauthorize every
+     * action.
+     */
+    fun parseLegacy(j: JSONObject, driver: String, branch: String): DriverTrip {
+        val id = j.getString("id")
+        require(validId(id) && validId(driver) && validId(branch))
+        require(j.getString("driver_id") == driver && j.getString("branch_id") == branch)
+        require(j.getString("delivery_type") == "home_service")
+        require(j.getString("status") in setOf("confirmed", "in_progress"))
+        val address = j.optJSONObject("metadata")?.optJSONObject("home_service_address")
+        val lat = address?.optDouble("lat", Double.NaN)
+        val lng = address?.optDouble("lng", Double.NaN)
+        val location =
+            listOf("full_address", "formatted_address", "address").firstNotNullOfOrNull {
+                address?.nullableText(it)
+            }
+        val valid =
+            location != null &&
+                lat != null &&
+                lng != null &&
+                lat.isFinite() &&
+                lng.isFinite() &&
+                kotlin.math.abs(lat) <= 90 &&
+                kotlin.math.abs(lng) <= 180
+        val stage =
+            when (j.nullableText("booking_progress_status") ?: "not_started") {
+                "not_started" -> if (valid) "delivery_pending" else "review"
+                "travel_started" -> if (valid) "delivery_enroute" else "review"
+                "arrived" -> "customer_arrived"
+                "session_started" -> "service_active"
+                else -> "review"
+            }
+        val therapist = j.optJSONObject("therapist")
+        return DriverTrip(
+            id,
+            0,
+            stage,
+            if (stage.startsWith("delivery_")) "delivery" else null,
+            j.optJSONObject("customers")?.nullableText("full_name") ?: "Assigned customer",
+            therapist?.nullableText("nickname")
+                ?: therapist?.nullableText("full_name")
+                ?: "Assigned therapist",
+            LocalDate.parse(j.getString("booking_date")),
+            j.getString("start_time"),
+            j.optJSONObject("branches")?.nullableText("name") ?: "Assigned branch",
+            location ?: "Location needs review",
+            if (valid) lat else null,
+            if (valid) lng else null,
+        )
+    }
 
     fun parse(j: JSONObject): DriverTrip {
         val id = j.getString("bookingId")

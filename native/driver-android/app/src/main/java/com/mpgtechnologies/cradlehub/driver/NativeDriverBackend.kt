@@ -12,10 +12,18 @@ import org.json.JSONObject
 
 internal class NativeAuthExpired : Exception("Sign in again")
 
+internal class NativeSignInFailure(message: String) : Exception(message)
+
 internal object NativeTargetPolicy {
-    fun allowed(target: String, api: String, supabase: String, key: String): Boolean = runCatching {
+    fun allowed(
+        target: String,
+        api: String,
+        supabase: String,
+        key: String,
+        ownerPhone: Boolean = false,
+    ): Boolean = runCatching {
         val urls = listOf(URI(api), URI(supabase))
-        target == "TEST" &&
+        (target == "TEST" || (target == "PRODUCTION" && ownerPhone)) &&
             urls.all {
                 it.scheme == "https" &&
                     it.host != null &&
@@ -25,13 +33,17 @@ internal object NativeTargetPolicy {
                     (it.path.isNullOrEmpty() || it.path == "/") &&
                     it.port in listOf(-1, 443) &&
                     !it.host.lowercase().endsWith(".invalid") &&
-                    it.host.lowercase() !in
-                        setOf(
-                            "www.cradlewellnessliving.com",
-                            "cradlewellnessliving.com",
-                            "lsrbwqhvzjfpiabeolkv.supabase.co",
-                        )
+                    (target == "PRODUCTION" ||
+                        it.host.lowercase() !in
+                            setOf(
+                                "www.cradlewellnessliving.com",
+                                "cradlewellnessliving.com",
+                                "lsrbwqhvzjfpiabeolkv.supabase.co",
+                            ))
             } &&
+            (target != "PRODUCTION" ||
+                (urls[0].host.equals("www.cradlewellnessliving.com", true) &&
+                    urls[1].host.equals("lsrbwqhvzjfpiabeolkv.supabase.co", true))) &&
             publicKey(key)
     }
         .getOrDefault(false)
@@ -69,7 +81,14 @@ internal class NativeDriverBackend(context: Context) {
     private var session: JSONObject? = persisted.optJSONObject("session")
     private var serverNow: Instant? = null
     val configured
-        get() = NativeTargetPolicy.allowed(BuildConfig.NATIVE_TARGET, api, supabase, publicKey)
+        get() =
+            NativeTargetPolicy.allowed(
+                BuildConfig.NATIVE_TARGET,
+                api,
+                supabase,
+                publicKey,
+                BuildConfig.NATIVE_OWNER_PHONE,
+            )
 
     val hasSession
         get() = session != null
@@ -83,7 +102,7 @@ internal class NativeDriverBackend(context: Context) {
     }
 
     private fun requireTarget() {
-        check(configured) { "TEST connection not configured" }
+        check(configured) { "Connection not configured" }
     }
 
     @Synchronized
@@ -96,9 +115,44 @@ internal class NativeDriverBackend(context: Context) {
                 JSONObject().put("email", email.trim()).put("password", password),
                 auth = false,
             )
-        if (reply.status !in 200..299) throw Exception("Check your email and password")
-        acceptSession(reply.body)
-        verifiedUser()
+        if (reply.status !in 200..299)
+            throw NativeSignInFailure(
+                when (reply.body.optString("error_code", reply.body.optString("code"))) {
+                    "invalid_credentials" -> "Email or password was not accepted."
+                    "email_not_confirmed" -> "Confirm your email before signing in."
+                    "over_request_rate_limit",
+                    "over_email_send_rate_limit" -> "Too many attempts. Wait and try again."
+                    else -> "Sign-in was not accepted. Try again."
+                }
+            )
+        try {
+            acceptSession(reply.body)
+        } catch (error: Exception) {
+            if (BuildConfig.DEBUG)
+                android.util.Log.w(
+                    "CradleDriverAuth",
+                    "session_storage_failed type=${error.javaClass.simpleName}",
+                )
+            throw NativeSignInFailure(
+                "Secure session storage is unavailable. Restart the app and try again."
+            )
+        }
+        try {
+            verifiedUser()
+        } catch (error: Exception) {
+            if (BuildConfig.DEBUG)
+                android.util.Log.w(
+                    "CradleDriverAuth",
+                    "user_verification_failed type=${error.javaClass.simpleName}",
+                )
+            throw NativeSignInFailure(
+                "Account verification failed. Check your connection and try again."
+            )
+        }
+    }
+
+    fun checkConnection() {
+        request(supabase + "/auth/v1/settings", null, auth = false)
     }
 
     private fun acceptSession(value: JSONObject) {
@@ -209,11 +263,27 @@ internal class NativeDriverBackend(context: Context) {
             try {
                 val journeys = call("/api/staff/driver/journeys", null)
                 if (journeys.status == 401) throw NativeAuthExpired()
-                check(journeys.status == 200 && journeys.body.optBoolean("ok"))
-                val rows = journeys.body.getJSONArray("journeys")
-                (0 until rows.length())
-                    .map { DriverTripPolicy.parse(rows.getJSONObject(it)) }
-                    .toMutableList()
+                if (
+                    NativeDriverCompatibility.legacyRead(
+                        journeys.status,
+                        journeys.body.optString("code"),
+                    )
+                ) {
+                    val rows =
+                        read(
+                            "bookings?select=id,driver_id,branch_id,delivery_type,status,booking_date,start_time,booking_progress_status,metadata,customers(full_name),therapist:staff!staff_id(full_name,nickname),branches(name)&driver_id=eq.$id&branch_id=eq.$branchId&delivery_type=eq.home_service&status=in.(confirmed,in_progress)&booking_date=gte.${today.minusDays(30)}&booking_date=lte.${today.plusDays(14)}&order=booking_date.asc,start_time.asc&limit=200"
+                        )
+                    check(rows.length() < 200) { "Trip list requires a narrower dispatch scope" }
+                    (0 until rows.length())
+                        .map { DriverTripPolicy.parseLegacy(rows.getJSONObject(it), id, branchId) }
+                        .toMutableList()
+                } else {
+                    check(journeys.status == 200 && journeys.body.optBoolean("ok"))
+                    val rows = journeys.body.getJSONArray("journeys")
+                    (0 until rows.length())
+                        .map { DriverTripPolicy.parse(rows.getJSONObject(it)) }
+                        .toMutableList()
+                }
             } catch (error: Exception) {
                 if (error is NativeAuthExpired) throw error
                 failures.add("trips")
@@ -335,12 +405,17 @@ internal class NativeDriverBackend(context: Context) {
         return DriverHttp.Reply(reply.status, reply.body)
     }
 
-    fun scan(raw: String, requestId: String): JSONObject {
+    fun validateScan(raw: String) = NativeQrPolicy.publicCode(raw, api)
+
+    fun scan(raw: String, requestId: String, location: JSONObject? = null): JSONObject {
         val code = NativeQrPolicy.publicCode(raw, api)
         val reply =
             call(
                 "/api/attendance/public-scan",
-                JSONObject().put("publicCode", code).put("requestId", requestId),
+                JSONObject()
+                    .put("publicCode", code)
+                    .put("requestId", requestId)
+                    .put("location", location ?: JSONObject.NULL),
             )
         check(reply.status in 200..299) { "Scan not confirmed" }
         return reply.body
@@ -464,6 +539,11 @@ internal class NativeDriverBackend(context: Context) {
                 connection.outputStream.use { it.write(bytes) }
             }
             val status = connection.responseCode
+            if (BuildConfig.DEBUG)
+                android.util.Log.i(
+                    "CradleDriverHttp",
+                    "response channel=${if (web) "web" else if (uri.path.startsWith("/auth/")) "auth" else "data"} status=$status",
+                )
             connection
                 .getHeaderFieldDate("Date", 0)
                 .takeIf { it > 0 }
@@ -523,9 +603,18 @@ internal class NativeDriverBackend(context: Context) {
                     when {
                         text.isBlank() || text == "null" -> JSONObject()
                         text.trimStart().startsWith("{") -> JSONObject(text)
+                        status !in 200..299 &&
+                            !connection.contentType.orEmpty().contains("json", true) -> JSONObject()
                         else -> JSONObject().put("value", org.json.JSONTokener(text).nextValue())
                     },
                 )
+        } catch (error: Exception) {
+            if (BuildConfig.DEBUG)
+                android.util.Log.w(
+                    "CradleDriverHttp",
+                    "request_failed channel=${if (web) "web" else if (uri.path.startsWith("/auth/")) "auth" else "data"} type=${error.javaClass.simpleName}",
+                )
+            throw error
         } finally {
             connection.disconnect()
         }

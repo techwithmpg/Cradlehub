@@ -60,10 +60,26 @@ internal class NativeDriverModel(context: Context) : ViewModel() {
     private var scanRetry: Pair<String, String>? = null
     var pendingNotification: String? = null
     var openTrip: ((String) -> Unit)? = null
+    var openMap: (() -> Unit)? = null
     var endGuidance: (() -> Unit)? = null
     var onAuthenticated: (() -> Unit)? = null
 
     init {
+        if (BuildConfig.DEBUG)
+            android.util.Log.i(
+                "CradleDriverAuth",
+                "configured=${backend.configured} fixture=$fixture",
+            )
+        if (BuildConfig.NATIVE_OWNER_PHONE && backend.configured)
+            io.execute {
+                runCatching { backend.checkConnection() }
+                    .onFailure {
+                        android.util.Log.w(
+                            "CradleDriverAuth",
+                            "connection_check_failed type=${it.javaClass.simpleName}",
+                        )
+                    }
+            }
         refresh()
     }
 
@@ -109,6 +125,11 @@ internal class NativeDriverModel(context: Context) : ViewModel() {
                     }
                 }
             } catch (error: Exception) {
+                if (BuildConfig.DEBUG)
+                    android.util.Log.w(
+                        "CradleDriverAuth",
+                        "sign_in_failed type=${error.javaClass.simpleName}",
+                    )
                 main.post {
                     if (expected == generation) {
                         if (error is NativeAuthExpired) {
@@ -157,8 +178,16 @@ internal class NativeDriverModel(context: Context) : ViewModel() {
                                 busy = false,
                                 loading = false,
                                 error =
-                                    if (backend.configured) "Sign-in failed. Check your account."
-                                    else "Connection not configured",
+                                    when {
+                                        !backend.configured -> "Connection not configured"
+                                        error is NativeSignInFailure -> error.message
+                                        error is javax.net.ssl.SSLException ->
+                                            "Secure connection failed. Check your phone date and network."
+                                        error is java.io.IOException ->
+                                            "Connection failed. Check your internet and try again."
+                                        else ->
+                                            "Sign-in could not finish. Restart the app and try again."
+                                    },
                             )
                 }
             }
@@ -217,7 +246,20 @@ internal class NativeDriverModel(context: Context) : ViewModel() {
         ui = ui.copy(nav = nativeValue)
     }
 
-    fun scan(raw: String) {
+    fun scanLocationStarted() {
+        ui = ui.copy(scanBusy = true, scanStatus = "Checking location", scanOk = null)
+    }
+
+    fun scanLocationFailed(message: String) {
+        ui = ui.copy(scanBusy = false, scanStatus = message, scanOk = false)
+    }
+
+    fun scanWithLocation(raw: String, location: JSONObject) {
+        ui = ui.copy(scanBusy = false)
+        scan(raw, location)
+    }
+
+    fun scan(raw: String, location: JSONObject? = null) {
         if (ui.scanBusy || ui.scanOk != null) return
         val id = scanRetry?.takeIf { it.first == raw }?.second ?: UUID.randomUUID().toString()
         scanRetry = raw to id
@@ -230,7 +272,7 @@ internal class NativeDriverModel(context: Context) : ViewModel() {
                         JSONObject()
                             .put("ok", false)
                             .put("title", "UI test · no attendance submitted")
-                    else backend.scan(raw, id)
+                    else backend.scan(raw, id, location)
                 main.post {
                     if (expected == generation) {
                         scanRetry = null

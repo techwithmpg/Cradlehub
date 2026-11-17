@@ -30,6 +30,7 @@ internal fun NativeDriverApp(
     owner: LifecycleOwner,
     cameraAllowed: Boolean,
     requestCamera: () -> Unit,
+    scan: (String) -> Unit,
     start: () -> Unit,
     end: () -> Unit,
     voice: () -> Unit,
@@ -37,6 +38,7 @@ internal fun NativeDriverApp(
     dial: (String) -> Unit,
 ) {
     val ui = model.ui
+    val navigationScreen = ui.tab == DriverTab.MAP && ui.secondary == null
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(ui.scanOk) {
         if (ui.scanOk == true)
@@ -48,6 +50,7 @@ internal fun NativeDriverApp(
         if (ui.workspace != null) withFrameNanos { DriverPerformance.firstFrame() }
     }
     LaunchedEffect(ui.tab) {
+        if (ui.tab == DriverTab.MAP) model.openMap?.invoke()
         withFrameNanos {
             DriverPerformance.end("tab_switch")
             if (ui.tab == DriverTab.MAP) DriverPerformance.end("trip_tap_to_native_map")
@@ -67,11 +70,21 @@ internal fun NativeDriverApp(
                 NativeLogin(ui, model::login)
                 return@Column
             }
-            NativeHeader(ui, model.backend::avatarAllowed, { model.showSecondary("Notifications") })
+            if (!navigationScreen)
+                NativeHeader(
+                    ui,
+                    model.backend::avatarAllowed,
+                    { model.showSecondary("Notifications") },
+                )
             Box(
                 Modifier.weight(1f)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = if (navigationScreen) 0.dp else 28.dp,
+                            topEnd = if (navigationScreen) 0.dp else 28.dp,
+                        )
+                    )
                     .background(Cream)
             ) {
                 Column(Modifier.fillMaxSize()) {
@@ -84,7 +97,7 @@ internal fun NativeDriverApp(
                         },
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
-                    if (ui.tab == DriverTab.MAP && ui.secondary == null)
+                    if (ui.tab == DriverTab.MAP && ui.secondary == null && ui.selectedId != null)
                         NavigationFooter(model, start, end, voice, recenter)
                 }
                 if (ui.secondary != null) SecondaryScreen(model, dial)
@@ -92,24 +105,24 @@ internal fun NativeDriverApp(
                     when (ui.tab) {
                         DriverTab.TODAY -> TodayScreen(model)
                         DriverTab.TRIPS -> TripsScreen(model)
-                        DriverTab.SCAN -> ScanScreen(model, owner, cameraAllowed, requestCamera)
+                        DriverTab.SCAN ->
+                            ScanScreen(model, owner, cameraAllowed, requestCamera, scan)
                         DriverTab.MORE -> MoreScreen(model)
                         DriverTab.MAP ->
                             if (ui.selectedId == null)
                                 Box(
-                                    Modifier.fillMaxSize().background(Cream),
-                                    contentAlignment = Alignment.Center,
+                                    Modifier.align(Alignment.TopCenter).padding(12.dp),
+                                    contentAlignment = Alignment.TopCenter,
                                 ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            "No trip selected",
-                                            color = Forest,
-                                            fontWeight = FontWeight.SemiBold,
-                                        )
+                                    Surface(
+                                        shape = RoundedCornerShape(18.dp),
+                                        color = Color.White,
+                                        shadowElevation = 3.dp,
+                                    ) {
                                         ActionButton(
                                             "View trips",
                                             { model.selectTab(DriverTab.TRIPS) },
-                                            Modifier.padding(top = 16.dp),
+                                            Modifier.padding(6.dp),
                                         )
                                     }
                                 }
@@ -595,6 +608,7 @@ private fun ScanScreen(
     owner: LifecycleOwner,
     allowed: Boolean,
     requestCamera: () -> Unit,
+    scan: (String) -> Unit,
 ) {
     val ui = model.ui
     Column(
@@ -608,7 +622,7 @@ private fun ScanScreen(
                 .background(Color(0xFF202C25))
         ) {
             if (allowed && ui.scanOk == null && !ui.scanBusy)
-                NativeQrCamera(owner, model::scan, model::cameraError)
+                NativeQrCamera(owner, scan, model::cameraError)
             Canvas(Modifier.fillMaxSize().padding(horizontal = 50.dp, vertical = 86.dp)) {
                 val s = 26.dp.toPx()
                 val stroke = Stroke(5.dp.toPx(), cap = StrokeCap.Round)

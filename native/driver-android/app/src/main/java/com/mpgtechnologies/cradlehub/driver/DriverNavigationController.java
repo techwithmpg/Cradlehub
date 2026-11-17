@@ -211,8 +211,7 @@ final class DriverNavigationController {
                     () -> {
                       if (current(id, generation)) accept(journey, false);
                     });
-            } else if (response.status == 503
-                && "journeys_inactive".equals(response.body.optString("code"))) {
+            } else if (NativeDriverCompatibility.legacyRead(response.status, response.body.optString("code"))) {
               DriverHttp.Reply legacy =
                   transport.call("/api/staff/driver/native-itinerary?bookingId=" + id, null);
               main.post(
