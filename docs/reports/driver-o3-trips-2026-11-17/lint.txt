@@ -28,11 +28,11 @@ E:\cradlehub\.worktrees\driver-o3-trips-ui\native\driver-android\app\src\main\re
    ~~~~~~~~
 
    Explanation for issues of type "FragmentTagUsage":
-   FragmentContainerView replaces the <fragment> tag as the preferred         
+   FragmentContainerView replaces the <fragment> tag as the preferred
           way of adding fragments via XML. Unlike the <fragment> tag,
    FragmentContainerView                 uses a normal FragmentTransaction
    under the hood to add the initial fragment,                 allowing
-   further FragmentTransaction operations on the FragmentContainerView        
+   further FragmentTransaction operations on the FragmentContainerView
            and providing a consistent timing for lifecycle events.
 
    https://developer.android.com/reference/androidx/fragment/app/FragmentContainerView.html
