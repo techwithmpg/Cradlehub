@@ -207,6 +207,15 @@ def classify_therapist_return_transport(
             detail="Arrangement marks return 'required' while independent_departure_approved is True.",
         )
 
+    if arr and arr.disposition == "not_required" and arr.independent_departure_approved is False:
+        return ReturnTransportDecision(
+            **common_meta,
+            requirement="undecided",
+            reason_code="conflicting_disposition_and_independent_approval",
+            decision_source="schedule_conflict_detector",
+            detail="Arrangement marks return 'not_required' while independent_departure_approved is False.",
+        )
+
     if nxt is not None and t.is_final_appointment is True:
         return ReturnTransportDecision(
             **common_meta,
@@ -438,7 +447,7 @@ def reconcile_scheduling_and_obligations(
         del_ob = by_key_del.get(key)
         col_ob = by_key_col.get(key)
 
-        if del_ob is None and col_ob is None and not existing_obs:
+        if del_ob is None and col_ob is None:
             del_ob = _build_delivery_from_therapist(t)
             synthesized.append(del_ob)
             by_key_del[key] = del_ob

@@ -89,6 +89,16 @@ def build_routing_model(
     pre_unassigned: list[tuple[TransportObligationInput, list[str], str]] = []
     locked_failures: list[str] = []
 
+    locked_seq_driver_by_ob: dict[str, str] = {}
+    for drv in request.drivers:
+        for ref in drv.locked_stop_sequence:
+            prev_drv = locked_seq_driver_by_ob.get(ref.obligation_id)
+            if prev_drv is not None and prev_drv != drv.driver_id:
+                locked_failures.append(
+                    f"Obligation '{ref.obligation_id}' appears in locked_stop_sequence of multiple drivers ('{prev_drv}', '{drv.driver_id}')."
+                )
+            locked_seq_driver_by_ob[ref.obligation_id] = drv.driver_id
+
     for ob in pending_obligations:
         eligible_vehicles: list[int] = []
         per_driver_reasons: dict[str, list[str]] = {}
@@ -101,16 +111,21 @@ def build_routing_model(
         compat_map[ob.obligation_id] = eligible_vehicles
         compat_reasons_map[ob.obligation_id] = per_driver_reasons
 
-        is_mandatory = ob.is_locked or ob.operational_state in ("onboard", "en_route_pickup")
+        effective_locked_drv = ob.locked_driver_id or locked_seq_driver_by_ob.get(ob.obligation_id)
+        is_mandatory = (
+            ob.is_locked
+            or ob.operational_state in ("onboard", "en_route_pickup")
+            or ob.obligation_id in locked_seq_driver_by_ob
+        )
         if is_mandatory:
-            if not ob.locked_driver_id or ob.locked_driver_id not in driver_index_by_id:
+            if not effective_locked_drv or effective_locked_drv not in driver_index_by_id:
                 locked_failures.append(
-                    f"Locked/active obligation '{ob.obligation_id}' references unavailable or unknown driver '{ob.locked_driver_id}'."
+                    f"Locked/active obligation '{ob.obligation_id}' references unavailable or unknown driver '{effective_locked_drv}'."
                 )
-            elif driver_index_by_id[ob.locked_driver_id] not in eligible_vehicles:
-                reasons = per_driver_reasons.get(ob.locked_driver_id, ["incompatible"])
+            elif driver_index_by_id[effective_locked_drv] not in eligible_vehicles:
+                reasons = per_driver_reasons.get(effective_locked_drv, ["incompatible"])
                 locked_failures.append(
-                    f"Locked/active obligation '{ob.obligation_id}' is infeasible for driver '{ob.locked_driver_id}': {', '.join(reasons)}."
+                    f"Locked/active obligation '{ob.obligation_id}' is infeasible for driver '{effective_locked_drv}': {', '.join(reasons)}."
                 )
 
     # Check total initial onboard load per driver
@@ -162,26 +177,60 @@ def build_routing_model(
             )
 
     for ob in pending_obligations:
+        if not ob.linked_delivery_obligation_id:
+            continue
+        del_ob = ctx.obligations_by_id.get(ob.linked_delivery_obligation_id)
+        if del_ob is None:
+            continue
         if (
-            ob.linked_delivery_obligation_id
-            and ob.obligation_id in pre_dropped_ids
+            ob.obligation_id in pre_dropped_ids
             and ob.require_collection_coverage
+            and del_ob.obligation_id not in pre_dropped_ids
+            and not del_ob.is_locked
+            and del_ob.obligation_id not in locked_seq_driver_by_ob
+            and del_ob.operational_state not in ("onboard", "en_route_pickup", "completed", "cancelled")
         ):
-            del_ob = ctx.obligations_by_id.get(ob.linked_delivery_obligation_id)
-            if (
-                del_ob
-                and del_ob.obligation_id not in pre_dropped_ids
-                and not del_ob.is_locked
-                and del_ob.operational_state not in ("onboard", "en_route_pickup", "completed", "cancelled")
-            ):
-                pre_dropped_ids.add(del_ob.obligation_id)
+            pre_dropped_ids.add(del_ob.obligation_id)
+            pre_unassigned.append(
+                (
+                    del_ob,
+                    ["collection_coverage_conflict"],
+                    f"Delivery '{del_ob.obligation_id}' withheld because paired collection '{ob.obligation_id}' has no compatible driver.",
+                )
+            )
+        elif (
+            (del_ob.obligation_id in pre_dropped_ids or del_ob.obligation_id in excluded)
+            and del_ob.operational_state not in ("onboard", "en_route_pickup", "completed", "cancelled")
+            and ob.obligation_id not in pre_dropped_ids
+        ):
+            if ob.is_locked or ob.operational_state in ("onboard", "en_route_pickup") or ob.obligation_id in locked_seq_driver_by_ob:
+                locked_failures.append(
+                    f"Locked collection '{ob.obligation_id}' cannot proceed because prerequisite delivery '{del_ob.obligation_id}' is unserviceable."
+                )
+            else:
+                pre_dropped_ids.add(ob.obligation_id)
                 pre_unassigned.append(
                     (
-                        del_ob,
-                        ["collection_coverage_conflict"],
-                        f"Delivery '{del_ob.obligation_id}' withheld because paired collection '{ob.obligation_id}' has no compatible driver.",
+                        ob,
+                        ["linked_delivery_infeasible"],
+                        f"Collection '{ob.obligation_id}' withheld because prerequisite delivery '{del_ob.obligation_id}' could not be scheduled.",
                     )
                 )
+
+    if locked_failures:
+        return CompiledRoutingModel(
+            manager=None,  # type: ignore[arg-type]
+            routing=None,  # type: ignore[arg-type]
+            time_dim=None,  # type: ignore[arg-type]
+            capacity_dim=None,  # type: ignore[arg-type]
+            workload_dim=None,
+            active_drivers=active_drivers,
+            routed_obligations=[],
+            node_meta=[],
+            ob_nodes={},
+            pre_unassigned=[],
+            locked_infeasibility_reasons=locked_failures,
+        )
 
     routed_obligations = [
         ob for ob in pending_obligations if ob.obligation_id not in pre_dropped_ids
@@ -436,9 +485,14 @@ def build_routing_model(
             max_ride_sec = int(round(ob.max_ride_minutes * TIME_SCALE_SECONDS))
             solver.Add(time_dim.CumulVar(d_idx) - time_dim.CumulVar(p_idx) <= max_ride_sec)
 
-        is_mandatory = ob.is_locked or ob.operational_state == "en_route_pickup"
+        is_mandatory = (
+            ob.is_locked
+            or ob.operational_state == "en_route_pickup"
+            or ob.obligation_id in locked_seq_driver_by_ob
+        )
         if is_mandatory:
-            locked_v = driver_index_by_id[ob.locked_driver_id]  # type: ignore[index]
+            locked_drv_id = ob.locked_driver_id or locked_seq_driver_by_ob[ob.obligation_id]
+            locked_v = driver_index_by_id[locked_drv_id]
             _restrict_vehicles_for_index(routing, num_vehicles, p_idx, [locked_v], allow_drop=False)
             _restrict_vehicles_for_index(routing, num_vehicles, d_idx, [locked_v], allow_drop=False)
         else:
@@ -481,8 +535,8 @@ def build_routing_model(
                 + svc_sec
                 - horizon_sec * (2 - routing.ActiveVar(del_d_idx) - routing.ActiveVar(col_p_idx))
             )
-            if ob.require_collection_coverage and not del_ob.is_locked and del_ob.operational_state not in ("en_route_pickup",):
-                # Cannot collect an unserved delivery; uncollected deliveries are pruned in Pass 2 if needed.
+            if del_ob.operational_state not in ("completed", "onboard", "en_route_pickup"):
+                # Cannot collect an unserved delivery; uncollected deliveries are pruned in Pass 2 if required.
                 solver.Add(routing.ActiveVar(col_p_idx) <= routing.ActiveVar(del_p_idx))
 
     # 7. Locked active prefix stop sequences

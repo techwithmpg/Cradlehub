@@ -572,6 +572,67 @@ def _empty_idle_routes(request: OptimizeRequest) -> list[DriverRoutePlan]:
     return routes
 
 
+def _collect_unassigned_obligations(
+    pending_all: list[TransportObligationInput],
+    assigned_ids: set[str],
+    compiled: CompiledRoutingModel,
+    collection_blocked_deliveries: dict[str, tuple[str, list[str]]],
+    request: OptimizeRequest,
+    ctx: ValidatedContext,
+) -> list[UnassignedObligation]:
+    pre_unassigned_map = {
+        ob.obligation_id: (reasons, detail)
+        for ob, reasons, detail in compiled.pre_unassigned
+    }
+    all_unassigned_ids = {
+        ob.obligation_id for ob in pending_all if ob.obligation_id not in assigned_ids
+    }
+    unassigned_list: list[UnassignedObligation] = []
+    for ob in pending_all:
+        if ob.obligation_id in assigned_ids:
+            continue
+        if ob.obligation_id in pre_unassigned_map:
+            r_codes, detail = pre_unassigned_map[ob.obligation_id]
+            unassigned_list.append(
+                UnassignedObligation(
+                    obligation_id=ob.obligation_id,
+                    booking_id=ob.booking_id,
+                    therapist_id=ob.therapist_id,
+                    leg_type=ob.leg_type,
+                    reasons=r_codes,
+                    detail=detail,
+                )
+            )
+        elif ob.obligation_id in collection_blocked_deliveries:
+            col_id, col_reasons = collection_blocked_deliveries[ob.obligation_id]
+            dedup_reasons = ["collection_coverage_conflict"]
+            for r in col_reasons:
+                if r not in dedup_reasons:
+                    dedup_reasons.append(r)
+            unassigned_list.append(
+                UnassignedObligation(
+                    obligation_id=ob.obligation_id,
+                    booking_id=ob.booking_id,
+                    therapist_id=ob.therapist_id,
+                    leg_type=ob.leg_type,
+                    reasons=dedup_reasons,
+                    detail=f"Delivery '{ob.obligation_id}' withheld because paired collection '{col_id}' lacks feasible coverage.",
+                )
+            )
+        else:
+            unassigned_list.append(
+                diagnose_unassigned_obligation(
+                    ob,
+                    request,
+                    ctx.location_index_by_id,
+                    all_unassigned_ids,
+                    ctx.obligations_by_id,
+                )
+            )
+    unassigned_list.extend(_withheld_unassigned_entries(ctx))
+    return unassigned_list
+
+
 def optimize_dispatch(request: OptimizeRequest) -> OptimizationResponse:
     """Solve a synthetic CradleHub dispatch snapshot using Google OR-Tools."""
     t0 = time.perf_counter()
@@ -629,11 +690,15 @@ def optimize_dispatch(request: OptimizeRequest) -> OptimizationResponse:
     final_fss_name = "PARALLEL_CHEAPEST_INSERTION"
 
     for _ in range(max_coupling_passes):
+        final_assignment = None
         compiled = build_routing_model(request, ctx, excluded_obligation_ids=coupled_excluded)
         assert compiled is not None
         final_compiled = compiled
 
         if compiled.locked_infeasibility_reasons or not compiled.routed_obligations:
+            if not compiled.locked_infeasibility_reasons and not compiled.routed_obligations:
+                final_status_code = 6
+                final_fss_name = "PRESOLVE_FILTERED"
             break
 
         limit_ms = int(round(request.config.solver_time_limit_seconds * 1000))
@@ -705,7 +770,6 @@ def optimize_dispatch(request: OptimizeRequest) -> OptimizationResponse:
     # Case A: Locked conflict or no active drivers or solver failed to return assignment
     if final_compiled.locked_infeasibility_reasons or final_assignment is None:
         routes = _empty_idle_routes(request)
-        unassigned_list: list[UnassignedObligation] = []
         if final_compiled.locked_infeasibility_reasons:
             reasons = list(final_compiled.locked_infeasibility_reasons)
             status_name = "PRESOLVE_INFEASIBLE"
@@ -721,32 +785,14 @@ def optimize_dispatch(request: OptimizeRequest) -> OptimizationResponse:
                 else [f"OR-Tools could not find a feasible solution (status={status_name})."]
             )
 
-        all_pending_ids = {ob.obligation_id for ob in pending_all}
-        for ob in pending_all:
-            if ob.obligation_id in collection_blocked_deliveries:
-                col_id, col_reasons = collection_blocked_deliveries[ob.obligation_id]
-                unassigned_list.append(
-                    UnassignedObligation(
-                        obligation_id=ob.obligation_id,
-                        booking_id=ob.booking_id,
-                        therapist_id=ob.therapist_id,
-                        leg_type=ob.leg_type,
-                        reasons=["collection_coverage_conflict", *col_reasons],
-                        detail=f"Delivery '{ob.obligation_id}' withheld because paired collection '{col_id}' lacks feasible coverage.",
-                    )
-                )
-            else:
-                unassigned_list.append(
-                    diagnose_unassigned_obligation(
-                        ob,
-                        request,
-                        ctx.location_index_by_id,
-                        all_pending_ids,
-                        ctx.obligations_by_id,
-                    )
-                )
-
-        unassigned_list.extend(_withheld_unassigned_entries(ctx))
+        unassigned_list = _collect_unassigned_obligations(
+            pending_all=pending_all,
+            assigned_ids=set(),
+            compiled=final_compiled,
+            collection_blocked_deliveries=collection_blocked_deliveries,
+            request=request,
+            ctx=ctx,
+        )
         unassigned_by_id = {u.obligation_id: u for u in unassigned_list}
         cov_entries, cov_rate = _build_collection_coverage(ctx, [], unassigned_by_id)
         metrics = compute_fleet_metrics(request, routes, [], unassigned_list, cov_rate)
@@ -792,58 +838,14 @@ def optimize_dispatch(request: OptimizeRequest) -> OptimizationResponse:
         request, ctx, final_compiled, final_assignment
     )
 
-    unassigned_list = []
-    pre_unassigned_map = {
-        ob.obligation_id: (reasons, detail)
-        for ob, reasons, detail in final_compiled.pre_unassigned
-    }
-    all_unassigned_ids = {
-        ob.obligation_id for ob in pending_all if ob.obligation_id not in assigned_ids
-    }
-
-    for ob in pending_all:
-        if ob.obligation_id in assigned_ids:
-            continue
-        if ob.obligation_id in pre_unassigned_map:
-            r_codes, detail = pre_unassigned_map[ob.obligation_id]
-            unassigned_list.append(
-                UnassignedObligation(
-                    obligation_id=ob.obligation_id,
-                    booking_id=ob.booking_id,
-                    therapist_id=ob.therapist_id,
-                    leg_type=ob.leg_type,
-                    reasons=r_codes,
-                    detail=detail,
-                )
-            )
-        elif ob.obligation_id in collection_blocked_deliveries:
-            col_id, col_reasons = collection_blocked_deliveries[ob.obligation_id]
-            dedup_reasons = ["collection_coverage_conflict"]
-            for r in col_reasons:
-                if r not in dedup_reasons:
-                    dedup_reasons.append(r)
-            unassigned_list.append(
-                UnassignedObligation(
-                    obligation_id=ob.obligation_id,
-                    booking_id=ob.booking_id,
-                    therapist_id=ob.therapist_id,
-                    leg_type=ob.leg_type,
-                    reasons=dedup_reasons,
-                    detail=f"Delivery '{ob.obligation_id}' withheld because paired collection '{col_id}' lacks feasible coverage.",
-                )
-            )
-        else:
-            unassigned_list.append(
-                diagnose_unassigned_obligation(
-                    ob,
-                    request,
-                    ctx.location_index_by_id,
-                    all_unassigned_ids,
-                    ctx.obligations_by_id,
-                )
-            )
-
-    unassigned_list.extend(_withheld_unassigned_entries(ctx))
+    unassigned_list = _collect_unassigned_obligations(
+        pending_all=pending_all,
+        assigned_ids=assigned_ids,
+        compiled=final_compiled,
+        collection_blocked_deliveries=collection_blocked_deliveries,
+        request=request,
+        ctx=ctx,
+    )
     violations = verify_solution_hard_constraints(
         request, routes, ctx.obligations_by_id, ctx.location_index_by_id
     )

@@ -779,3 +779,228 @@ def test_cond_11_missing_or_conflicting_scheduling_data_never_declares_collectio
     assert all("undecided_collection_requirement" in u.reasons for u in res_strict.unassigned_obligations)
 
 
+def test_reg_p0_coupled_collection_infeasible_resets_assignment_without_crash() -> None:
+    """P0 Regression: Pass 2 leaving 0 routed obligations resets stale Pass 1 Assignment cleanly."""
+    travel = TravelInfo(
+        locations=[
+            LocationNode(location_id="branch", label="Branch", lat=10.6765, lng=122.9509, location_type="branch"),
+            LocationNode(location_id="c1", label="Cust 1", lat=10.7010, lng=122.9610),
+        ],
+        travel_time_minutes=[[0, 20], [20, 0]],
+        travel_distance_km=[[0.0, 8.0], [8.0, 0.0]],
+    )
+    req = OptimizeRequest(
+        snapshot_id="reg-p0-pass2-empty",
+        drivers=[
+            DriverInput(
+                driver_id="drv-1",
+                start_location_id="branch",
+                shift_start_minute=480,
+                shift_end_minute=600,
+                vehicle_capacity=2,
+            )
+        ],
+        transport_obligations=[
+            TransportObligationInput(
+                obligation_id="ob-del",
+                booking_id="bk-1",
+                therapist_id="th-1",
+                leg_type="delivery",
+                pickup_location_id="branch",
+                dropoff_location_id="c1",
+                pickup_window=TimeWindow(earliest_minute=480, latest_minute=520),
+                dropoff_window=TimeWindow(earliest_minute=500, latest_minute=540),
+            ),
+            TransportObligationInput(
+                obligation_id="ob-col",
+                booking_id="bk-1",
+                therapist_id="th-1",
+                leg_type="collection",
+                pickup_location_id="c1",
+                dropoff_location_id="branch",
+                pickup_window=TimeWindow(earliest_minute=560, latest_minute=590),
+                dropoff_window=TimeWindow(earliest_minute=580, latest_minute=600),
+                linked_delivery_obligation_id="ob-del",
+                estimated_service_duration_minutes=80,
+                require_collection_coverage=True,
+            ),
+        ],
+        travel_info=travel,
+    )
+    res = optimize_dispatch(req)
+
+    assert res.feasibility_status == "infeasible"
+    assert res.all_obligations_served is False
+    assert res.metrics.served_obligation_count == 0
+    assert res.assignments == []
+    unassigned_by_id = {u.obligation_id: u for u in res.unassigned_obligations}
+    assert "collection_coverage_conflict" in unassigned_by_id["ob-del"].reasons
+
+
+def test_reg_p1_collection_withheld_when_unstarted_delivery_infeasible() -> None:
+    """P1 Regression: Unstarted collection must not run when its prerequisite unstarted delivery fails."""
+    travel = TravelInfo(
+        locations=[
+            LocationNode(location_id="branch", label="Branch", lat=10.6765, lng=122.9509, location_type="branch"),
+            LocationNode(location_id="c1", label="Cust 1", lat=10.7010, lng=122.9610),
+        ],
+        travel_time_minutes=[[0, 30], [30, 0]],
+        travel_distance_km=[[0.0, 10.0], [10.0, 0.0]],
+    )
+    for req_cov in (True, False):
+        req = OptimizeRequest(
+            snapshot_id=f"reg-p1-col-without-del-{req_cov}",
+            drivers=[
+                DriverInput(
+                    driver_id="drv-1",
+                    start_location_id="branch",
+                    shift_start_minute=480,
+                    shift_end_minute=800,
+                    vehicle_capacity=2,
+                )
+            ],
+            transport_obligations=[
+                TransportObligationInput(
+                    obligation_id="ob-del",
+                    booking_id="bk-1",
+                    therapist_id="th-1",
+                    leg_type="delivery",
+                    pickup_location_id="branch",
+                    dropoff_location_id="c1",
+                    pickup_window=TimeWindow(earliest_minute=480, latest_minute=490),
+                    dropoff_window=TimeWindow(earliest_minute=480, latest_minute=500),
+                    operational_state="unstarted",
+                ),
+                TransportObligationInput(
+                    obligation_id="ob-col",
+                    booking_id="bk-1",
+                    therapist_id="th-1",
+                    leg_type="collection",
+                    pickup_location_id="c1",
+                    dropoff_location_id="branch",
+                    pickup_window=TimeWindow(earliest_minute=600, latest_minute=640),
+                    dropoff_window=TimeWindow(earliest_minute=630, latest_minute=700),
+                    linked_delivery_obligation_id="ob-del",
+                    estimated_service_duration_minutes=60,
+                    require_collection_coverage=req_cov,
+                    operational_state="unstarted",
+                ),
+            ],
+            travel_info=travel,
+        )
+        res = optimize_dispatch(req)
+
+        assert res.feasibility_status == "infeasible"
+        assert res.assignments == []
+        assert res.metrics.served_obligation_count == 0
+        unassigned_by_id = {u.obligation_id: u for u in res.unassigned_obligations}
+        assert "appointment_unreachable" in unassigned_by_id["ob-del"].reasons
+        assert "linked_delivery_infeasible" in unassigned_by_id["ob-col"].reasons
+
+
+def test_reg_p1_mixed_explicit_obligations_and_therapist_retains_delivery() -> None:
+    """P1 Regression: Therapist added only in therapists[] alongside explicit obligations keeps outbound delivery."""
+    travel = _north_corridor_travel()
+    req = OptimizeRequest(
+        snapshot_id="reg-p1-mixed-inputs",
+        drivers=[
+            DriverInput(
+                driver_id="drv-1",
+                start_location_id="branch",
+                shift_start_minute=480,
+                shift_end_minute=960,
+                vehicle_capacity=3,
+            )
+        ],
+        therapists=[
+            TherapistInput(
+                therapist_id="th-1",
+                booking_id="bk-1",
+                pickup_location_id="branch",
+                customer_location_id="c1",
+                required_arrival_minute=540,
+                estimated_service_end_minute=600,
+                is_final_appointment=True,
+                return_arrangement=ReturnArrangement(
+                    disposition="not_required",
+                    independent_departure_approved=True,
+                ),
+            ),
+            TherapistInput(
+                therapist_id="th-2",
+                booking_id="bk-2",
+                pickup_location_id="branch",
+                customer_location_id="c2",
+                required_arrival_minute=540,
+                estimated_service_end_minute=600,
+                is_final_appointment=True,
+                return_arrangement=ReturnArrangement(
+                    disposition="required",
+                    return_to_branch_required=True,
+                ),
+            ),
+        ],
+        transport_obligations=[
+            TransportObligationInput(
+                obligation_id="ob-1-del",
+                booking_id="bk-1",
+                therapist_id="th-1",
+                leg_type="delivery",
+                pickup_location_id="branch",
+                dropoff_location_id="c1",
+                pickup_window=TimeWindow(earliest_minute=490, latest_minute=530),
+                dropoff_window=TimeWindow(earliest_minute=500, latest_minute=540),
+            )
+        ],
+        travel_info=travel,
+    )
+    res = optimize_dispatch(req)
+
+    assert res.feasibility_status == "feasible"
+    assert res.collection_plan_safe is True
+    served_ids = {a.obligation_id for a in res.assignments}
+    assert served_ids == {"ob-1-del", "bk-2:th-2:delivery", "bk-2:th-2:collection"}
+
+
+def test_reg_p1_contradictory_not_required_with_approval_false_is_undecided() -> None:
+    """P1 Regression: disposition='not_required' with independent_departure_approved=False resolves to undecided."""
+    travel = _north_corridor_travel()
+    req = OptimizeRequest(
+        snapshot_id="reg-p1-conflicting-approval",
+        drivers=[
+            DriverInput(
+                driver_id="drv-1",
+                start_location_id="branch",
+                shift_start_minute=480,
+                shift_end_minute=960,
+                vehicle_capacity=2,
+            )
+        ],
+        therapists=[
+            TherapistInput(
+                therapist_id="th-1",
+                booking_id="bk-1",
+                pickup_location_id="branch",
+                customer_location_id="c1",
+                required_arrival_minute=540,
+                estimated_service_end_minute=600,
+                is_final_appointment=True,
+                return_arrangement=ReturnArrangement(
+                    disposition="not_required",
+                    independent_departure_approved=False,
+                ),
+            )
+        ],
+        travel_info=travel,
+    )
+    res = optimize_dispatch(req)
+
+    assert res.collection_plan_safe is False
+    assert res.operational_commitment_allowed is False
+    assert len(res.unresolved_collection_requirements) == 1
+    dec = res.unresolved_collection_requirements[0]
+    assert dec.requirement == "undecided"
+    assert dec.reason_code == "conflicting_disposition_and_independent_approval"
+
+
+

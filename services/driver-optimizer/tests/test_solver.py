@@ -439,3 +439,60 @@ def test_reassignment_stability_and_en_route_pickup_lock() -> None:
     assert by_ob["ob-sticky"].change_type == "unchanged"
     assert res.metrics.reassigned_count == 0
 
+
+def test_locked_stop_sequence_infeasible_returns_controlled_infeasible() -> None:
+    """P1 Regression: locked_stop_sequence violating capacity with is_locked=False returns clean infeasible."""
+    locations = [
+        LocationNode(location_id="branch", label="Branch", lat=10.6765, lng=122.9509, location_type="branch"),
+        LocationNode(location_id="c1", label="Cust 1", lat=10.6880, lng=122.9600),
+    ]
+    travel = TravelInfo(
+        locations=locations,
+        travel_time_minutes=[[0, 10], [10, 0]],
+        travel_distance_km=[[0.0, 3.5], [3.5, 0.0]],
+    )
+    req = OptimizeRequest(
+        snapshot_id="reg-locked-seq-infeasible",
+        drivers=[
+            DriverInput(
+                driver_id="drv-1",
+                start_location_id="branch",
+                shift_start_minute=480,
+                shift_end_minute=960,
+                vehicle_capacity=1,
+                locked_stop_sequence=[
+                    LockedStopRef(obligation_id="ob-big", stop_type="pickup"),
+                ],
+            ),
+            DriverInput(
+                driver_id="drv-2",
+                start_location_id="branch",
+                shift_start_minute=480,
+                shift_end_minute=960,
+                vehicle_capacity=3,
+            ),
+        ],
+        transport_obligations=[
+            TransportObligationInput(
+                obligation_id="ob-big",
+                booking_id="bk-big",
+                therapist_id="th-1",
+                leg_type="delivery",
+                pickup_location_id="branch",
+                dropoff_location_id="c1",
+                pickup_window=TimeWindow(earliest_minute=490, latest_minute=530),
+                dropoff_window=TimeWindow(earliest_minute=500, latest_minute=550),
+                passenger_count=2,
+                is_locked=False,
+            )
+        ],
+        travel_info=travel,
+    )
+    res = optimize_dispatch(req)
+
+    assert res.feasibility_status == "infeasible"
+    assert res.all_obligations_served is False
+    assert res.metrics.served_obligation_count == 0
+    assert any("vehicle_overcapacity" in r for r in res.infeasibility_reasons)
+
+

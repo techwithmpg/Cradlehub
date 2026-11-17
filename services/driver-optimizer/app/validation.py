@@ -572,6 +572,14 @@ def verify_solution_hard_constraints(
                         f"({del_drop_time:.2f} + {svc_dur:.2f})."
                     )
             if (
+                in_d
+                and del_ob.operational_state not in ("completed", "cancelled", "onboard", "en_route_pickup")
+                and del_id not in seen_dropoffs
+            ):
+                violations.append(
+                    f"Collection '{ob_id}' was scheduled even though prerequisite delivery '{del_id}' was not served."
+                )
+            if (
                 ob.require_collection_coverage
                 and del_ob.operational_state not in ("completed", "cancelled", "onboard", "en_route_pickup")
                 and not del_ob.is_locked
