@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.VIBRATE" />
   <uses-feature android:name="android.hardware.camera" android:required="false" />
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -18,10 +20,17 @@
       android:name=".NativeNavigationActivity"
       android:screenOrientation="unspecified"
       android:exported="false" />
-    <activity android:name=".DriverShellActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
+    <activity android:name=".DriverShellActivity" android:exported="false" />
+    <activity android:name=".NativeDriverActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="cradlehub-driver" android:host="trip" />
       </intent-filter>
     </activity>
     <service android:name=".DriverMessagingService" android:exported="false">

@@ -26,7 +26,7 @@ public final class DriverMessagingService extends FirebaseMessagingService {
 
   @Override
   public void onNewToken(String token) {
-    DriverDeviceRegistration.upload(this, token);
+    NativeDeviceRegistry.onNewToken(this, token);
   }
 
   @Override
@@ -51,7 +51,7 @@ public final class DriverMessagingService extends FirebaseMessagingService {
           new NotificationChannel(
               CHANNEL, "Home Service assignments", NotificationManager.IMPORTANCE_HIGH));
     }
-    Intent open = new Intent(this, DriverShellActivity.class);
+    Intent open = new Intent(this, NativeDriverActivity.class);
     open.putExtra("bookingId", bookingId);
     open.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
     PendingIntent pending =

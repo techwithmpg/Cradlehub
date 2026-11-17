@@ -1,4 +1,3 @@
 package com.mpgtechnologies.cradlehub.driver;
-
-/** Compatibility entry. Guidance and portal share DriverShellActivity's pane. */
-public final class NativeNavigationActivity extends DriverShellActivity {}
+/** Historical internal entry redirects to the same native host. */
+public final class NativeNavigationActivity extends NativeDriverActivity {}

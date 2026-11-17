@@ -15,7 +15,12 @@ import org.json.*;
 
 /** One guidance owner per host. Pane changes never recreate the SDK session. */
 final class DriverNavigationController {
-  private final DriverShellActivity host;
+  private final androidx.appcompat.app.AppCompatActivity host;
+  interface Transport { DriverHttp.Reply call(String path, JSONObject body) throws Exception; }
+  private final Transport transport;
+  private final java.util.function.Consumer<String> authentication;
+  private Runnable observer;
+  private boolean routing;
   private final NavigationFragment fragment;
   private final TextView status;
   private final Button action;
@@ -71,20 +76,47 @@ final class DriverNavigationController {
         }
       };
 
-  DriverNavigationController(DriverShellActivity h, NavigationFragment f, TextView s, Button a) {
-    host = h;
-    fragment = f;
-    status = s;
-    action = a;
-    pause = h.findViewById(R.id.pauseNavigation);
-    pause.setOnClickListener(
-        v -> {
-          stopGuidance();
-          render();
-        });
+  DriverNavigationController(androidx.appcompat.app.AppCompatActivity h, NavigationFragment f,
+      TextView s, Button a, Button p, Transport backend,
+      java.util.function.Consumer<String> signIn) {
+    host = h; fragment = f; status = s; action = a; pause = p;
+    transport = backend; authentication = signIn;
+    pause.setOnClickListener(v -> { stopGuidance(); render(); });
     locations = (LocationManager) h.getSystemService(android.content.Context.LOCATION_SERVICE);
     a.setOnClickListener(v -> onAction());
     main.post(poll);
+  }
+
+  void setObserver(Runnable callback) { observer = callback; changed(); }
+  private void changed() { if (observer != null) observer.run(); }
+  private void showStatus(CharSequence text) { status.setText(text); changed(); }
+  private void enableAction(boolean enabled) { action.setEnabled(enabled); changed(); }
+  private void labelAction(CharSequence label) { action.setText(label); changed(); }
+  boolean isRouteReady() { return state.routeReady; }
+  String selectedStage() { return state.stage; }
+  boolean isLoading() { return loading || initializing || routing || state.pending; }
+  void endRoute() { stopGuidance(); render(); }
+  private boolean voice = true;
+  void toggleVoice() {
+    voice = !voice;
+    if (navigator != null) navigator.setAudioGuidanceSettings(AudioGuidanceSettings.builder()
+      .setGuidanceMode(voice ? AudioGuidanceSettings.GuidanceMode.VOICE_ALERTS_AND_GUIDANCE
+        : AudioGuidanceSettings.GuidanceMode.SILENT).build());
+  }
+  void recenter() {
+    fragment.getMapAsync(map -> {
+      if (destroyed) return;
+      if (host.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+          != PackageManager.PERMISSION_GRANTED) {
+        showStatus("Allow precise location to recenter.");
+        return;
+      }
+      try {
+        map.followMyLocation(CameraPerspective.TILTED);
+      } catch (SecurityException removedPermission) {
+        showStatus("Location permission was removed. Allow precise location to recenter.");
+      }
+    });
   }
 
   String selectedBooking() {
@@ -109,13 +141,13 @@ final class DriverNavigationController {
       }
       refresh();
     } catch (IllegalStateException e) {
-      status.setText(e.getMessage());
+      showStatus(e.getMessage());
     }
   }
 
   void show() {
-    if (state.bookingId == null) status.setText("Choose an assigned trip from Trips.");
-    else if (state.guiding) status.setText("Guidance active · checking current assignment…");
+    if (state.bookingId == null) showStatus("Choose an assigned trip from Trips.");
+    else if (state.guiding) showStatus("Guidance active · checking current assignment…");
     refresh();
   }
 
@@ -125,7 +157,7 @@ final class DriverNavigationController {
             != PackageManager.PERMISSION_GRANTED
         && state.guiding) {
       stopGuidance();
-      status.setText("Location permission was removed. Allow precise location to resume.");
+      showStatus("Location permission was removed. Allow precise location to resume.");
     }
     main.removeCallbacks(poll);
     main.post(poll);
@@ -142,14 +174,14 @@ final class DriverNavigationController {
       stopGuidance();
       render();
     }
-    loading = true;
+    loading = true; changed();
     String id = state.bookingId;
     long generation = state.generation;
     io.execute(
         () -> {
           try {
             DriverHttp.Reply response =
-                DriverHttp.call("/api/staff/driver/journeys?bookingId=" + id, null);
+                transport.call("/api/staff/driver/journeys?bookingId=" + id, null);
             boolean unified = response.status == 200 && response.body.optBoolean("ok");
             if (response.status == 401 || response.status == 403) {
               main.post(
@@ -157,8 +189,8 @@ final class DriverNavigationController {
                     if (id.equals(state.bookingId)) {
                       stopGuidance();
                       state.clear();
-                      status.setText("Sign in and check your current assignment.");
-                      host.requireSignIn(id);
+                      showStatus("Sign in and check your current assignment.");
+                      authentication.accept(id);
                     }
                   });
               return;
@@ -169,7 +201,7 @@ final class DriverNavigationController {
                   rows != null && rows.length() == 1 ? rows.getJSONObject(0) : null;
               if (journey == null) {
                 DriverHttp.Reply legacy =
-                    DriverHttp.call("/api/staff/driver/native-itinerary?bookingId=" + id, null);
+                    transport.call("/api/staff/driver/native-itinerary?bookingId=" + id, null);
                 main.post(
                     () -> {
                       if (current(id, generation)) acceptLegacy(id, legacy);
@@ -182,7 +214,7 @@ final class DriverNavigationController {
             } else if (response.status == 503
                 && "journeys_inactive".equals(response.body.optString("code"))) {
               DriverHttp.Reply legacy =
-                  DriverHttp.call("/api/staff/driver/native-itinerary?bookingId=" + id, null);
+                  transport.call("/api/staff/driver/native-itinerary?bookingId=" + id, null);
               main.post(
                   () -> {
                     if (current(id, generation)) acceptLegacy(id, legacy);
@@ -191,8 +223,8 @@ final class DriverNavigationController {
               main.post(
                   () -> {
                     if (current(id, generation)) {
-                      action.setEnabled(false);
-                      status.setText(
+                      enableAction(false);
+                      showStatus(
                           "Journey status unavailable. Guidance may continue; reconnect before"
                               + " changing trip state.");
                     }
@@ -201,13 +233,13 @@ final class DriverNavigationController {
             main.post(
                 () -> {
                   if (current(id, generation)) {
-                    action.setEnabled(false);
-                    status.setText(
+                    enableAction(false);
+                    showStatus(
                         "Offline · current route may be outdated. Reconnect before acting.");
                   }
                 });
           } finally {
-            main.post(() -> loading = false);
+            main.post(() -> { loading = false; changed(); });
           }
         });
   }
@@ -236,8 +268,10 @@ final class DriverNavigationController {
       }
       if ("review".equals(stage) || "complete".equals(stage)) {
         stopGuidance();
-        action.setEnabled(false);
-        status.setText(
+        if (navigator != null) navigator.clearDestinations();
+        state.routeReady = false; hasTarget = false;
+        enableAction(false);
+        showStatus(
             "review".equals(stage)
                 ? "Assignment changed. Ask dispatch to reconcile this journey."
                 : "Transport completed.");
@@ -250,7 +284,7 @@ final class DriverNavigationController {
         if (changed) {
           if (state.guiding) {
             stopGuidance();
-            status.setText("Destination changed. Recheck the route before restarting.");
+            showStatus("Destination changed. Recheck the route before restarting.");
           }
           targetLat = lat;
           targetLng = lng;
@@ -265,8 +299,8 @@ final class DriverNavigationController {
       if (autoStart && state.routeReady && state.travelling()) startSdk();
     } catch (Exception ignored) {
       stopGuidance();
-      action.setEnabled(false);
-      status.setText("Journey response could not be verified.");
+      enableAction(false);
+      showStatus("Journey response could not be verified.");
     }
   }
 
@@ -274,8 +308,10 @@ final class DriverNavigationController {
     try {
       if (reply.status != 200 || !reply.body.optBoolean("ok")) {
         stopGuidance();
-        action.setEnabled(false);
-        status.setText("Legacy route unavailable. Check your assignment.");
+        if (navigator != null) navigator.clearDestinations();
+        state.routeReady = false; state.stage = null; state.leg = null; hasTarget = false;
+        enableAction(false);
+        showStatus("Legacy route unavailable. Check your assignment.");
         return;
       }
       JSONArray stops = reply.body.getJSONArray("stops");
@@ -299,8 +335,8 @@ final class DriverNavigationController {
       render();
     } catch (Exception ignored) {
       stopGuidance();
-      action.setEnabled(false);
-      status.setText("The assigned destination could not be verified.");
+      enableAction(false);
+      showStatus("The assigned destination could not be verified.");
     }
   }
 
@@ -312,11 +348,11 @@ final class DriverNavigationController {
   }
 
   private void prepare() {
-    if ((state.routeReady && navigator != null) || initializing || !hasTarget || destroyed) return;
+    if ((state.routeReady && navigator != null) || initializing || routing || !hasTarget || destroyed) return;
     if (host.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
         != PackageManager.PERMISSION_GRANTED) {
-      action.setText("Allow precise location");
-      action.setEnabled(true);
+      labelAction("Allow precise location");
+      enableAction(true);
       return;
     }
     initializing = true;
@@ -329,7 +365,7 @@ final class DriverNavigationController {
             initializing = false;
             if (!current(id, generation)) return;
             navigator = ready;
-            fragment.getMapAsync(map -> map.followMyLocation(CameraPerspective.TILTED));
+            recenter();
             if (arrival != null) ready.removeArrivalListener(arrival);
             arrival =
                 event -> {
@@ -339,11 +375,11 @@ final class DriverNavigationController {
                           if (state.unified) {
                             if (point != null && !state.pending) event("gps_arrival");
                             else
-                              status.setText(
+                              showStatus(
                                   "GPS arrival observed. Waiting for fresh accurate location.");
                           } else {
                             stopGuidance();
-                            status.setText(
+                            showStatus(
                                 "Destination reached · verify arrival in CradleHub. Collection is"
                                     + " not enabled for this legacy trip.");
                           }
@@ -357,6 +393,7 @@ final class DriverNavigationController {
               return;
             }
             if (ready.isGuidanceRunning()) ready.stopGuidance();
+            routing = true;
             ready
                 .setDestinations(
                     Collections.singletonList(
@@ -368,6 +405,7 @@ final class DriverNavigationController {
                     result ->
                         main.post(
                             () -> {
+                              routing = false;
                               if (!current(id, generation)) return;
                               if (result == Navigator.RouteStatus.OK) {
                                 state.routeReady = true;
@@ -380,8 +418,8 @@ final class DriverNavigationController {
                                 render();
                                 if (autoStart && state.travelling()) startSdk();
                               } else {
-                                action.setEnabled(false);
-                                status.setText(
+                                enableAction(false);
+                                showStatus(
                                     "Route calculation failed. Check location, connection and"
                                         + " dispatch destination.");
                               }
@@ -391,8 +429,8 @@ final class DriverNavigationController {
           public void onError(int code) {
             initializing = false;
             if (current(id, generation)) {
-              action.setEnabled(false);
-              status.setText(
+              enableAction(false);
+              showStatus(
                   "Native navigation is unavailable. Check permissions, Google key and terms.");
             }
           }
@@ -400,17 +438,22 @@ final class DriverNavigationController {
   }
 
   private void render() {
+    if (hasTarget && (state.travelling() || (state.stage != null && state.stage.endsWith("_pending")))
+        && host.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+      action.setVisibility(View.VISIBLE); pause.setVisibility(View.GONE);
+      labelAction("Allow precise location"); enableAction(true); showStatus("Location permission needed"); return;
+    }
     pause.setVisibility(state.guiding ? View.VISIBLE : View.GONE);
     if (state.guiding) {
       action.setVisibility(View.GONE);
-      status.setText("Navigating · " + state.leg + " · CRM updates require connectivity");
+      showStatus("Navigating · " + state.leg + " · CRM updates require connectivity");
       return;
     }
     action.setVisibility(View.VISIBLE);
     boolean boarding =
         "pickup_arrived".equals(state.stage) || "collection_arrived".equals(state.stage);
     boolean finish = "return_arrived".equals(state.stage);
-    action.setText(
+    labelAction(
         boarding
             ? ("pickup_arrived".equals(state.stage) ? "Therapist on board" : "Therapist collected")
             : finish
@@ -418,8 +461,8 @@ final class DriverNavigationController {
                 : state.travelling()
                     ? "Resume navigation"
                     : "Start " + (state.leg == null ? "" : state.leg) + " navigation");
-    action.setEnabled(!state.pending && (boarding || finish || state.routeReady));
-    status.setText(
+    enableAction(!state.pending && (boarding || finish || state.routeReady));
+    showStatus(
         state.unified
             ? (state.stage == null ? "Checking journey…" : state.stage.replace('_', ' '))
             : "Legacy delivery only · pickup and collection service is not enabled");
@@ -487,12 +530,12 @@ final class DriverNavigationController {
       else pendingPayload = body;
       final JSONObject payload = body;
       state.pending = true;
-      action.setEnabled(false);
+      enableAction(false);
       String id = state.bookingId;
       io.execute(
           () -> {
             try {
-              DriverHttp.Reply reply = DriverHttp.call("/api/staff/driver/journeys", payload);
+              DriverHttp.Reply reply = transport.call("/api/staff/driver/journeys", payload);
               main.post(
                   () -> {
                     if (destroyed || !id.equals(state.bookingId)) return;
@@ -511,9 +554,9 @@ final class DriverNavigationController {
                       pendingAction = null;
                       if (reply.status == 401 || reply.status == 403) {
                         signOut();
-                        host.requireSignIn(id);
+                        authentication.accept(id);
                       } else {
-                        status.setText(
+                        showStatus(
                             "Update rejected or journey changed. Refreshing before another"
                                 + " action.");
                         refresh();
@@ -524,28 +567,28 @@ final class DriverNavigationController {
               main.post(
                   () -> {
                     state.pending = false;
-                    action.setEnabled(false);
-                    status.setText("Update not confirmed. Reconnect and refresh before retrying.");
+                    enableAction(false);
+                    showStatus("Update not confirmed. Reconnect and refresh before retrying.");
                     refresh();
                   });
             }
           });
     } catch (Exception ignored) {
       state.pending = false;
-      status.setText("Cannot send this journey update.");
+      showStatus("Cannot send this journey update.");
     }
   }
 
   private void legacyStart() {
     if (!state.routeReady) return;
     state.pending = true;
-    action.setEnabled(false);
+    enableAction(false);
     String id = state.bookingId;
     io.execute(
         () -> {
           try {
             DriverHttp.Reply reply =
-                DriverHttp.call(
+                transport.call(
                     "/api/staff/driver/native-start", new JSONObject().put("bookingId", id));
             main.post(
                 () -> {
@@ -557,8 +600,8 @@ final class DriverNavigationController {
                     state.stage = "delivery_enroute";
                     startSdk();
                   } else {
-                    action.setEnabled(false);
-                    status.setText("Start was not confirmed. Refresh the assignment.");
+                    enableAction(false);
+                    showStatus("Start was not confirmed. Refresh the assignment.");
                     refresh();
                   }
                 });
@@ -566,7 +609,7 @@ final class DriverNavigationController {
             main.post(
                 () -> {
                   state.pending = false;
-                  status.setText("Start not confirmed. Reconnect before retrying.");
+                  showStatus("Start not confirmed. Reconnect before retrying.");
                 });
           }
         });
@@ -574,7 +617,8 @@ final class DriverNavigationController {
 
   private void startSdk() {
     if (navigator == null || !state.routeReady || !state.travelling()) return;
-    if (!navigator.isGuidanceRunning()) navigator.startGuidance();
+    try { if (!navigator.isGuidanceRunning()) navigator.startGuidance(); }
+    catch (RuntimeException error) { stopGuidance(); enableAction(false); showStatus("Guidance could not start. Check location and retry."); return; }
     state.guiding = true;
     autoStart = false;
     startLocations();
@@ -589,7 +633,7 @@ final class DriverNavigationController {
       locations.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 5, listener);
       watching = true;
     } catch (RuntimeException ignored) {
-      status.setText("Guidance started; CRM GPS sharing is unavailable.");
+      showStatus("Guidance started; CRM GPS sharing is unavailable.");
     }
   }
 
@@ -605,7 +649,7 @@ final class DriverNavigationController {
       io.execute(
           () -> {
             try {
-              DriverHttp.call("/api/staff/driver/native-location", body);
+              transport.call("/api/staff/driver/native-location", body);
             } catch (Exception ignored) {
             }
           });
@@ -630,12 +674,13 @@ final class DriverNavigationController {
     state.clear();
     hasTarget = false;
     pendingRequest = null;
-    action.setEnabled(false);
-    status.setText("Sign in to view current assignments.");
+    enableAction(false);
+    showStatus("Sign in to view current assignments.");
   }
 
   void destroy(boolean finishing) {
     destroyed = true;
+    observer = null;
     main.removeCallbacksAndMessages(null);
     if (watching) locations.removeUpdates(listener);
     if (navigator != null) {
@@ -646,6 +691,7 @@ final class DriverNavigationController {
         navigator.cleanup();
       }
     }
+    if (finishing) state.clear(); else state.pending = false;
     io.shutdownNow();
   }
 }
