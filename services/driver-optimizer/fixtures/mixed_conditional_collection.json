@@ -1,0 +1,148 @@
+{
+  "snapshot_id": "fixture-mixed-conditional-collection",
+  "planning_date": "2026-11-17",
+  "timezone": "Asia/Manila",
+  "horizon_end_minute": 1440,
+  "drivers": [
+    {
+      "driver_id": "drv-outbound",
+      "name": "Driver Outbound Van",
+      "branch_id": "main",
+      "start_location_id": "loc-branch",
+      "return_to_location_id": null,
+      "shift_start_minute": 480,
+      "shift_end_minute": 720,
+      "vehicle_capacity": 4,
+      "vehicle_type": "mpv"
+    },
+    {
+      "driver_id": "drv-collection",
+      "name": "Driver Midday Shuttle",
+      "branch_id": "main",
+      "start_location_id": "loc-branch",
+      "return_to_location_id": null,
+      "shift_start_minute": 540,
+      "shift_end_minute": 900,
+      "vehicle_capacity": 3,
+      "vehicle_type": "mpv"
+    }
+  ],
+  "therapists": [
+    {
+      "therapist_id": "th-a",
+      "name": "Therapist A (Next Home Booking)",
+      "booking_id": "bk-m-1",
+      "branch_id": "main",
+      "pickup_location_id": "loc-branch",
+      "customer_location_id": "loc-cust-a",
+      "required_arrival_minute": 540,
+      "estimated_service_end_minute": 600,
+      "shift_window": { "shift_start_minute": 480, "shift_end_minute": 900 },
+      "is_final_appointment": false,
+      "next_assignment": {
+        "booking_id": "bk-m-1-next",
+        "assignment_type": "home_service",
+        "location_id": "loc-cust-d",
+        "required_arrival_minute": 645,
+        "requires_company_transport": true
+      },
+      "max_collection_wait_minutes": 25
+    },
+    {
+      "therapist_id": "th-b",
+      "name": "Therapist B (Approved Independent Departure)",
+      "booking_id": "bk-m-2",
+      "branch_id": "main",
+      "pickup_location_id": "loc-branch",
+      "customer_location_id": "loc-cust-b",
+      "required_arrival_minute": 550,
+      "estimated_service_end_minute": 610,
+      "shift_window": { "shift_start_minute": 480, "shift_end_minute": 610 },
+      "is_final_appointment": true,
+      "return_arrangement": {
+        "disposition": "not_required",
+        "independent_departure_approved": true,
+        "approval_source": "crm_supervisor",
+        "approved_by": "sup-bacolod-1",
+        "reason_code": "final_appointment_independent_departure_approved",
+        "approval_notes": "Final shift service near home; independent travel approved."
+      }
+    },
+    {
+      "therapist_id": "th-c",
+      "name": "Therapist C (Required Branch Return)",
+      "booking_id": "bk-m-3",
+      "branch_id": "main",
+      "pickup_location_id": "loc-branch",
+      "customer_location_id": "loc-cust-c",
+      "required_arrival_minute": 560,
+      "estimated_service_end_minute": 620,
+      "permitted_return_location_id": "loc-branch",
+      "shift_window": { "shift_start_minute": 480, "shift_end_minute": 620 },
+      "is_final_appointment": true,
+      "return_arrangement": {
+        "disposition": "required",
+        "return_to_branch_required": true,
+        "approval_source": "schedule_policy",
+        "reason_code": "authorized_return_to_branch_required",
+        "approval_notes": "Must return kit and sign out at Main Branch despite shift end."
+      },
+      "max_collection_wait_minutes": 30
+    }
+  ],
+  "travel_info": {
+    "locations": [
+      {
+        "location_id": "loc-branch",
+        "label": "CradleHub Main Branch",
+        "lat": 10.6765,
+        "lng": 122.9509,
+        "location_type": "branch",
+        "branch_id": "main"
+      },
+      {
+        "location_id": "loc-cust-a",
+        "label": "Customer A (East)",
+        "lat": 10.6730,
+        "lng": 122.9680,
+        "location_type": "customer"
+      },
+      {
+        "location_id": "loc-cust-b",
+        "label": "Customer B (East-South)",
+        "lat": 10.6680,
+        "lng": 122.9740,
+        "location_type": "customer"
+      },
+      {
+        "location_id": "loc-cust-c",
+        "label": "Customer C (South-East)",
+        "lat": 10.6640,
+        "lng": 122.9790,
+        "location_type": "customer"
+      },
+      {
+        "location_id": "loc-cust-d",
+        "label": "Customer D (Th-A Next Booking)",
+        "lat": 10.6710,
+        "lng": 122.9860,
+        "location_type": "customer"
+      }
+    ],
+    "travel_time_minutes": [
+      [0, 12, 14, 16, 20],
+      [12, 0, 4, 6, 8],
+      [14, 4, 0, 4, 7],
+      [16, 6, 4, 0, 6],
+      [20, 8, 7, 6, 0]
+    ],
+    "travel_distance_km": [
+      [0.0, 4.2, 4.9, 5.6, 7.0],
+      [4.2, 0.0, 1.4, 2.1, 2.8],
+      [4.9, 1.4, 0.0, 1.4, 2.4],
+      [5.6, 2.1, 1.4, 0.0, 2.1],
+      [7.0, 2.8, 2.4, 2.1, 0.0]
+    ],
+    "matrix_version": "synthetic-bacolod-mixed-v1"
+  }
+}
