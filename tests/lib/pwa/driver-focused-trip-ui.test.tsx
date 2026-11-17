@@ -151,26 +151,28 @@ describe("Driver focused trip UI (review only)", () => {
 
   it("native host embeds guidance, and GPS uses the authorized journey API", () => {
     const shell = readFileSync(
-      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/DriverShellActivity.java",
+      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeDriverActivity.kt",
       "utf8"
     );
     const nativeRoute = readFileSync(
       "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/DriverNavigationController.java",
       "utf8"
     );
-    const layout = readFileSync(
-      "native/driver-android/app/src/main/res/layout/activity_driver_shell.xml",
+    const screens = readFileSync(
+      "native/driver-android/app/src/main/java/com/mpgtechnologies/cradlehub/driver/NativeDriverScreens.kt",
       "utf8"
     );
-    expect(shell).toContain("maybeLaunchNavigation");
+    expect(shell).toContain("NativeDriverApp(");
+    expect(shell).toContain("initializeNavigation()");
     expect(shell).toContain("onNewIntent");
-    expect(shell).toContain("BOOKING_ID.matcher(id).matches()");
-    expect(shell).not.toContain("startActivity(nativeRoute)");
-    expect(layout).not.toContain("openNativeNavigation");
+    expect(shell).toContain("DriverTripPolicy.validId(it)");
+    expect(shell).toContain('findFragmentByTag("native-driver-map")');
+    expect(shell).not.toContain("WebView");
+    expect(screens).toContain("AndroidView(");
     expect(nativeRoute).toContain("navigator.stopGuidance()");
-    expect(nativeRoute).toContain("DriverHttp.call");
+    expect(nativeRoute).toContain("transport.call(");
     expect(nativeRoute).toContain("gps_arrival");
-    expect(layout).toContain("navigation_fragment");
+    expect(nativeRoute).toContain("NativeDriverCompatibility.legacyRead");
     expect(nativeRoute).not.toContain("nextStatus");
   });
 });
