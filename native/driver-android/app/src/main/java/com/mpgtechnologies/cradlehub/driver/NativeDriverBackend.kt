@@ -155,6 +155,14 @@ internal class NativeDriverBackend(context: Context) {
         request(supabase + "/auth/v1/settings", null, auth = false)
     }
 
+    fun fetchTripPlans(): List<TripsJourney>? =
+        runCatching {
+            val reply = request(api + "/api/staff/driver/journeys", null, web = true)
+            if (reply.status == 200 && reply.body.optBoolean("ok")) {
+                NativeTripsPolicy.parseTripPlans(reply.body.optJSONArray("tripPlans"))
+            } else null
+        }.getOrNull()
+
     private fun acceptSession(value: JSONObject) {
         require(
             value.getString("access_token").length > 40 &&
