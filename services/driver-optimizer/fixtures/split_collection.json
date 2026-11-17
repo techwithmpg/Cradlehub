@@ -1,0 +1,170 @@
+{
+  "snapshot_id": "fixture-split-collection",
+  "planning_date": "2026-11-17",
+  "timezone": "Asia/Manila",
+  "horizon_end_minute": 1440,
+  "drivers": [
+    {
+      "driver_id": "drv-morning",
+      "name": "Driver Morning Shift",
+      "branch_id": "main",
+      "start_location_id": "loc-branch",
+      "return_to_location_id": null,
+      "shift_start_minute": 480,
+      "shift_end_minute": 660,
+      "vehicle_capacity": 3,
+      "vehicle_type": "mpv"
+    },
+    {
+      "driver_id": "drv-afternoon",
+      "name": "Driver Afternoon Shift",
+      "branch_id": "main",
+      "start_location_id": "loc-north-hub",
+      "return_to_location_id": "loc-branch",
+      "shift_start_minute": 660,
+      "shift_end_minute": 1080,
+      "vehicle_capacity": 3,
+      "vehicle_type": "mpv"
+    }
+  ],
+  "therapists": [
+    {
+      "therapist_id": "th-1",
+      "name": "Therapist Elena",
+      "booking_id": "bk-301",
+      "branch_id": "main",
+      "pickup_location_id": "loc-branch",
+      "customer_location_id": "loc-cust-north1",
+      "required_arrival_minute": 570,
+      "estimated_service_end_minute": 680,
+      "collection_window": { "earliest_minute": 680, "latest_minute": 720 },
+      "permitted_return_location_id": "loc-branch"
+    },
+    {
+      "therapist_id": "th-2",
+      "name": "Therapist Faye",
+      "booking_id": "bk-302",
+      "branch_id": "main",
+      "pickup_location_id": "loc-branch",
+      "customer_location_id": "loc-cust-north2",
+      "required_arrival_minute": 580,
+      "estimated_service_end_minute": 685,
+      "collection_window": { "earliest_minute": 685, "latest_minute": 730 },
+      "permitted_return_location_id": "loc-branch"
+    }
+  ],
+  "transport_obligations": [
+    {
+      "obligation_id": "ob-301-del",
+      "booking_id": "bk-301",
+      "therapist_id": "th-1",
+      "branch_id": "main",
+      "leg_type": "delivery",
+      "pickup_location_id": "loc-branch",
+      "dropoff_location_id": "loc-cust-north1",
+      "pickup_window": { "earliest_minute": 510, "latest_minute": 555 },
+      "dropoff_window": { "earliest_minute": 520, "latest_minute": 570 },
+      "passenger_count": 1,
+      "pickup_handling_minutes": 3,
+      "dropoff_handling_minutes": 3
+    },
+    {
+      "obligation_id": "ob-301-col",
+      "booking_id": "bk-301",
+      "therapist_id": "th-1",
+      "branch_id": "main",
+      "leg_type": "collection",
+      "pickup_location_id": "loc-cust-north1",
+      "dropoff_location_id": "loc-branch",
+      "pickup_window": { "earliest_minute": 680, "latest_minute": 720 },
+      "dropoff_window": { "earliest_minute": 690, "latest_minute": 780 },
+      "expected_ready_minute": 680,
+      "max_therapist_wait_minutes": 40,
+      "passenger_count": 1,
+      "pickup_handling_minutes": 3,
+      "dropoff_handling_minutes": 2,
+      "linked_delivery_obligation_id": "ob-301-del",
+      "estimated_service_duration_minutes": 90,
+      "require_collection_coverage": true
+    },
+    {
+      "obligation_id": "ob-302-del",
+      "booking_id": "bk-302",
+      "therapist_id": "th-2",
+      "branch_id": "main",
+      "leg_type": "delivery",
+      "pickup_location_id": "loc-branch",
+      "dropoff_location_id": "loc-cust-north2",
+      "pickup_window": { "earliest_minute": 510, "latest_minute": 560 },
+      "dropoff_window": { "earliest_minute": 525, "latest_minute": 580 },
+      "passenger_count": 1,
+      "pickup_handling_minutes": 3,
+      "dropoff_handling_minutes": 3
+    },
+    {
+      "obligation_id": "ob-302-col",
+      "booking_id": "bk-302",
+      "therapist_id": "th-2",
+      "branch_id": "main",
+      "leg_type": "collection",
+      "pickup_location_id": "loc-cust-north2",
+      "dropoff_location_id": "loc-branch",
+      "pickup_window": { "earliest_minute": 685, "latest_minute": 730 },
+      "dropoff_window": { "earliest_minute": 700, "latest_minute": 780 },
+      "expected_ready_minute": 685,
+      "max_therapist_wait_minutes": 45,
+      "passenger_count": 1,
+      "pickup_handling_minutes": 3,
+      "dropoff_handling_minutes": 2,
+      "linked_delivery_obligation_id": "ob-302-del",
+      "estimated_service_duration_minutes": 90,
+      "require_collection_coverage": true
+    }
+  ],
+  "travel_info": {
+    "locations": [
+      {
+        "location_id": "loc-branch",
+        "label": "CradleHub Main Branch",
+        "lat": 10.6765,
+        "lng": 122.9509,
+        "location_type": "branch",
+        "branch_id": "main"
+      },
+      {
+        "location_id": "loc-cust-north1",
+        "label": "Mandalagan North Residence",
+        "lat": 10.7010,
+        "lng": 122.9610,
+        "location_type": "customer"
+      },
+      {
+        "location_id": "loc-cust-north2",
+        "label": "Bata North Residence",
+        "lat": 10.7120,
+        "lng": 122.9660,
+        "location_type": "customer"
+      },
+      {
+        "location_id": "loc-north-hub",
+        "label": "North Driver Staging",
+        "lat": 10.7050,
+        "lng": 122.9640,
+        "location_type": "driver_start"
+      }
+    ],
+    "travel_time_minutes": [
+      [0, 15, 20, 17],
+      [15, 0, 6, 4],
+      [20, 6, 0, 5],
+      [17, 4, 5, 0]
+    ],
+    "travel_distance_km": [
+      [0.0, 5.2, 7.0, 6.0],
+      [5.2, 0.0, 2.2, 1.5],
+      [7.0, 2.2, 0.0, 1.8],
+      [6.0, 1.5, 1.8, 0.0]
+    ],
+    "matrix_version": "synthetic-bacolod-north-v1"
+  }
+}
