@@ -216,7 +216,7 @@ export function FloatingTripRail({
     return (
       <div
         className={cn(
-          "pointer-events-auto absolute left-3 top-3 z-20 md:left-4 md:top-4",
+          "pointer-events-auto absolute left-3 top-12 z-20 md:left-4 md:top-4",
           hiddenOnMobile ? "hidden md:block" : "block"
         )}
       >
@@ -240,7 +240,7 @@ export function FloatingTripRail({
     <aside
       aria-label="Trips list"
       className={cn(
-        "pointer-events-auto absolute inset-x-3 bottom-12 z-20 max-h-[45vh] flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-xl backdrop-blur md:inset-x-auto md:bottom-16 md:left-4 md:top-4 md:max-h-none md:w-[292px] lg:w-[318px]",
+        "pointer-events-auto absolute inset-x-3 bottom-3 z-30 max-h-[46vh] flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-xl backdrop-blur md:inset-x-auto md:bottom-16 md:left-4 md:top-4 md:z-20 md:max-h-none md:w-[292px] lg:w-[318px]",
         hiddenOnMobile ? "hidden md:flex" : "flex"
       )}
     >

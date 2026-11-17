@@ -473,7 +473,13 @@ function SharedGoogleMapLayer({
     );
   }
 
-  return <div ref={mapContainerRef} data-testid="shared-google-map" className="h-full w-full" />;
+  return (
+    <div
+      ref={mapContainerRef}
+      data-testid="shared-google-map"
+      className="relative z-0 isolate h-full w-full"
+    />
+  );
 }
 
 export function DispatchLiveMapTab({
@@ -653,12 +659,12 @@ export function DispatchLiveMapTab({
           onSelectTrip={handleSelectTrip}
         />
 
-        {/* Bottom-left automated arrival notification card */}
+        {/* Bottom-left automated arrival notification card (top strip on mobile to avoid covering drawers) */}
         {latestArrival ? (
           <div
             role="status"
             aria-label="Latest driver arrival notification"
-            className="pointer-events-auto absolute bottom-14 left-3 z-20 flex max-w-[330px] items-start gap-2.5 rounded-2xl border border-[var(--cs-border)] bg-white/95 p-3 shadow-lg backdrop-blur md:bottom-3 md:left-4"
+            className="pointer-events-auto absolute inset-x-3 top-13 z-20 flex items-start gap-2.5 rounded-2xl border border-[var(--cs-border)] bg-white/95 p-2.5 shadow-lg backdrop-blur md:inset-x-auto md:bottom-3 md:left-4 md:top-auto md:max-w-[300px]"
           >
             <Bell size={15} className="mt-0.5 shrink-0 text-[#155A33]" />
             <div className="min-w-0 flex-1 text-xs">
@@ -684,8 +690,8 @@ export function DispatchLiveMapTab({
           </div>
         ) : null}
 
-        {/* Bottom-center compact legend pill */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 hidden justify-center px-4 md:flex">
+        {/* Bottom-center compact legend pill (desktop 1024px+) */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 hidden justify-center px-4 lg:flex">
           <div className="flex items-center gap-3 rounded-full border border-white/80 bg-white/95 px-4 py-1.5 text-[0.7rem] font-medium text-[var(--cs-text-secondary)] shadow-md backdrop-blur">
             <span className="inline-flex items-center gap-1.5">
               <span className="size-2.5 rounded-full bg-blue-600" />
@@ -710,9 +716,9 @@ export function DispatchLiveMapTab({
           </div>
         </div>
 
-        {/* Bottom-right live tracking status pill */}
-        <div className="pointer-events-none absolute bottom-3 right-3 z-20 md:right-4">
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#103824]/95 px-3.5 py-1.5 text-xs font-semibold text-white shadow-lg backdrop-blur">
+        {/* Live tracking status pill (top-left on mobile above bottom sheets, bottom-right on desktop/tablet) */}
+        <div className="pointer-events-none absolute left-3 top-3 z-20 md:bottom-3 md:left-auto md:right-4 md:top-auto">
+          <div className="inline-flex max-w-[calc(100vw-48px)] items-center gap-1.5 rounded-full bg-[#103824]/95 px-2.5 py-1 text-[0.68rem] font-semibold text-white shadow-lg backdrop-blur md:max-w-none md:gap-2 md:px-3.5 md:py-1.5 md:text-xs">
             <Radio
               size={13}
               className={

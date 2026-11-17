@@ -132,12 +132,12 @@ export function ContextualJourneyPanel({
 
   if (!open) {
     return (
-      <div className="pointer-events-auto absolute right-3 top-3 z-20 md:right-4 md:top-4">
+      <div className="pointer-events-auto absolute right-3 top-12 z-20 md:right-4 md:top-4">
         <button
           type="button"
           onClick={onReopen}
           aria-label="Open journey details"
-          className="inline-flex items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-white/95 px-3.5 py-2 text-xs font-bold text-[var(--cs-text)] shadow-lg backdrop-blur transition hover:border-[#155A33]"
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--cs-border)] bg-white/95 px-3 py-1.5 text-xs font-bold text-[var(--cs-text)] shadow-lg backdrop-blur transition hover:border-[#155A33] md:px-3.5 md:py-2"
         >
           <span className="font-mono text-[var(--cs-text-muted)]">{trip.bookingNumber}</span>
           <span>Show Details</span>
@@ -156,9 +156,9 @@ export function ContextualJourneyPanel({
     <aside
       data-testid="selected-driver-details"
       aria-label="Selected journey details"
-      className="pointer-events-auto absolute inset-x-3 bottom-3 z-20 flex max-h-[68vh] flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-xl backdrop-blur md:inset-x-auto md:bottom-16 md:right-4 md:top-4 md:max-h-none md:w-[320px] lg:w-[340px]"
+      className="pointer-events-auto absolute inset-x-3 bottom-3 z-30 flex max-h-[68vh] flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-xl backdrop-blur md:inset-x-auto md:bottom-16 md:right-4 md:top-4 md:z-20 md:max-h-none md:w-[320px] lg:w-[340px]"
     >
-      <div className="flex items-start justify-between gap-2 border-b border-[var(--cs-border-soft)] p-4 pb-3">
+      <div className="flex items-start justify-between gap-2 border-b border-[var(--cs-border-soft)] px-3.5 py-2.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs font-semibold text-[var(--cs-text-muted)]">
@@ -168,7 +168,7 @@ export function ContextualJourneyPanel({
               {trip.detailedStatusLabel}
             </Badge>
           </div>
-          <h3 className="mt-1 truncate text-lg font-bold text-[var(--cs-text)]">
+          <h3 className="mt-0.5 truncate text-base font-bold text-[var(--cs-text)]">
             {trip.customerName}
           </h3>
           <p className="truncate text-xs text-[var(--cs-text-secondary)]">{trip.serviceName}</p>
@@ -184,8 +184,8 @@ export function ContextualJourneyPanel({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 pt-3 text-xs">
-        <div className="space-y-2 text-[var(--cs-text-secondary)]">
+      <div className="flex-1 overflow-y-auto px-3.5 py-2.5 text-xs">
+        <div className="space-y-1.5 text-[var(--cs-text-secondary)]">
           <div className="flex items-center gap-2">
             <Clock size={14} className="shrink-0 text-[var(--cs-text-muted)]" />
             <span className="font-medium text-[var(--cs-text)]">
@@ -279,7 +279,9 @@ export function ContextualJourneyPanel({
           </div>
         ) : null}
 
-        <div className="mt-3 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-2">
+        <LiveServiceCountdownCard trip={trip} />
+
+        <div className="mt-2.5 rounded-xl border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-1.5">
           <div className="flex items-start gap-1.5 text-[0.7rem]">
             {trip.collection.requiresResolution ? (
               <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-600" />
@@ -304,11 +306,11 @@ export function ContextualJourneyPanel({
           </div>
         </div>
 
-        <div className="mt-4">
-          <p className="mb-2 text-[0.68rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+        <div className="mt-3">
+          <p className="mb-1.5 text-[0.68rem] font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
             Journey Timeline
           </p>
-          <ol className="space-y-2.5">
+          <ol className="space-y-1.5">
             {trip.timeline.map((step, idx) => {
               const recordedTime = formatArrivalClockTime(step.timestampIso);
               return (
@@ -377,8 +379,6 @@ export function ContextualJourneyPanel({
             })}
           </ol>
         </div>
-
-        <LiveServiceCountdownCard trip={trip} />
       </div>
 
       <div className="space-y-2 border-t border-[var(--cs-border-soft)] bg-white p-3.5">

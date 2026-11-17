@@ -188,6 +188,7 @@ export function useLiveCrmMapSync(input: {
   const deferredToastsRef = useRef<Map<string, AcceptedArrivalRecord>>(new Map());
   const inFlightRoutesRef = useRef<Set<string>>(new Set());
   const routesRef = useRef(routesByDriver);
+  const latestFetchedRoutesRef = useRef<Map<string, RouteCacheEntry>>(new Map());
   const refreshRef = useRef(onRefresh);
   const selectBookingRef = useRef(onSelectBooking);
 
@@ -588,7 +589,9 @@ export function useLiveCrmMapSync(input: {
       if (!hasStopCoords) continue;
 
       const origin = { lat: driver.location.lat, lng: driver.location.lng };
-      const existing = routesRef.current.get(driver.driverId);
+      const existing =
+        latestFetchedRoutesRef.current.get(driver.driverId) ??
+        routesRef.current.get(driver.driverId);
       const flightKey = `${driver.driverId}:${driver.routeKey}`;
 
       if (inFlightRoutesRef.current.has(flightKey)) continue;
@@ -612,18 +615,20 @@ export function useLiveCrmMapSync(input: {
       })
         .then((res) => {
           if (!res.ok) return;
+          const nextEntry: RouteCacheEntry = {
+            routeKey: targetRouteKey,
+            origin,
+            computedAtMs: Date.now(),
+            durationMinutes: res.durationMinutes,
+            distanceMeters: res.distanceMeters,
+            encodedPolyline: res.encodedPolyline,
+            estimatedArrivalIso: res.estimatedArrivalIso,
+            basis: res.basis,
+          };
+          latestFetchedRoutesRef.current.set(targetDriverId, nextEntry);
           setRoutesByDriver((prev) => {
             const next = new Map(prev);
-            next.set(targetDriverId, {
-              routeKey: targetRouteKey,
-              origin,
-              computedAtMs: Date.now(),
-              durationMinutes: res.durationMinutes,
-              distanceMeters: res.distanceMeters,
-              encodedPolyline: res.encodedPolyline,
-              estimatedArrivalIso: res.estimatedArrivalIso,
-              basis: res.basis,
-            });
+            next.set(targetDriverId, nextEntry);
             return next;
           });
         })

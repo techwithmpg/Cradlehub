@@ -112,7 +112,7 @@ export function LiveMapFilterBar({
             variant="outline"
             size="sm"
             onClick={onRefresh}
-            className="shrink-0 lg:hidden"
+            className="shrink-0 md:hidden"
           >
             <RefreshCw size={13} />
             Refresh
@@ -124,7 +124,7 @@ export function LiveMapFilterBar({
         <div
           role="group"
           aria-label="Journey status filters"
-          className="flex flex-1 items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0"
+          className="flex flex-1 items-center gap-1.5 overflow-x-auto pb-1 md:pb-0"
         >
           {FILTER_DEFS.map((filter) => {
             const Icon = filter.icon;
@@ -158,7 +158,7 @@ export function LiveMapFilterBar({
             variant="outline"
             size="sm"
             onClick={onRefresh}
-            className="hidden shrink-0 lg:inline-flex"
+            className="hidden shrink-0 md:inline-flex"
           >
             <RefreshCw size={13} />
             Refresh

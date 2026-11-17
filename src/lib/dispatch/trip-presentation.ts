@@ -288,7 +288,11 @@ function buildAuthoritativeTimeline(input: {
     {
       key: "dispatched",
       label: "Dispatched",
-      detail: item.driverName ? `Driver ${item.driverName}` : "Awaiting driver assignment",
+      detail: item.driverName
+        ? /^driver\b/i.test(item.driverName.trim())
+          ? item.driverName.trim()
+          : `Driver ${item.driverName.trim()}`
+        : "Awaiting driver assignment",
       timestampIso: null,
       status: item.driverId ? (stageIdx >= 1 ? "completed" : "current") : "attention",
       tooltip: "Driver assignment confirmed in dispatch.",

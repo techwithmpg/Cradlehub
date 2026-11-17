@@ -125,7 +125,12 @@ export function formatArrivalNotificationCopy(
     "kind" | "driverName" | "destinationLabel" | "customerName" | "therapistNames"
   >
 ): ArrivalNotificationCopy {
-  const driver = event.driverName?.trim() || "Assigned driver";
+  const rawDriver = event.driverName?.trim();
+  const driverLabel = rawDriver
+    ? /^driver\b/i.test(rawDriver)
+      ? rawDriver
+      : `Driver ${rawDriver}`
+    : "Assigned driver";
   const therapists =
     event.therapistNames.length > 0
       ? event.therapistNames.join(", ")
@@ -136,21 +141,21 @@ export function formatArrivalNotificationCopy(
       return {
         statusLabel: "Arrived at pickup",
         title: "Driver arrived at therapist pickup",
-        body: `Driver ${driver} arrived at ${event.destinationLabel} to pick up ${therapists}.`,
+        body: `${driverLabel} arrived at ${event.destinationLabel} to pick up ${therapists}.`,
       };
     case "customer_arrival": {
       const customer = event.customerName?.trim() || event.destinationLabel;
       return {
         statusLabel: "Arrived at customer",
         title: "Driver arrived at customer location",
-        body: `Driver ${driver} arrived at ${customer}'s location with ${therapists}.`,
+        body: `${driverLabel} arrived at ${customer}'s location with ${therapists}.`,
       };
     }
     case "collection_arrival":
       return {
         statusLabel: "Arrived for collection",
         title: "Driver arrived for therapist collection",
-        body: `Driver ${driver} arrived to collect ${therapists}.`,
+        body: `${driverLabel} arrived to collect ${therapists}.`,
       };
     case "collection_ready":
       return {
