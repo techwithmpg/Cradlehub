@@ -17,7 +17,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.*
 import androidx.compose.ui.unit.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import java.time.Instant
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 private val DropBlue = Color(0xFF124B78)
 private val DropTint = Color(0xFFE5F2FE)
@@ -163,8 +168,24 @@ private fun LotusMark(modifier: Modifier) {
     }
 }
 
+/** Display-only clock. Stops when Trips is disposed or its host is below STARTED. */
 @Composable
-internal fun NativeTripsScreen(model: NativeDriverModel) {
+internal fun rememberTripsNow(owner: LifecycleOwner, clock: () -> Instant = Instant::now): Instant {
+    val currentClock by rememberUpdatedState(clock)
+    var now by remember { mutableStateOf(clock()) }
+    LaunchedEffect(owner) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (isActive) {
+                now = currentClock()
+                delay(5000)
+            }
+        }
+    }
+    return now
+}
+
+@Composable
+internal fun NativeTripsScreen(model: NativeDriverModel, owner: LifecycleOwner) {
     val ui = model.ui
     val workspace = ui.workspace
     val plans =
@@ -172,9 +193,7 @@ internal fun NativeTripsScreen(model: NativeDriverModel) {
     val journeys = NativeTripsPolicy.visible(plans, workspace?.profile?.id ?: "", ui.tripsMode)
     val dropScroll = rememberLazyListState()
     val pickScroll = rememberLazyListState()
-    val now =
-        Instant
-            .now() // Existing workspace/SDK updates refresh this display; no new network/GPS poll.
+    val now = rememberTripsNow(owner)
     LazyColumn(
         Modifier.fillMaxSize().background(Cream).testTag("trips-list"),
         state = if (ui.tripsMode == TripsMode.DROP_OFF) dropScroll else pickScroll,

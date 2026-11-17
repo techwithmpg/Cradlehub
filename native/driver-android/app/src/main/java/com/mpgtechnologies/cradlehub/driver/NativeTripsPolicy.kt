@@ -95,6 +95,17 @@ internal data class TripsEtaText(val time: String, val distance: String?, val re
 internal data class TripsStep(val title: String, val done: Boolean, val current: Boolean)
 
 internal object NativeTripsPolicy {
+    fun navigationMode(trip: DriverTrip, stage: String?): TripsMode? {
+        if (
+            trip.serviceHistory ||
+                trip.stage in setOf("complete", "review") ||
+                stage in setOf("complete", "review")
+        )
+            return null
+        val leg = stage?.substringBefore('_') ?: trip.leg
+        return if (leg in setOf("collection", "return")) TripsMode.PICK_UP else TripsMode.DROP_OFF
+    }
+
     fun nextStop(journey: TripsJourney): TripsStop? =
         journey.stops.firstOrNull { it.progress != StopProgress.CONFIRMED }
 
@@ -111,7 +122,12 @@ internal object NativeTripsPolicy {
             .distinctBy { it.id }
 
     fun route(journey: TripsJourney, driver: String): TripsStop? {
-        if (journey.driverId != driver || !journey.routeAuthorized) return null
+        if (
+            journey.driverId != driver ||
+                !journey.routeAuthorized ||
+                journey.stage in setOf("complete", "review")
+        )
+            return null
         val stop = nextStop(journey) ?: return null
         val permittedRoles =
             if (journey.mode == TripsMode.DROP_OFF)
@@ -133,13 +149,15 @@ internal object NativeTripsPolicy {
                 stop.lng !in -180.0..180.0
         )
             return null
-        if (journey.mode == TripsMode.PICK_UP && stop.role == StopRole.THERAPIST_COLLECTION) {
+        if (journey.mode == TripsMode.PICK_UP) {
             val relevant = journey.passengers.filter { it.id in stop.passengers }
             if (
                 relevant.isEmpty() ||
                     relevant.any {
                         it.collection != CollectionNeed.REQUIRED ||
-                            it.service == ServiceReadiness.IN_PROGRESS
+                            (stop.role == StopRole.THERAPIST_COLLECTION &&
+                                it.service == ServiceReadiness.IN_PROGRESS) ||
+                            (stop.role == StopRole.DESTINATION && !it.boarded)
                     }
             )
                 return null
@@ -154,7 +172,10 @@ internal object NativeTripsPolicy {
                 journey.stage == "service_active" -> "Service in progress"
                 journey.stage == "customer_arrived" ->
                     "Vehicle arrived · Passenger drop-off not confirmed here"
-                stop == null -> "Drop-off confirmed"
+                stop == null ->
+                    if (journey.passengers.isNotEmpty() && journey.passengers.all { it.dropped })
+                        "Drop-off confirmed"
+                    else "Trip progress unavailable"
                 stop.progress == StopProgress.ARRIVED ->
                     "Vehicle arrived · Confirm passenger action in Map"
                 stop.role == StopRole.BRANCH_PICKUP -> "Next: Pick up therapist at ${stop.label}"
@@ -163,13 +184,21 @@ internal object NativeTripsPolicy {
             }
         val relevant = journey.passengers.filter { it.id in (stop?.passengers ?: emptySet()) }
         if (stop?.role == StopRole.DESTINATION)
-            return "Therapist onboard · Continue to authorized destination"
+            return if (relevant.isNotEmpty() && relevant.all { it.boarded })
+                "Therapist onboard · Continue to authorized destination"
+            else "Passenger boarding not confirmed · Check trip"
         if (relevant.isNotEmpty() && relevant.all { it.service == ServiceReadiness.COMPLETED })
             return "Service completed · Ready for pickup"
         val active = relevant.filter { it.service == ServiceReadiness.IN_PROGRESS }
         if (active.isNotEmpty()) {
             val completion =
-                if (active.all { it.estimatedCompletion != null })
+                if (
+                    relevant.all {
+                        it.service == ServiceReadiness.COMPLETED ||
+                            (it.service == ServiceReadiness.IN_PROGRESS &&
+                                it.estimatedCompletion != null)
+                    }
+                )
                     active.mapNotNull { it.estimatedCompletion }.maxOrNull()
                 else null
             val minutes = completion?.let { ceil(Duration.between(now, it).seconds / 60.0).toInt() }
@@ -236,8 +265,11 @@ internal object NativeTripsPolicy {
     fun steps(journey: TripsJourney): List<TripsStep> {
         val stage = journey.stage
         val stop = nextStop(journey)
-        val onboard = journey.passengers.all { it.boarded }
-        val dropped = journey.passengers.all { it.dropped }
+        val relevant =
+            if (stop == null) journey.passengers
+            else journey.passengers.filter { it.id in stop.passengers }
+        val onboard = relevant.isNotEmpty() && relevant.all { it.boarded || it.dropped }
+        val dropped = relevant.isNotEmpty() && relevant.all { it.dropped }
         if (journey.mode == TripsMode.DROP_OFF)
             return listOf(
                 TripsStep("Assigned", true, false),
@@ -286,13 +318,18 @@ internal object NativeTripsPolicy {
                     else ServiceReadiness.UNKNOWN,
                     collection =
                         if (collection) CollectionNeed.REQUIRED else CollectionNeed.UNDECIDED,
-                    boarded = !trip.legacy && (trip.leg == "delivery" || trip.leg == "return"),
+                    boarded =
+                        !trip.legacy &&
+                            (trip.leg in setOf("delivery", "return") ||
+                                trip.stage in setOf("customer_arrived", "service_active")),
                 )
             val role =
-                when (trip.leg) {
-                    "pickup" -> StopRole.BRANCH_PICKUP
-                    "delivery" -> StopRole.CUSTOMER_DROP
-                    "collection" -> StopRole.THERAPIST_COLLECTION
+                when {
+                    trip.leg == "pickup" -> StopRole.BRANCH_PICKUP
+                    trip.leg == "delivery" ||
+                        trip.stage in setOf("customer_arrived", "service_active") ->
+                        StopRole.CUSTOMER_DROP
+                    trip.leg == "collection" -> StopRole.THERAPIST_COLLECTION
                     else -> StopRole.DESTINATION
                 }
             val stop =

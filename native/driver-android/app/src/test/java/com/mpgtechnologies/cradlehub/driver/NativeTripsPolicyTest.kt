@@ -454,4 +454,153 @@ class NativeTripsPolicyTest {
                 .time,
         )
     }
+
+    @Test
+    fun destinationRequiresBoardingAndRequiredCollectionForRelevantPassengers() {
+        val stop = collect.copy(role = StopRole.DESTINATION)
+        val row = journey(TripsMode.PICK_UP).copy(stage = "return_pending", stops = listOf(stop))
+        assertNull(NativeTripsPolicy.route(row, "driver-a"))
+        assertTrue(NativeTripsPolicy.banner(row, now).contains("boarding not confirmed"))
+        val boarded = row.copy(passengers = listOf(passenger.copy(boarded = true)))
+        assertEquals(stop, NativeTripsPolicy.route(boarded, "driver-a"))
+        for (need in listOf(CollectionNeed.NOT_REQUIRED, CollectionNeed.UNDECIDED)) {
+            assertNull(
+                NativeTripsPolicy.route(
+                    boarded.copy(
+                        passengers = listOf(passenger.copy(boarded = true, collection = need))
+                    ),
+                    "driver-a",
+                )
+            )
+        }
+    }
+
+    @Test
+    fun pooledProgressUsesRelevantStopPassengers() {
+        val a = passenger.copy(boarded = true)
+        val b = passenger.copy(id = "b", service = ServiceReadiness.IN_PROGRESS)
+        val row =
+            journey(TripsMode.PICK_UP)
+                .copy(
+                    stage = "return_enroute",
+                    passengers = listOf(a, b),
+                    stops =
+                        listOf(
+                            collect.copy(role = StopRole.DESTINATION),
+                            collect.copy(id = "later", passengers = setOf("b")),
+                        ),
+                )
+        assertTrue(NativeTripsPolicy.steps(row).first { it.title == "Onboard" }.done)
+        assertTrue(NativeTripsPolicy.steps(row).first { it.title == "To Destination" }.current)
+        assertFalse(NativeTripsPolicy.steps(row).any { it.title == "Awaiting Readiness" })
+        assertNotNull(NativeTripsPolicy.route(row, "driver-a"))
+    }
+
+    @Test
+    fun unknownPooledReadinessCannotBorrowAnotherTherapistsDeadline() {
+        val row =
+            journey(TripsMode.PICK_UP)
+                .copy(
+                    passengers =
+                        listOf(
+                            passenger.copy(
+                                service = ServiceReadiness.IN_PROGRESS,
+                                estimatedCompletion = now.plusSeconds(1680),
+                            ),
+                            passenger.copy(id = "b", service = ServiceReadiness.UNKNOWN),
+                        ),
+                    stops = listOf(collect.copy(passengers = setOf("a", "b"))),
+                )
+        assertEquals(
+            "Service in progress · Awaiting Complete Service",
+            NativeTripsPolicy.banner(row, now),
+        )
+    }
+
+    @Test
+    fun terminalOrReviewStageCannotOpenAnUnconfirmedStop() {
+        for (stage in listOf("complete", "review")) {
+            assertNull(NativeTripsPolicy.route(journey().copy(stage = stage), "driver-a"))
+        }
+    }
+
+    @Test
+    fun missingStopPlanCannotDeclareDropoffConfirmed() {
+        val row = journey().copy(stops = emptyList())
+        assertEquals("Trip progress unavailable", NativeTripsPolicy.banner(row, now))
+        assertFalse(NativeTripsPolicy.steps(row).last().done)
+        assertEquals(
+            "Drop-off confirmed",
+            NativeTripsPolicy.banner(
+                row.copy(passengers = listOf(passenger.copy(dropped = true))),
+                now,
+            ),
+        )
+    }
+
+    @Test
+    fun acceptedUnifiedArrivalKeepsBoardingWithoutClaimingDropoff() {
+        val prototype =
+            DriverTrip(
+                booking,
+                1,
+                "customer_arrived",
+                null,
+                "Customer",
+                "Therapist",
+                LocalDate.of(2026, 11, 17),
+                "10:30",
+                "Branch",
+                "Customer",
+                10.1,
+                122.1,
+            )
+        for (stage in listOf("customer_arrived", "service_active")) for (legacy in
+            listOf(false, true)) {
+            val trip = prototype.copy(stage = stage, legacy = legacy)
+            val w =
+                DriverWorkspace(
+                    DriverProfile("driver-a", "Driver", "branch", "Branch"),
+                    listOf(trip),
+                    "On duty",
+                    emptyList(),
+                    emptyList(),
+                    now,
+                    LocalDate.of(2026, 11, 17),
+                )
+            val row = NativeTripsPolicy.fromWorkspace(w).single()
+            assertEquals(!legacy, row.passengers.single().boarded)
+            assertEquals(StopRole.CUSTOMER_DROP, row.stops.single().role)
+            assertFalse(row.passengers.single().dropped)
+            assertFalse(NativeTripsPolicy.steps(row).last().done)
+            if (stage == "customer_arrived")
+                assertEquals(StopProgress.ARRIVED, row.stops.single().progress)
+            assertNull(NativeTripsPolicy.route(row, "driver-a"))
+        }
+    }
+
+    @Test
+    fun terminalNavigationCannotMislabelCompletedPickupAsDropoff() {
+        val trip =
+            DriverTrip(
+                booking,
+                1,
+                "return_enroute",
+                "return",
+                "Customer",
+                "Therapist",
+                LocalDate.of(2026, 11, 17),
+                "10:30",
+                "Customer",
+                "Branch",
+            )
+        assertEquals(TripsMode.PICK_UP, NativeTripsPolicy.navigationMode(trip, "return_arrived"))
+        assertEquals(TripsMode.PICK_UP, NativeTripsPolicy.navigationMode(trip, null))
+        assertEquals(TripsMode.DROP_OFF, NativeTripsPolicy.navigationMode(trip, "delivery_enroute"))
+        for (stage in listOf("complete", "review")) assertNull(
+            NativeTripsPolicy.navigationMode(trip, stage)
+        )
+        assertNull(NativeTripsPolicy.navigationMode(trip.copy(stage = "complete"), null))
+        assertNull(NativeTripsPolicy.navigationMode(trip.copy(serviceHistory = true), null))
+    }
 }

@@ -106,7 +106,7 @@ internal fun NativeDriverApp(
                 else
                     when (ui.tab) {
                         DriverTab.TODAY -> TodayScreen(model)
-                        DriverTab.TRIPS -> NativeTripsScreen(model)
+                        DriverTab.TRIPS -> NativeTripsScreen(model, owner)
                         DriverTab.SCAN ->
                             ScanScreen(model, owner, cameraAllowed, requestCamera, scan)
                         DriverTab.MORE -> MoreScreen(model)
@@ -826,22 +826,17 @@ private fun NavigationFooter(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 DriverIcon(Glyph.PIN, Modifier.size(24.dp))
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    trip?.let {
-                        Text(
-                            if (
-                                ui.nav.stage?.substringBefore('_') in
-                                    setOf("collection", "return") ||
-                                    (ui.nav.stage == null &&
-                                        it.leg in setOf("collection", "return"))
+                    trip
+                        ?.let { NativeTripsPolicy.navigationMode(it, ui.nav.stage) }
+                        ?.let { mode ->
+                            Text(
+                                mode.badge,
+                                color = DeepGreen,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 3.dp),
                             )
-                                "PICK-UP"
-                            else "DROP-OFF",
-                            color = DeepGreen,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 3.dp),
-                        )
-                    }
+                        }
                     Text(
                         trip?.destination ?: "Assigned destination",
                         fontSize = 16.sp,
