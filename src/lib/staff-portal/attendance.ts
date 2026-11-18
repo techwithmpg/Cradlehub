@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addDaysToYmd } from "@/lib/attendance/time";
+import { filterAttendanceExceptionsForBusinessDay } from "@/lib/attendance/attendance-exception-actionability";
 import { attendanceV2Status, readAttendanceCredit, type AttendanceCredit } from "@/lib/attendance/v2-policy";
 import { getAttendanceSettingsReadOnly } from "@/lib/attendance/queries";
 import { branchDateTimeToIsoInTimezone, getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
@@ -361,6 +362,30 @@ export const getPureAttendanceSnapshot = cache(async (
     actual_clock_out_reconciled_at: row.actual_clock_out_reconciled_at,
     source_label: null,
   }));
+  const mappedExceptions = (exceptionsResult.data ?? []).map((row) => ({
+    ...row,
+    staff_name: staff.full_name,
+    metadata: (row.metadata as Record<string, unknown> | null) ?? {},
+  }));
+  const currentBusinessDayStart = branchDateTimeToIsoInTimezone({
+    date: today,
+    time: branchNow.dayBoundary,
+    timezone: branchNow.timezone,
+  });
+  const currentBusinessDayEnd = branchDateTimeToIsoInTimezone({
+    date: addDaysToYmd(today, 1),
+    time: branchNow.dayBoundary,
+    timezone: branchNow.timezone,
+  });
+  const dailyExceptions = filterAttendanceExceptionsForBusinessDay({
+    exceptions: mappedExceptions,
+    records: attendanceRecords,
+    scanEventIds: [],
+    branchId: staff.branch_id,
+    businessDate: today,
+    businessDayStart: currentBusinessDayStart,
+    businessDayEnd: currentBusinessDayEnd,
+  });
   const todayState = resolveAttendanceDayStaffStates({
     branchId: staff.branch_id,
     businessDate: today,
@@ -370,11 +395,7 @@ export const getPureAttendanceSnapshot = cache(async (
     staff: [{ id: staff.id, fullName: staff.full_name, staffType: staff.staff_type }],
     schedules,
     records: attendanceRecords,
-    exceptions: (exceptionsResult.data ?? []).map((row) => ({
-      ...row,
-      staff_name: staff.full_name,
-      metadata: (row.metadata as Record<string, unknown> | null) ?? {},
-    })),
+    exceptions: dailyExceptions,
     sessions: (sessionsResult.data ?? []).map((row) => ({
       id: row.id,
       staff_id: row.staff_id ?? staff.id,

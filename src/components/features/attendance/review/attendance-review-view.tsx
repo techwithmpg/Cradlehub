@@ -46,6 +46,7 @@ import {
   formatShortShiftDate,
   getReviewIssueHeadline,
   hasAuthorizedCorrectionPath,
+  resolveExceptionBusinessDate,
   resolveReviewSeverity,
   type ReviewIssueBucket,
   type ReviewSeverityRank,
@@ -593,6 +594,11 @@ export function AttendanceReviewView({
                         item.exception.last_detected_at ?? item.exception.detected_at;
                       const detectedYmd = toBranchYmd(detectedIso, data.timezone);
                       const record = findExceptionRecord(item.exception, data.records);
+                      const originalYmd = resolveExceptionBusinessDate(
+                        item.exception,
+                        record,
+                        data.timezone
+                      );
                       const canQuickFix = hasAuthorizedCorrectionPath(item, Boolean(record));
                       const diag = staffDiagnostics.find(
                         (d) => d.staff.staffId === item.exception.staff_id
@@ -676,11 +682,11 @@ export function AttendanceReviewView({
                           </td>
                           <td className="whitespace-nowrap px-3 py-2.5 align-middle text-xs">
                             <div className="font-semibold text-[var(--cs-text)]">
-                              {formatShortShiftDate(detectedYmd)}
+                              {formatShortShiftDate(originalYmd)}
                             </div>
-                            {record && record.shift_date !== detectedYmd ? (
+                            {detectedYmd !== originalYmd ? (
                               <div className="text-[0.68rem] text-[var(--cs-text-muted)]">
-                                (from {formatShortShiftDate(record.shift_date).replace(/, \d{4}$/, "")})
+                                (detected {formatShortShiftDate(detectedYmd).replace(/, \d{4}$/, "")})
                               </div>
                             ) : null}
                           </td>

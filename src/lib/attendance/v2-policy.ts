@@ -1,6 +1,9 @@
-/** Owner-approved 2026-11-16: one scan; arrival and credited start stay distinct. */
+/** Owner-approved 2026-11-16 / reconciled 2026-11-18: one scan; arrival and credited start stay distinct. */
 export const EARLY_ARRIVAL_LIMIT_MINUTES = 120;
-export const CLOCK_OUT_REMINDER_INTERVAL_MS = 5 * 60_000;
+export const STANDARD_CLOCK_OUT_REMINDER_DELAY_MINUTES = 20;
+export const HOME_SERVICE_CLOCK_OUT_REMINDER_DELAY_MINUTES = 10;
+export const CLOCK_OUT_REMINDER_REPEAT_INTERVAL_MS = 15 * 60_000;
+export const CLOCK_OUT_REMINDER_INTERVAL_MS = STANDARD_CLOCK_OUT_REMINDER_DELAY_MINUTES * 60_000;
 
 export type AttendanceCredit = {
   version: 2;
@@ -41,21 +44,39 @@ export function readAttendanceCredit(snapshot: unknown): AttendanceCredit | null
 /** Current interval only after an outage; never replay a burst of missed notices. */
 export function dueClockOutReminder(
   deadline: string,
-  now: string
+  now: string,
+  options?: {
+    delayMinutes?: number;
+    repeatMinutes?: number;
+    reminderKind?: "shift_end" | "final_home_service";
+  }
 ): {
   interval: number;
+  delayMinutes: number;
+  reminderKind: "shift_end" | "final_home_service";
   dueAt: string;
   nextDueAt: string;
 } | null {
   const end = Date.parse(deadline);
   const instant = Date.parse(now);
   if (![end, instant].every(Number.isFinite)) return null;
-  const interval = Math.floor((instant - end) / CLOCK_OUT_REMINDER_INTERVAL_MS);
-  if (interval < 1) return null;
+  const reminderKind = options?.reminderKind ?? "shift_end";
+  const delayMinutes =
+    options?.delayMinutes ??
+    (reminderKind === "final_home_service"
+      ? HOME_SERVICE_CLOCK_OUT_REMINDER_DELAY_MINUTES
+      : STANDARD_CLOCK_OUT_REMINDER_DELAY_MINUTES);
+  const delayMs = delayMinutes * 60_000;
+  const repeatMs = (options?.repeatMinutes ?? 15) * 60_000;
+  const elapsed = instant - end;
+  if (elapsed < delayMs) return null;
+  const interval = 1 + Math.floor((elapsed - delayMs) / repeatMs);
   return {
     interval,
-    dueAt: new Date(end + interval * CLOCK_OUT_REMINDER_INTERVAL_MS).toISOString(),
-    nextDueAt: new Date(end + (interval + 1) * CLOCK_OUT_REMINDER_INTERVAL_MS).toISOString(),
+    delayMinutes,
+    reminderKind,
+    dueAt: new Date(end + delayMs + (interval - 1) * repeatMs).toISOString(),
+    nextDueAt: new Date(end + delayMs + interval * repeatMs).toISOString(),
   };
 }
 

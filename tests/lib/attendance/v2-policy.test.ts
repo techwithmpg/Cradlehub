@@ -181,13 +181,27 @@ describe("V2 due intervals and states", () => {
       scheduledEndAt: end, snapshot: { v2: { ...credit, activeWork: true } }, now: "2026-11-16T12:10Z",
     })).toBe("Authorized extension");
   });
-  it("first reminder is five minutes after the deadline", () => {
-    expect(dueClockOutReminder(end, "2026-11-16T12:04:59Z")).toBeNull();
-    expect(dueClockOutReminder(end, "2026-11-16T12:05Z")).toMatchObject({
+  it("first standard reminder is 20 minutes after deadline; final home-service is 10 minutes", () => {
+    expect(dueClockOutReminder(end, "2026-11-16T12:19:59Z")).toBeNull();
+    expect(dueClockOutReminder(end, "2026-11-16T12:20Z")).toMatchObject({
       interval: 1,
-      nextDueAt: "2026-11-16T12:10:00.000Z",
+      delayMinutes: 20,
+      reminderKind: "shift_end",
+      nextDueAt: "2026-11-16T12:35:00.000Z",
     });
-    expect(dueClockOutReminder(end, "2026-11-16T12:35Z")?.interval).toBe(7);
+    expect(dueClockOutReminder(end, "2026-11-16T12:35Z")?.interval).toBe(2);
+
+    expect(
+      dueClockOutReminder(end, "2026-11-16T12:09:59Z", { reminderKind: "final_home_service" })
+    ).toBeNull();
+    expect(
+      dueClockOutReminder(end, "2026-11-16T12:10Z", { reminderKind: "final_home_service" })
+    ).toMatchObject({
+      interval: 1,
+      delayMinutes: 10,
+      reminderKind: "final_home_service",
+      nextDueAt: "2026-11-16T12:25:00.000Z",
+    });
   });
   it("invalid timestamps fail closed", () => {
     expect(dueClockOutReminder("bad", end)).toBeNull();

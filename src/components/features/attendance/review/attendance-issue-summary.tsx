@@ -105,7 +105,11 @@ export function AttendanceIssueSummary({
           value={
             record
               ? `${record.shift_date} · ${record.status.replaceAll("_", " ")}`
-              : "No Attendance record exists"
+              : typeof item.exception.metadata?.staleBusinessDate === "string"
+                ? `${item.exception.metadata.staleBusinessDate} · earlier unclosed shift`
+                : typeof item.exception.metadata?.staleShiftDate === "string"
+                  ? `${item.exception.metadata.staleShiftDate} · earlier unclosed shift`
+                  : "No Attendance record exists"
           }
         />
         <EvidenceRow

@@ -299,22 +299,65 @@ export function buildPaginationRange(currentPage: number, totalPages: number): A
   return pages;
 }
 
+function exceptionMetadataString(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = metadata[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function resolveExceptionTargetCheckinId(exception: AttendanceException): string | null {
+  const internalType = (
+    exceptionMetadataString(exception.metadata, "internalExceptionType") ??
+    exceptionMetadataString(exception.metadata, "internal_exception_type") ??
+    exception.exception_type
+  ).toLowerCase();
+  if (internalType === "stale_open_checkin" || exception.exception_type === "missed_checkout") {
+    return exceptionMetadataString(exception.metadata, "staleCheckinId") ?? exception.checkin_id ?? null;
+  }
+  return exception.checkin_id ?? null;
+}
+
+export function resolveExceptionBusinessDate(
+  exception: AttendanceException,
+  record: AttendanceRecord | null,
+  timezone = "Asia/Manila"
+): string {
+  const staleDate =
+    exceptionMetadataString(exception.metadata, "staleBusinessDate") ??
+    exceptionMetadataString(exception.metadata, "staleShiftDate");
+  if (staleDate) return staleDate;
+  if (record?.shift_date) return record.shift_date;
+  const iso = exception.last_detected_at ?? exception.detected_at;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+}
+
 /**
- * Finds the matching attendance record (preferring explicit checkin_id, then staff+shift date)
+ * Finds the matching attendance record (preferring explicit target checkin_id / staleCheckinId,
+ * never falling back to an unrelated active shift when an explicit checkin_id is missing from the slice)
  * for display inside the Review table and Correct Attendance modal.
  */
 export function findExceptionRecord(
   exception: AttendanceException,
   records: AttendanceRecord[]
 ): AttendanceRecord | null {
-  if (exception.checkin_id) {
-    const byId = records.find((r) => r.id === exception.checkin_id);
-    if (byId) return byId;
+  const targetCheckinId = resolveExceptionTargetCheckinId(exception);
+  if (targetCheckinId) {
+    return records.find((r) => r.id === targetCheckinId) ?? null;
   }
   if (exception.staff_id) {
-    return records.find((r) => r.staff_id === exception.staff_id && !r.checked_out_at) ??
+    return (
+      records.find((r) => r.staff_id === exception.staff_id && !r.checked_out_at) ??
       records.find((r) => r.staff_id === exception.staff_id) ??
-      null;
+      null
+    );
   }
   return null;
 }

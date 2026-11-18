@@ -25,10 +25,12 @@ import {
   findExceptionRecord,
   formatAttendanceRole,
   formatShortClock,
+  formatShortShiftDate,
   formatWorkedDuration,
   getReviewIssueHeadline,
   getStaffShiftWindow,
   hasAuthorizedCorrectionPath,
+  resolveExceptionBusinessDate,
 } from "@/lib/attendance/crm-attendance-presenter";
 import type { AttendanceReviewItem } from "@/lib/attendance/crm-review";
 import type { AttendanceStaffDiagnostic } from "@/lib/attendance/staff-diagnostics";
@@ -382,10 +384,19 @@ export function AttendanceTodayView({
                   const headline = getReviewIssueHeadline(item, data.timezone);
                   const matchedRecord = findExceptionRecord(item.exception, data.records);
                   const canFix = hasAuthorizedCorrectionPath(item, Boolean(matchedRecord));
+                  const originalDate = resolveExceptionBusinessDate(
+                    item.exception,
+                    matchedRecord,
+                    data.timezone
+                  );
                   const detectedAt = formatDetectedShort(
                     item.exception.last_detected_at ?? item.exception.detected_at,
                     data.timezone
                   );
+                  const attributionLine =
+                    originalDate !== data.businessDate
+                      ? `Original shift: ${formatShortShiftDate(originalDate)} · Detected ${detectedAt}`
+                      : detectedAt;
                   const highlightCritical = item.priority === "critical" || idx === 0;
                   const tagTone =
                     headline.shortTag === "Unclosed Shift" || headline.shortTag === "Conflict"
@@ -417,7 +428,7 @@ export function AttendanceTodayView({
                             {headline.title}
                           </div>
                           <div className="mt-0.5 text-[0.68rem] text-[var(--cs-text-muted)]">
-                            {detectedAt}
+                            {attributionLine}
                           </div>
                         </div>
                       </div>

@@ -64,20 +64,41 @@ export function staffNoticeHref(
 
 export function safeAttendanceNoticeCopy(
   notice: Pick<WorkspaceNotification, "type" | "title" | "body"> &
-    Partial<Pick<WorkspaceNotification, "dedupe_key">>
+    Partial<Pick<WorkspaceNotification, "dedupe_key" | "metadata">>
 ) {
-  return notice.type === "attendance_clock_out_reminder" &&
+  if (
+    notice.type === "attendance_clock_out_reminder" &&
     notice.dedupe_key?.startsWith("staff-clock-out-reminder:")
-    ? {
+  ) {
+    const metadata =
+      notice.metadata && typeof notice.metadata === "object" && !Array.isArray(notice.metadata)
+        ? (notice.metadata as Record<string, unknown>)
+        : null;
+    if (metadata?.attendanceVersion === 2) {
+      const portalEligible = metadata.portalClockOutEligible === true;
+      const isFinalHomeService = metadata.reminderKind === "final_home_service";
+      return {
         title: "You forgot to clock out",
-        body: "Your expected shift has ended, but your attendance is still open. Clock out here if eligible, use the branch QR, or contact CRM for assistance.",
+        body: isFinalHomeService
+          ? portalEligible
+            ? 'Your final home-service assignment and wrap-up buffer are complete with no remaining duty. Open My Attendance and tap "Clock out" if eligible, or use the branch QR.'
+            : "Your final home-service assignment and wrap-up buffer are complete with no remaining duty. Open My Attendance to scan the branch QR or contact CRM for help."
+          : portalEligible
+            ? 'Your authorized shift has ended with no active duty remaining. Open My Attendance and tap "Clock out" if eligible, or use the branch QR.'
+            : "Your authorized shift has ended with no active duty remaining. Open My Attendance to scan the branch QR to clock out, or contact CRM for assistance.",
+      };
+    }
+    return {
+      title: "You forgot to clock out",
+      body: "Your expected shift has ended, but your attendance is still open. Clock out here if eligible, use the branch QR, or contact CRM for assistance.",
+    };
+  }
+  return ["attendance_clock_out_reminder", "attendance_closing_escalation"].includes(notice.type)
+    ? {
+        title: "Attendance needs review",
+        body: "Review your current attendance and work. Clock-out eligibility is checked by the server; this notice does not end your shift.",
       }
-    : ["attendance_clock_out_reminder", "attendance_closing_escalation"].includes(notice.type)
-      ? {
-          title: "Attendance needs review",
-          body: "Review your current attendance and work. Clock-out eligibility is checked by the server; this notice does not end your shift.",
-        }
-      : { title: notice.title, body: notice.body };
+    : { title: notice.title, body: notice.body };
 }
 
 

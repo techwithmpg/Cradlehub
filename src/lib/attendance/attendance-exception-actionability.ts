@@ -30,6 +30,27 @@ export function isActionableAttendanceException(exception: AttendanceException):
   return exception.status === "open" && !isTimingOnlyAttendanceException(exception);
 }
 
+export function staleOpenCheckinTargetId(
+  exception: Pick<AttendanceException, "exception_type" | "checkin_id" | "metadata">
+): string | null {
+  const internal = effectiveAttendanceExceptionType(exception).toLowerCase();
+  if (internal !== "stale_open_checkin" && exception.exception_type !== "missed_checkout") {
+    return null;
+  }
+  return metadataString(exception.metadata ?? {}, "staleCheckinId") ?? exception.checkin_id ?? null;
+}
+
+export function staleOpenCheckinBusinessDate(
+  exception: Pick<AttendanceException, "exception_type" | "metadata">
+): string | null {
+  const internal = effectiveAttendanceExceptionType(exception).toLowerCase();
+  if (internal !== "stale_open_checkin" && exception.exception_type !== "missed_checkout") {
+    return null;
+  }
+  const meta = exception.metadata ?? {};
+  return metadataString(meta, "staleBusinessDate") ?? metadataString(meta, "staleShiftDate");
+}
+
 export function filterAttendanceExceptionsForBusinessDay(params: {
   exceptions: AttendanceException[];
   records: AttendanceRecord[];
@@ -53,6 +74,10 @@ export function filterAttendanceExceptionsForBusinessDay(params: {
 
   return params.exceptions.filter((exception) => {
     if (exception.branch_id !== params.branchId) return false;
+    const staleDate = staleOpenCheckinBusinessDate(exception);
+    if (staleDate && staleDate !== params.businessDate) return false;
+    const staleCheckinId = staleOpenCheckinTargetId(exception);
+    if (staleCheckinId && !recordIds.has(staleCheckinId)) return false;
     if (exception.checkin_id) return recordIds.has(exception.checkin_id);
     if (exception.scan_event_id) return scanEventIds.has(exception.scan_event_id);
     const detectedAtMs = new Date(exception.detected_at).getTime();

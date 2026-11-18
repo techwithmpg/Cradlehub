@@ -102,9 +102,35 @@ export function buildAttendanceStaffDiagnostics(
       const device =
         data.deviceRegistry.entries.find((entry) => entry.staffId === staff.staffId) ?? null;
       const latestScan = latestScanForStaff(data, staff);
+      const currentExceptionIdSet = new Set(staff.currentExceptionIds);
       const openException =
-        data.exceptions.find((item) => item.staff_id === staff.staffId && item.status === "open") ??
-        null;
+        (staff.currentExceptionIds.length > 0
+          ? data.exceptions.find(
+              (item) =>
+                item.staff_id === staff.staffId &&
+                item.status === "open" &&
+                currentExceptionIdSet.has(item.id)
+            )
+          : data.exceptions.find((item) => {
+              if (item.staff_id !== staff.staffId || item.status !== "open") return false;
+              const staleTarget = item.metadata?.staleCheckinId;
+              if (typeof staleTarget === "string" && staleTarget !== staff.attendanceRecordId) {
+                return false;
+              }
+              if (item.checkin_id && staff.attendanceRecordId) {
+                return item.checkin_id === staff.attendanceRecordId;
+              }
+              if (item.checkin_id && !staff.attendanceRecordId) return false;
+              const staleDate =
+                (typeof item.metadata?.staleBusinessDate === "string"
+                  ? item.metadata.staleBusinessDate
+                  : null) ??
+                (typeof item.metadata?.staleShiftDate === "string"
+                  ? item.metadata.staleShiftDate
+                  : null);
+              if (staleDate && staleDate !== staff.businessDate) return false;
+              return true;
+            })) ?? null;
       const technicalCodes = [
         ...(openException ? [openException.exception_type] : []),
         ...staff.issueCodes,

@@ -56,7 +56,10 @@ import {
 } from "@/lib/attendance/clock-in-authority";
 import { verifyAttendanceGeofence } from "@/lib/attendance/geofence-server";
 import { attendanceV2Enabled } from "@/lib/attendance/v2-server";
-import { readAttendanceCredit } from "@/lib/attendance/v2-policy";
+import {
+  EARLY_ARRIVAL_LIMIT_MINUTES,
+  readAttendanceCredit,
+} from "@/lib/attendance/v2-policy";
 import type { AttendanceLocation, GeofenceFailure } from "@/lib/attendance/geofence";
 
 export type ScanRequestContext = {
@@ -2417,7 +2420,28 @@ function buildCountdown(
   };
 }
 
-function blockedClockInIntent(scanIntent: AttendanceScanIntent): AttendanceScanIntent {
+function blockedClockInIntent(
+  scanIntent: AttendanceScanIntent,
+  earlyArrivalMinutes = 60
+): AttendanceScanIntent {
+  if (
+    scanIntent.type === "missing_schedule" ||
+    scanIntent.type === "off_day_exception" ||
+    scanIntent.type === "schedule_state_unsupported" ||
+    scanIntent.type === "likely_closing_scan_without_clock_in"
+  ) {
+    return {
+      ...scanIntent,
+      action: "recovery_required",
+      requiresRecovery: true,
+      shouldWriteAttendance: false,
+      severity: scanIntent.severity === "info" ? "warning" : scanIntent.severity,
+    };
+  }
+  const windowLabel =
+    earlyArrivalMinutes === EARLY_ARRIVAL_LIMIT_MINUTES
+      ? "two hours"
+      : `${earlyArrivalMinutes} minutes`;
   return {
     ...scanIntent,
     type: "outside_schedule_window",
@@ -2427,8 +2451,7 @@ function blockedClockInIntent(scanIntent: AttendanceScanIntent): AttendanceScanI
     shouldWriteAttendance: false,
     severity: "warning",
     title: "Clock-in not recorded",
-    message:
-      "Clock-in is allowed from one hour before the authorized shift until shift end. This scan was captured for CSR review; no new attendance session was opened.",
+    message: `Clock-in is allowed from ${windowLabel} before the authorized shift until shift end. This scan was captured for CSR review; no new attendance session was opened.`,
   };
 }
 
@@ -2717,7 +2740,10 @@ async function processAttendanceScan(
       ctx,
       staffName,
       staffNickname,
-      intent: blockedClockInIntent(scanIntent),
+      intent: blockedClockInIntent(
+        scanIntent,
+        attendanceV2 ? EARLY_ARRIVAL_LIMIT_MINUTES : 60
+      ),
       scannedAt: nowIso,
       branchLocalTime: branchNow.time,
       branchTimezone: branchNow.timezone,
@@ -2793,7 +2819,14 @@ async function processAttendanceScan(
             requestId: ctx.requestId,
             userAgent: ctx.userAgent,
             ipAddress: ctx.ipAddress,
-            metadata: { staleCheckinId: activeCheckin.id, shiftInstance, ...testMetadata },
+            metadata: {
+              staleCheckinId: activeCheckin.id,
+              staleShiftDate: activeCheckin.shift_date,
+              staleBusinessDate:
+                activeCheckin.attendance_business_date ?? activeCheckin.shift_date,
+              shiftInstance,
+              ...testMetadata,
+            },
             isTest,
           },
           result,
@@ -2802,7 +2835,14 @@ async function processAttendanceScan(
             exceptionType: "stale_open_checkin",
             severity: "critical",
             message: `${staffName}'s stale open Attendance record has no safe recovery time.`,
-            metadata: { staleCheckinId: activeCheckin.id, shiftInstance, ...testMetadata },
+            metadata: {
+              staleCheckinId: activeCheckin.id,
+              staleShiftDate: activeCheckin.shift_date,
+              staleBusinessDate:
+                activeCheckin.attendance_business_date ?? activeCheckin.shift_date,
+              shiftInstance,
+              ...testMetadata,
+            },
             recommendedAction: "resolve_stale_open_record",
             priority: "high",
           },
@@ -2818,6 +2858,11 @@ async function processAttendanceScan(
         lateGraceMinutes: settings.late_grace_minutes,
         earlyLeaveGraceMinutes: settings.early_leave_threshold_minutes,
       });
+      const needsCurrentClockInReview =
+        scanIntent.requiresRecovery ||
+        (scanIntent.type !== "clock_in" && !(attendanceV2 && scanIntent.type === "early_clock_in")) ||
+        currentMetrics.lateMinutes > 0;
+      const earlyArrival = attendanceV2 && scanIntent.type === "early_clock_in";
       const greeting = buildAttendanceGreeting({
         staffId: device.staff_id,
         nickname: staffNickname,
@@ -2842,12 +2887,24 @@ async function processAttendanceScan(
             shiftLabel: attendanceSchedule.shiftType,
             occurredAt: nowIso,
             sessionStartedAt: nowIso,
+            ...(earlyArrival && attendanceSchedule.scheduledStartAt
+              ? {
+                  creditedStartAt: new Date(
+                    Math.max(
+                      Date.parse(nowIso),
+                      Date.parse(attendanceSchedule.scheduledStartAt)
+                    )
+                  ).toISOString(),
+                }
+              : {}),
           },
         }),
         normalizeAttendanceOperationId(ctx.requestId)
       );
       const staleMetadata = {
         staleCheckinId: activeCheckin.id,
+        staleShiftDate: activeCheckin.shift_date,
+        staleBusinessDate: activeCheckin.attendance_business_date ?? activeCheckin.shift_date,
         staleCheckedInAt: activeCheckin.checked_in_at,
         recoveryClockOutAt,
         currentShiftInstance: shiftInstance,
@@ -2876,7 +2933,7 @@ async function processAttendanceScan(
             attendance_business_date: shiftInstance.attendanceBusinessDate,
             late_minutes: currentMetrics.lateMinutes,
             attendance_status: currentMetrics.attendanceStatus,
-            exception_state: "open",
+            exception_state: needsCurrentClockInReview ? "open" : "none",
           }),
           p_request_id: normalizeAttendanceOperationId(ctx.requestId),
           p_device_id: device.id,

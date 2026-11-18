@@ -4,6 +4,8 @@ import { attendanceV2Status, readAttendanceCredit } from "@/lib/attendance/v2-po
 import {
   effectiveAttendanceExceptionType,
   isActionableAttendanceException,
+  staleOpenCheckinBusinessDate,
+  staleOpenCheckinTargetId,
 } from "@/lib/attendance/attendance-exception-actionability";
 import { getAttendanceScheduleWindows } from "@/lib/attendance/attendance-schedule-windows";
 import type {
@@ -274,9 +276,17 @@ export function resolveAttendanceDayStaffStates(params: {
           session.booking_progress_status === "session_started" &&
           !session.session_completed_at
       ) ?? null;
-    const openExceptions = params.exceptions.filter(
-      (exception) => exception.staff_id === staff.id && isActionableAttendanceException(exception)
-    );
+    const openExceptions = params.exceptions.filter((exception) => {
+      if (exception.staff_id !== staff.id || !isActionableAttendanceException(exception)) {
+        return false;
+      }
+      const staleDate = staleOpenCheckinBusinessDate(exception);
+      if (staleDate && staleDate !== params.businessDate) return false;
+      const staleTargetId = staleOpenCheckinTargetId(exception);
+      if (staleTargetId && (!record || staleTargetId !== record.id)) return false;
+      if (exception.checkin_id && record && exception.checkin_id !== record.id) return false;
+      return true;
+    });
     const issueCodes = [
       ...(schedule.conflictCode ? [schedule.conflictCode] : []),
       ...openExceptions.map(effectiveAttendanceExceptionType),

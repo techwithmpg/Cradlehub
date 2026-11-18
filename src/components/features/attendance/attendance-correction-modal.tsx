@@ -47,6 +47,7 @@ import {
   formatShortShiftDate,
   getReviewIssueHeadline,
   getStaffShiftWindow,
+  resolveExceptionTargetCheckinId,
 } from "@/lib/attendance/crm-attendance-presenter";
 import type { AttendanceReviewItem } from "@/lib/attendance/crm-review";
 import { presentAttendanceScanEvent } from "@/lib/attendance/scan-event-presentation";
@@ -204,7 +205,7 @@ function AttendanceCorrectionModalInner({
 
   const [fetchedCheckin, setFetchedCheckin] = useState<LoadedCheckin | null>(null);
   const targetCheckinId =
-    reviewItem?.exception.checkin_id ??
+    (reviewItem ? resolveExceptionTargetCheckinId(reviewItem.exception) : null) ??
     staffRow?.staff.attendanceRecordId ??
     recordInWorkspace?.id ??
     null;
