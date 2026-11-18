@@ -18,10 +18,14 @@ type ActivationState =
 
 const PUBLIC_KEY = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY ?? "";
 
-function toKey(value: string): Uint8Array {
+function toKey(value: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
   const decoded = atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"));
-  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+  const key = new Uint8Array(new ArrayBuffer(decoded.length));
+  for (let index = 0; index < decoded.length; index += 1) {
+    key[index] = decoded.charCodeAt(index);
+  }
+  return key;
 }
 
 function isIosDevice(): boolean {
