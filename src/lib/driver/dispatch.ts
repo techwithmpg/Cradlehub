@@ -5,6 +5,7 @@ import type { Database } from "@/types/supabase";
 export const dispatchJourneySchema = z.object({
   journey: journeySchema,
   driverName: z.string().max(160).nullable(),
+  collectionDriverName: z.string().max(160).nullable().optional(),
   location: z
     .object({
       lat: z.number().min(-90).max(90),

@@ -121,9 +121,15 @@ final class DriverNavigationController {
         || !hasTarget || remainingLat != targetLat || remainingLng != targetLng) return null;
     long age = SystemClock.elapsedRealtimeNanos() - point.getElapsedRealtimeNanos();
     java.time.Instant gps = java.time.Instant.now().minusNanos(age);
+    String stopId =
+        (remainingBooking != null && remainingLeg != null)
+            ? (remainingBooking + ":" + remainingLeg)
+            : null;
+    List<String> covered =
+        stopId != null ? Collections.singletonList(stopId) : Collections.emptyList();
     return new TripsRoadEta(remainingBooking, remainingLeg, remainingLat, remainingLng,
         remaining.getSeconds(), remaining.getMeters(), remainingAt, gps,
-        point.hasAccuracy() ? point.getAccuracy() : Double.NaN, null, Collections.emptyList());
+        point.hasAccuracy() ? point.getAccuracy() : Double.NaN, stopId, covered);
   }
 
   void endRoute() { stopGuidance(); render(); }
@@ -696,6 +702,8 @@ final class DriverNavigationController {
   private void stopGuidance() {
     if (navigator != null && navigator.isGuidanceRunning()) navigator.stopGuidance();
     state.guiding = false;
+    remaining = null;
+    remainingAt = null;
     pause.setVisibility(View.GONE);
     autoStart = false;
     if (watching) {

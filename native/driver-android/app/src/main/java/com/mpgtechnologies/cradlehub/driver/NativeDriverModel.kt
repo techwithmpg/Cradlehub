@@ -104,7 +104,13 @@ internal class NativeDriverModel(context: Context) : ViewModel() {
         DriverPerformance.begin("trips_loading")
         io.execute {
             try {
-                val workspace = if (fixture) fixtureWorkspace() else backend.workspace()
+                val rawWorkspace = if (fixture) fixtureWorkspace() else backend.workspace()
+                val workspace =
+                    if (!fixture && rawWorkspace.tripPlans == null && backend.configured) {
+                        val serverPlans = backend.fetchTripPlans()
+                        if (serverPlans != null) rawWorkspace.copy(tripPlans = serverPlans)
+                        else rawWorkspace
+                    } else rawWorkspace
                 main.post {
                     if (expected == generation) {
                         ui =

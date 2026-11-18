@@ -1,12 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertCircle, Car, CheckCircle2, Clock, MapPin, Navigation, UserRound } from "lucide-react";
+import { AlertCircle, Car, CheckCircle2, Clock, MapPin, Navigation, Route, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatTime12h } from "@/lib/utils/time-format";
 import type { DispatchData, RealDispatchItem } from "@/lib/queries/dispatch-queries";
 import { formatBranchYmd } from "@/lib/engine/slot-time";
+import {
+  optimizeBranchDispatchAction,
+  commitOptimizedDispatchPlanAction,
+  updateBookingCollectionDispositionAction,
+} from "@/lib/actions/optimizer-dispatch-actions";
+import type { OptimizerPlanResult } from "@/lib/dispatch/optimizer-bridge";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
@@ -195,9 +201,52 @@ function VisitCard({
   );
 }
 
-function SelectedVisit({ item }: { item: RealDispatchItem }) {
+function SelectedVisit({
+  item,
+  canManage,
+  collectionDriverName,
+  collectionDecisionOverride,
+  collectionDriverIdOverride,
+  stopOrder,
+  onCollectionUpdated,
+}: {
+  item: RealDispatchItem;
+  canManage: boolean;
+  collectionDriverName: string | null;
+  collectionDecisionOverride: "required" | "not_required" | "undecided" | null;
+  collectionDriverIdOverride: string | null;
+  stopOrder: number | null;
+  onCollectionUpdated: () => void;
+}) {
   const badge = statusBadge(item.dispatchStatus);
   const hasLocation = item.lat !== null && item.lng !== null;
+  const [updatingCollection, setUpdatingCollection] = useState(false);
+  const [collectionFeedback, setCollectionFeedback] = useState<string | null>(null);
+  const decision =
+    item.collectionRequirement?.decision ?? collectionDecisionOverride ?? "undecided";
+
+  async function handleCollectionChange(nextDecision: "required" | "not_required" | "undecided") {
+    setUpdatingCollection(true);
+    setCollectionFeedback(null);
+    const res = await updateBookingCollectionDispositionAction({
+      bookingId: item.id,
+      decision: nextDecision,
+      collectionDriverId:
+        nextDecision === "required"
+          ? (collectionDriverIdOverride ??
+            item.collectionRequirement?.collectionDriverId ??
+            item.driverId ??
+            null)
+          : null,
+    });
+    setUpdatingCollection(false);
+    if (!res.success) {
+      setCollectionFeedback(res.error);
+      return;
+    }
+    setCollectionFeedback("Collection arrangement updated.");
+    onCollectionUpdated();
+  }
 
   return (
     <aside className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5">
@@ -246,8 +295,14 @@ function SelectedVisit({ item }: { item: RealDispatchItem }) {
           <div>
             <p className="font-semibold text-[var(--cs-text)]">
               {item.driverName ?? "Not assigned"}
+              {stopOrder ? ` · Stop #${stopOrder}` : ""}
             </p>
-            <p className="text-xs text-[var(--cs-text-muted)]">Driver</p>
+            <p className="text-xs text-[var(--cs-text-muted)]">
+              Delivery driver
+              {collectionDriverName && collectionDriverName !== item.driverName
+                ? ` · Collection: ${collectionDriverName}`
+                : ""}
+            </p>
           </div>
         </div>
 
@@ -287,6 +342,52 @@ function SelectedVisit({ item }: { item: RealDispatchItem }) {
           <span>Customer location requires attention in the booking workflow.</span>
         </div>
       )}
+
+      {canManage ? (
+        <div className="mt-4 rounded-2xl border border-[var(--cs-border)] bg-white p-3.5 text-xs">
+          <p className="font-bold uppercase tracking-wide text-[var(--cs-text-muted)]">
+            Therapist collection arrangement
+          </p>
+          <p className="mt-1 text-[var(--cs-text-secondary)]">
+            Current: <span className="font-semibold text-[var(--cs-text)]">{decision}</span>
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant={decision === "required" ? "default" : "outline"}
+              disabled={updatingCollection}
+              onClick={() => void handleCollectionChange("required")}
+              className="h-7 px-2.5 text-xs"
+            >
+              Collection Required
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={decision === "not_required" ? "default" : "outline"}
+              disabled={updatingCollection}
+              onClick={() => void handleCollectionChange("not_required")}
+              className="h-7 px-2.5 text-xs"
+            >
+              Independent Departure
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={decision === "undecided" ? "default" : "outline"}
+              disabled={updatingCollection}
+              onClick={() => void handleCollectionChange("undecided")}
+              className="h-7 px-2.5 text-xs"
+            >
+              Undecided
+            </Button>
+          </div>
+          {collectionFeedback ? (
+            <p className="mt-2 text-[11px] font-medium text-[#155A33]">{collectionFeedback}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <Button asChild variant="outline" className="mt-5 h-11 w-full rounded-xl">
         <a href={`/crm/bookings?bookingId=${encodeURIComponent(item.id)}`}>
@@ -333,6 +434,8 @@ function EmptyState({ upcoming }: { upcoming: boolean }) {
 
 export function DispatchFlowTab({
   data,
+  role,
+  onChanged,
   upcoming = false,
   selectedBookingId,
 }: {
@@ -343,6 +446,51 @@ export function DispatchFlowTab({
   selectedBookingId?: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(selectedBookingId ?? null);
+  const [optimizing, setOptimizing] = useState(false);
+  const [applyingPlan, setApplyingPlan] = useState(false);
+  const [optimizerPlan, setOptimizerPlan] = useState<OptimizerPlanResult | null>(null);
+  const [optimizerStatus, setOptimizerStatus] = useState<string | null>(null);
+  const canManage = role !== "driver" && role !== "therapist";
+
+  const journeyByBooking = useMemo(
+    () => new Map((data.transportJourneys ?? []).map((entry) => [entry.journey.bookingId, entry])),
+    [data.transportJourneys]
+  );
+
+  async function handleOptimizePreview() {
+    setOptimizing(true);
+    setOptimizerStatus(null);
+    const res = await optimizeBranchDispatchAction({ planningDate: data.today, commit: false });
+    setOptimizing(false);
+    if (!res.success) {
+      setOptimizerStatus(res.error);
+      return;
+    }
+    setOptimizerPlan(res.plan);
+    if (!res.plan.available) {
+      setOptimizerStatus(res.plan.reason);
+    }
+  }
+
+  async function handleCommitPlan() {
+    if (!optimizerPlan || !optimizerPlan.available) return;
+    setApplyingPlan(true);
+    setOptimizerStatus(null);
+    const res = await commitOptimizedDispatchPlanAction({
+      snapshotId: optimizerPlan.snapshotId,
+      bookingUpdates: optimizerPlan.bookingUpdates,
+    });
+    setApplyingPlan(false);
+    if (!res.success) {
+      setOptimizerStatus(res.error);
+      return;
+    }
+    setOptimizerPlan(null);
+    setOptimizerStatus(
+      `Applied optimized route plan across ${res.committedCount} booking(s) (${res.notifiedDriverIds.length} driver notice(s)).`
+    );
+    onChanged();
+  }
 
   const activeSelectedId =
     selectedId && data.items.some((item) => item.id === selectedId)
@@ -365,10 +513,12 @@ export function DispatchFlowTab({
     return <EmptyState upcoming={upcoming} />;
   }
 
+  const selectedJourney = selected ? journeyByBooking.get(selected.id) : undefined;
+
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.75fr)]">
       <div className="rounded-2xl border border-[var(--cs-border)] bg-[var(--cs-surface)] p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between gap-3 border-b border-[var(--cs-border)] pb-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--cs-border)] pb-4">
           <div>
             <h2 className="text-xl font-bold text-[var(--cs-text)]">
               {upcoming ? "Upcoming Home Visits" : "Today's Home Visits"}
@@ -381,11 +531,82 @@ export function DispatchFlowTab({
             </p>
           </div>
 
-          <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-            {sortedItems.length} visit
-            {sortedItems.length === 1 ? "" : "s"}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {canManage && !upcoming ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={optimizing || applyingPlan}
+                onClick={() => void handleOptimizePreview()}
+                className="h-8 gap-1.5 rounded-full border-[#155A33]/40 text-xs font-semibold text-[#155A33]"
+              >
+                <Route size={14} />
+                {optimizing ? "Optimizing…" : "Optimize Routes"}
+              </Button>
+            ) : null}
+
+            <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+              {sortedItems.length} visit
+              {sortedItems.length === 1 ? "" : "s"}
+            </span>
+          </div>
         </div>
+
+        {optimizerStatus ? (
+          <div
+            role="status"
+            className="mb-4 rounded-xl border border-[var(--cs-border)] bg-[#f7f5ee] px-3.5 py-2.5 text-xs text-[var(--cs-text)]"
+          >
+            {optimizerStatus}
+          </div>
+        ) : null}
+
+        {optimizerPlan && optimizerPlan.available ? (
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs text-emerald-950">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-bold">
+                  Route Plan Ready ({optimizerPlan.response.feasibility_status}) ·{" "}
+                  {optimizerPlan.response.metrics.active_driver_count} driver(s),{" "}
+                  {optimizerPlan.response.metrics.pooled_route_count} pooled route(s),{" "}
+                  {Math.round(optimizerPlan.response.metrics.total_driving_minutes)} driving min
+                </p>
+                <p className="mt-0.5 text-emerald-800">
+                  Travel matrix: {optimizerPlan.matrixVersion} · Assigned legs:{" "}
+                  {optimizerPlan.bookingUpdates.length}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={applyingPlan}
+                  onClick={() => setOptimizerPlan(null)}
+                  className="h-8 text-xs"
+                >
+                  Dismiss
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={applyingPlan || !optimizerPlan.response.operational_commitment_allowed}
+                  title={
+                    optimizerPlan.response.operational_commitment_allowed
+                      ? undefined
+                      : optimizerPlan.response.infeasibility_reasons[0] ??
+                        "Manual review required before committing partial or unresolved legs."
+                  }
+                  onClick={() => void handleCommitPlan()}
+                  className="h-8 bg-[#1F4E33] text-xs text-white hover:bg-[#163a26]"
+                >
+                  {applyingPlan ? "Applying…" : "Apply Optimized Plan"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="space-y-3">
           {sortedItems.map((item) => (
@@ -400,7 +621,21 @@ export function DispatchFlowTab({
         </div>
       </div>
 
-      {selected ? <SelectedVisit item={selected} /> : null}
+      {selected ? (
+        <SelectedVisit
+          item={selected}
+          canManage={canManage}
+          collectionDriverName={
+            selectedJourney?.collectionDriverName ??
+            selected.collectionRequirement?.collectionDriverName ??
+            null
+          }
+          collectionDecisionOverride={selectedJourney?.journey.collectionDecision ?? null}
+          collectionDriverIdOverride={selectedJourney?.journey.collectionDriverId ?? null}
+          stopOrder={selectedJourney?.journey.stopOrder ?? null}
+          onCollectionUpdated={onChanged}
+        />
+      ) : null}
     </section>
   );
 }

@@ -25,6 +25,7 @@ import { refreshDispatchDataAction } from "@/lib/actions/dispatch-data-actions";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
 import { DispatchFlowTab } from "./dispatch-flow-tab";
 import { DispatchLiveMapTab } from "./dispatch-live-map-tab";
+import { CrmOptimizationAssistantPanel } from "@/components/features/optimization/crm-optimization-assistant-panel";
 import { useWorkspaceSWRKey } from "@/components/features/dashboard/workspace-swr-cache";
 import { useLiveCrmDispatchData } from "./use-live-crm-dispatch-data";
 
@@ -328,6 +329,9 @@ export function HomeServiceDispatchWorkspace({
           )
         ) : null}
       </CrmTabPanel>
+      {role === "crm" && !upcoming ? (
+        <CrmOptimizationAssistantPanel date={data.today} compact />
+      ) : null}
     </section>
   );
 }

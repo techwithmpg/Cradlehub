@@ -16,7 +16,11 @@ from fastapi.responses import JSONResponse
 
 from app import __version__
 from app.models import OptimizationResponse, OptimizeRequest, SimulationRequest, SimulationResponse
+from app.onsite_models import OnsiteSolveRequest, OnsiteSolveResponse
+from app.onsite_solver import solve_onsite_request
 from app.solver import optimize_dispatch, run_simulation_comparison
+from app.unified_engine import evaluate_unified_operations
+from app.unified_models import UnifiedEvaluateRequest, UnifiedEvaluateResponse
 from app.validation import RequestValidationError
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
@@ -104,6 +108,16 @@ def simulate_endpoint(payload: SimulationRequest) -> SimulationResponse:
         scenario_name=scenario_label,
         compare_fairness=payload.compare_fairness,
     )
+
+
+@app.post("/v1/onsite/solve", response_model=OnsiteSolveResponse)
+def onsite_solve_endpoint(payload: OnsiteSolveRequest) -> OnsiteSolveResponse:
+    return solve_onsite_request(payload)
+
+
+@app.post("/v1/unified/evaluate", response_model=UnifiedEvaluateResponse)
+def unified_evaluate_endpoint(payload: UnifiedEvaluateRequest) -> UnifiedEvaluateResponse:
+    return evaluate_unified_operations(payload)
 
 
 if __name__ == "__main__":

@@ -155,6 +155,21 @@ internal class NativeDriverBackend(context: Context) {
         request(supabase + "/auth/v1/settings", null, auth = false)
     }
 
+    fun fetchTripPlans(): List<TripsJourney>? =
+        try {
+            val reply = request(api + "/api/staff/driver/journeys", null, web = true)
+            if (reply.status == 401) {
+                clear()
+                throw NativeAuthExpired()
+            }
+            if (reply.status == 200 && reply.body.optBoolean("ok")) {
+                NativeTripsPolicy.parseTripPlans(reply.body.optJSONArray("tripPlans"))
+            } else null
+        } catch (error: Exception) {
+            if (error is NativeAuthExpired) throw error
+            null
+        }
+
     private fun acceptSession(value: JSONObject) {
         require(
             value.getString("access_token").length > 40 &&
@@ -259,6 +274,7 @@ internal class NativeDriverBackend(context: Context) {
                 .toLocalDate()
         val failures = mutableSetOf<String>()
         var partial: String? = null
+        var parsedTripPlans: List<TripsJourney>? = null
         val trips =
             try {
                 val journeys = call("/api/staff/driver/journeys", null)
@@ -269,6 +285,7 @@ internal class NativeDriverBackend(context: Context) {
                         journeys.body.optString("code"),
                     )
                 ) {
+                    parsedTripPlans = emptyList()
                     val rows =
                         read(
                             "bookings?select=id,driver_id,branch_id,delivery_type,status,booking_date,start_time,booking_progress_status,metadata,customers(full_name),therapist:staff!staff_id(full_name,nickname),branches(name)&driver_id=eq.$id&branch_id=eq.$branchId&delivery_type=eq.home_service&status=in.(confirmed,in_progress)&booking_date=gte.${today.minusDays(30)}&booking_date=lte.${today.plusDays(14)}&order=booking_date.asc,start_time.asc&limit=200"
@@ -279,6 +296,8 @@ internal class NativeDriverBackend(context: Context) {
                         .toMutableList()
                 } else {
                     check(journeys.status == 200 && journeys.body.optBoolean("ok"))
+                    parsedTripPlans =
+                        NativeTripsPolicy.parseTripPlans(journeys.body.optJSONArray("tripPlans"))
                     val rows = journeys.body.getJSONArray("journeys")
                     (0 until rows.length())
                         .map { DriverTripPolicy.parse(rows.getJSONObject(it)) }
@@ -389,6 +408,7 @@ internal class NativeDriverBackend(context: Context) {
             today,
             partial,
             failures,
+            parsedTripPlans,
         )
     }
 
