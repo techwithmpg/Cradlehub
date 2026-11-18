@@ -392,6 +392,10 @@ export function parseCollectionRequirement(input: {
     if (raw.decision === "required") {
       const confirmed =
         Boolean(raw.collectionConfirmed) || (stage !== null && confirmedStages.has(stage));
+      const resolvedColDriverId =
+        raw.collectionDriverId ?? input.transportJourney?.journey.collectionDriverId ?? null;
+      const resolvedColDriverName =
+        raw.collectionDriverName ?? input.transportJourney?.collectionDriverName ?? null;
       return {
         decision: "required",
         hasValidApproval: false,
@@ -399,15 +403,52 @@ export function parseCollectionRequirement(input: {
         source: raw.source ?? null,
         approvedBy: raw.approvedBy ?? null,
         approvedAt: raw.approvedAt ?? null,
-        collectionDriverId: raw.collectionDriverId ?? null,
-        collectionDriverName: raw.collectionDriverName ?? null,
+        collectionDriverId: resolvedColDriverId,
+        collectionDriverName: resolvedColDriverName,
         collectionConfirmed: confirmed,
-        label: raw.collectionDriverName
-          ? `Collection required · ${raw.collectionDriverName}`
+        label: resolvedColDriverName
+          ? `Collection required · ${resolvedColDriverName}`
           : "Collection required",
         requiresResolution: false,
       };
     }
+  }
+
+  const jDecision = input.transportJourney?.journey.collectionDecision ?? null;
+  const jMeta = input.transportJourney?.journey.collectionApprovalMetadata ?? null;
+  const jHasApproval = Boolean(jMeta && (jMeta.approvedBy || jMeta.approvedAt || jMeta.source));
+  if (jDecision === "not_required" && jHasApproval) {
+    return {
+      decision: "not_required",
+      hasValidApproval: true,
+      reasonCode: typeof jMeta?.reasonCode === "string" ? jMeta.reasonCode : "APPROVED_INDEPENDENT_DEPARTURE",
+      source: typeof jMeta?.source === "string" ? jMeta.source : "driver_unified_journey",
+      approvedBy: typeof jMeta?.approvedBy === "string" ? jMeta.approvedBy : null,
+      approvedAt: typeof jMeta?.approvedAt === "string" ? jMeta.approvedAt : null,
+      collectionDriverId: null,
+      collectionDriverName: null,
+      collectionConfirmed: false,
+      label: "Collection not required (approved independent departure)",
+      requiresResolution: false,
+    };
+  }
+  if (jDecision === "required") {
+    const colDriverId = input.transportJourney?.journey.collectionDriverId ?? null;
+    const colDriverName =
+      input.transportJourney?.collectionDriverName ?? input.transportJourney?.driverName ?? null;
+    return {
+      decision: "required",
+      hasValidApproval: false,
+      reasonCode: typeof jMeta?.reasonCode === "string" ? jMeta.reasonCode : "O4_PLAN",
+      source: typeof jMeta?.source === "string" ? jMeta.source : "driver_unified_journey",
+      approvedBy: null,
+      approvedAt: null,
+      collectionDriverId: colDriverId,
+      collectionDriverName: colDriverName,
+      collectionConfirmed: stage !== null && confirmedStages.has(stage),
+      label: colDriverName ? `Collection required · ${colDriverName}` : "Collection required",
+      requiresResolution: false,
+    };
   }
 
   if (
@@ -429,12 +470,14 @@ export function parseCollectionRequirement(input: {
       source: "driver_unified_journey",
       approvedBy: null,
       approvedAt: null,
-      collectionDriverId: null,
-      collectionDriverName: input.transportJourney?.driverName ?? null,
+      collectionDriverId: input.transportJourney?.journey.collectionDriverId ?? null,
+      collectionDriverName:
+        input.transportJourney?.collectionDriverName ?? input.transportJourney?.driverName ?? null,
       collectionConfirmed: confirmedStages.has(stage),
-      label: input.transportJourney?.driverName
-        ? `Collection required · ${input.transportJourney.driverName}`
-        : "Collection required",
+      label:
+        (input.transportJourney?.collectionDriverName ?? input.transportJourney?.driverName)
+          ? `Collection required · ${input.transportJourney?.collectionDriverName ?? input.transportJourney?.driverName}`
+          : "Collection required",
       requiresResolution: false,
     };
   }
@@ -861,9 +904,10 @@ export function buildLiveMapDriversViewModel(input: {
       continue;
     }
 
-    // Active collection may be assigned to a collection driver different from delivery driver
+    // Active collection may be assigned to a collection driver different from delivery driver (exclude timer-expired auto_due completions)
     const activeServiceCompleted =
-      item.bookingStatus === "completed" || item.bookingProgressStatus === "completed";
+      (item.bookingStatus === "completed" || item.bookingProgressStatus === "completed") &&
+      item.sessionCompletionSource !== "auto_due";
     const effectiveDriverId =
       activeServiceCompleted && collection.decision === "required" && collection.collectionDriverId
         ? collection.collectionDriverId
@@ -990,7 +1034,13 @@ export function buildLiveMapDriversViewModel(input: {
   for (const journeyEntry of input.transportJourneys ?? []) {
     const j = journeyEntry.journey;
     if (representedIds.has(j.bookingId) || j.stage === "complete") continue;
-    const driverIdKey = `journey-driver:${journeyEntry.driverName ?? j.bookingId}`;
+    const resolvedActiveDriverId =
+      j.activeDriverId ??
+      (j.stage.startsWith("collection_") || j.stage.startsWith("return_")
+        ? j.collectionDriverId ?? j.deliveryDriverId
+        : j.deliveryDriverId ?? j.collectionDriverId) ??
+      null;
+    const driverIdKey = resolvedActiveDriverId ?? `journey-driver:${j.bookingId}`;
     const serviceTimer = computeCrmServiceTimerSummary({
       bookingStatus: "completed",
       bookingProgressStatus: "completed",
@@ -1014,7 +1064,7 @@ export function buildLiveMapDriversViewModel(input: {
       bookingNumber: j.bookingId.slice(0, 8),
       stopKind: j.leg === "return" ? "return" : "collection",
       customerName: j.customerName ?? "Home Service",
-      therapistId: "",
+      therapistId: j.therapistId ?? "",
       therapistName: j.therapistName ?? null,
       serviceName: "Collection leg",
       destinationLabel: j.destination?.label ?? j.customerAddress ?? "Collection point",
@@ -1041,13 +1091,19 @@ export function buildLiveMapDriversViewModel(input: {
         }
       : null;
 
-    groupedStops.set(driverIdKey, {
-      driverId: driverIdKey,
-      driverName: journeyEntry.driverName ?? "Assigned driver",
-      latestLocation: loc,
-      stops: [stopSummary],
-      latestStatusPriority: 0,
-    });
+    const existingGroup = groupedStops.get(driverIdKey);
+    if (existingGroup) {
+      existingGroup.latestLocation = mergeMonotonicGpsLocation(existingGroup.latestLocation, loc);
+      existingGroup.stops.push(stopSummary);
+    } else {
+      groupedStops.set(driverIdKey, {
+        driverId: driverIdKey,
+        driverName: journeyEntry.driverName ?? "Assigned driver",
+        latestLocation: loc,
+        stops: [stopSummary],
+        latestStatusPriority: 0,
+      });
+    }
   }
 
   const drivers: DriverTrack[] = [];

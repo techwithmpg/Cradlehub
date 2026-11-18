@@ -206,6 +206,8 @@ export async function getAttendanceActionContext(options?: {
     .select("id, branch_id, branches(name), system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
     .maybeSingle();
 
   if (me && canAccessCrmWorkspace(me.system_role) && (me.branch_id || canonicalizeSystemRole(me.system_role) === "owner")) {

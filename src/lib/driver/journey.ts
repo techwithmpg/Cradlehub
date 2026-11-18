@@ -31,6 +31,7 @@ export const journeySchema = z
       .nullable(),
     observedAt: z.iso.datetime({ offset: true }),
     reason: z.string().nullable().optional(),
+    therapistId: z.guid().nullable().optional(),
     therapistName: z.string().max(160).nullable().optional(),
     customerName: z.string().max(160).nullable().optional(),
     branchName: z.string().max(160).nullable().optional(),
@@ -39,8 +40,53 @@ export const journeySchema = z
       .string()
       .regex(/^\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/)
       .optional(),
+    endTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/)
+      .nullable()
+      .optional(),
     pickupLabel: z.string().max(200).nullable().optional(),
+    pickupCoords: z
+      .object({
+        lat: z.number().finite().min(-90).max(90),
+        lng: z.number().finite().min(-180).max(180),
+      })
+      .nullable()
+      .optional(),
     customerAddress: z.string().max(200).nullable().optional(),
+    customerCoords: z
+      .object({
+        lat: z.number().finite().min(-90).max(90),
+        lng: z.number().finite().min(-180).max(180),
+      })
+      .nullable()
+      .optional(),
+    vehicleJourneyId: z.guid().nullable().optional(),
+    deliveryDriverId: z.guid().nullable().optional(),
+    collectionDriverId: z.guid().nullable().optional(),
+    activeDriverId: z.guid().nullable().optional(),
+    viewerDriverId: z.guid().nullable().optional(),
+    stopOrder: z.number().int().positive().nullable().optional(),
+    collectionDecision: z.enum(["required", "not_required", "undecided"]).nullable().optional(),
+    collectionApprovalMetadata: z.record(z.string(), z.unknown()).nullable().optional(),
+    returnDestination: z
+      .object({
+        lat: z.number().finite().min(-90).max(90),
+        lng: z.number().finite().min(-180).max(180),
+        label: z.string().max(200).optional(),
+      })
+      .nullable()
+      .optional(),
+    optimizerSnapshotId: z.string().max(160).nullable().optional(),
+    boardedAt: z.string().nullable().optional(),
+    deliveredAt: z.string().nullable().optional(),
+    collectedAt: z.string().nullable().optional(),
+    bookingStatus: z.string().max(64).nullable().optional(),
+    bookingProgressStatus: z.string().max(64).nullable().optional(),
+    sessionStartedAt: z.string().nullable().optional(),
+    sessionDueAt: z.string().nullable().optional(),
+    sessionCompletedAt: z.string().nullable().optional(),
+    sessionCompletionSource: z.string().max(64).nullable().optional(),
   })
   .refine(
     (j) => {

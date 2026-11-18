@@ -6,6 +6,7 @@ import { parseBookingTime } from "@/lib/bookings/booking-clock-time";
 import { isDevAuthBypassEnabled } from "@/lib/dev-bypass";
 import { getAvailableSlotsMulti } from "@/lib/engine/availability";
 import { resolveExactCrmBookingTime } from "@/lib/engine/exact-crm-booking-time";
+import { getCrmRoomSummaryAndAlternatives } from "@/lib/optimization/onsite-availability-adapter";
 import { validateBranchServiceEligibility } from "@/lib/services/service-catalog";
 import { createClient } from "@/lib/supabase/server";
 import { serviceLineRequestSchema } from "@/lib/validations/booking";
@@ -40,6 +41,8 @@ async function assertCrmAccess(branchId: string) {
     .select("branch_id, system_role")
     .eq("auth_user_id", user.id)
     .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
     .maybeSingle();
 
   const role = canonicalizeSystemRole(staff?.system_role ?? "");
@@ -129,7 +132,7 @@ export async function POST(request: NextRequest) {
     const needsAlternativeSlots =
       parsed.data.bookingMode === "phone" || parsed.data.bookingMode === "standard_future";
 
-    const [exactAvailability, slots] = await Promise.all([
+    const [exactAvailability, slots, unifiedInsight] = await Promise.all([
       resolveExactCrmBookingTime({
         branchId: parsed.data.branchId,
         serviceIds: parsed.data.serviceIds,
@@ -152,11 +155,23 @@ export async function POST(request: NextRequest) {
             allowStaffTypeFallbackAlongsideAssignments: parsed.data.deliveryType !== "home_service",
           })
         : Promise.resolve([]),
+      getCrmRoomSummaryAndAlternatives({
+        branchId: parsed.data.branchId,
+        date: parsed.data.date,
+        serviceIds: parsed.data.serviceIds,
+        durationsMinutes: selectedDurationMinutes,
+        requestedStartTime: parsedTime.value.canonicalTime,
+        deliveryType: parsed.data.deliveryType,
+        preferredStaffId: parsed.data.staffId,
+        findAlternatives: true,
+      }).catch(() => ({ roomSummary: null, alternatives: [] })),
     ]);
 
     return NextResponse.json({
       ...exactAvailability,
       slots,
+      roomSummary: unifiedInsight.roomSummary,
+      nextBestAlternatives: unifiedInsight.alternatives,
     });
   } catch (error) {
     console.error("[CRM_AVAILABILITY] exact-time resolution failed", error);

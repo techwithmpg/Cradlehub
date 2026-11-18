@@ -93,6 +93,8 @@ async function getCrmOperator() {
     .select("id, branch_id, system_role")
     .eq("auth_user_id", auth.user.id)
     .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
     .maybeSingle();
 
   if (!staff) return null;
@@ -149,6 +151,24 @@ export async function previewSessionExtensionAction(input: {
       additionalPrice: 0,
       newTotalPrice: 0,
       resolution: { kind: "blocked", reason: "Booking not found" },
+    };
+  }
+
+  if (operator.system_role !== "owner" && booking.branch_id !== operator.branch_id) {
+    return {
+      ok: false,
+      error: "Unauthorized to preview session extension for another branch.",
+      bookingId: input.bookingId,
+      extraMinutes,
+      currentDurationMinutes: 60,
+      newDurationMinutes: 60 + extraMinutes,
+      currentEndTime: "",
+      newEndTime: "",
+      newSessionDueAtIso: null,
+      currentPrice: 0,
+      additionalPrice: 0,
+      newTotalPrice: 0,
+      resolution: { kind: "blocked", reason: "Unauthorized branch access" },
     };
   }
 
@@ -217,6 +237,68 @@ export async function previewSessionExtensionAction(input: {
     }
   }
 
+  const [{ data: dayBookings }, { data: schedRulesRow }] = await Promise.all([
+    admin
+      .from("bookings")
+      .select(
+        "id, service_id, staff_id, resource_id, start_time, end_time, status, hold_expires_at, delivery_type, metadata, customers(full_name)"
+      )
+      .eq("branch_id", booking.branch_id)
+      .eq("booking_date", booking.booking_date)
+      .neq("id", booking.id),
+    admin
+      .from("scheduling_rules")
+      .select("room_reset_buffer_minutes")
+      .eq("branch_id", booking.branch_id)
+      .maybeSingle(),
+  ]);
+
+  const now = new Date();
+  const activeDayBookings = (dayBookings ?? []).filter((b) => bookingBlocksAvailability(b, now));
+  const roomResetMins = Math.max(0, Number(schedRulesRow?.room_reset_buffer_minutes ?? 10));
+
+  // 0. Check room capacity conflict (including mandatory room reset buffer) even when unassigned
+  if (booking.resource_id && booking.delivery_type !== "home_service") {
+    const { data: roomRow } = await admin
+      .from("branch_resources")
+      .select("capacity, name")
+      .eq("id", booking.resource_id)
+      .eq("branch_id", booking.branch_id)
+      .maybeSingle();
+    const roomCap = roomRow?.capacity ?? 1;
+    const roomOverlapCount = activeDayBookings.filter((b) => {
+      if (b.resource_id !== booking.resource_id) return false;
+      const bStart = timeToMinutes(b.start_time);
+      const bEnd = b.end_time ? timeToMinutes(b.end_time) : bStart + 60;
+      return rangesOverlap(
+        currentEndMins,
+        newEndMins + roomResetMins,
+        bStart,
+        bEnd + roomResetMins
+      );
+    }).length;
+    if (roomOverlapCount >= roomCap) {
+      return {
+        ok: false,
+        error: "Assigned room is booked by another guest or requires reset turnover during this extension.",
+        bookingId: booking.id,
+        extraMinutes,
+        currentDurationMinutes,
+        newDurationMinutes,
+        currentEndTime,
+        newEndTime,
+        newSessionDueAtIso,
+        currentPrice,
+        additionalPrice,
+        newTotalPrice,
+        resolution: {
+          kind: "blocked",
+          reason: `${roomRow?.name ?? "The assigned room"} reaches full capacity (${roomCap}) including ${roomResetMins}m turnover reset between ${currentEndTime.slice(0, 5)} and ${newEndTime.slice(0, 5)}.`,
+        },
+      };
+    }
+  }
+
   // Check if the assigned therapist has any overlapping booking during [currentEndMins, newEndMins]
   if (!booking.staff_id) {
     return {
@@ -237,18 +319,6 @@ export async function previewSessionExtensionAction(input: {
       },
     };
   }
-
-  const { data: dayBookings } = await admin
-    .from("bookings")
-    .select(
-      "id, service_id, staff_id, resource_id, start_time, end_time, status, hold_expires_at, delivery_type, metadata, customers(full_name)"
-    )
-    .eq("branch_id", booking.branch_id)
-    .eq("booking_date", booking.booking_date)
-    .neq("id", booking.id);
-
-  const now = new Date();
-  const activeDayBookings = (dayBookings ?? []).filter((b) => bookingBlocksAvailability(b, now));
 
   // 1. Check Therapist Conflicts in the extended window
   const therapistConflicts = activeDayBookings.filter((b) => {
@@ -429,32 +499,48 @@ export async function commitSessionExtensionAction(input: {
   const admin = createAdminClient();
   const { data: booking } = await admin
     .from("bookings")
-    .select("id, order_id, branch_id, staff_id, payment_status, amount_paid, metadata, customers(full_name)")
+    .select(
+      "id, order_id, branch_id, staff_id, end_time, session_due_at, payment_status, amount_paid, metadata, customers(full_name)"
+    )
     .eq("id", input.bookingId)
     .maybeSingle();
 
   if (!booking) {
     return { ok: false, message: "Booking not found." };
   }
+  if (operator.system_role !== "owner" && booking.branch_id !== operator.branch_id) {
+    return { ok: false, message: "Unauthorized to modify bookings for another branch." };
+  }
 
   let swappedBookingId: string | null = null;
   let swappedToStaffName: string | null = null;
+  let swapRollbackState: { staffId: string | null; metadata: Json } | null = null;
 
-  // 1. If Domino Auto-Swap is required, atomically reassign the conflicting next booking to the #1 FCFS replacement therapist!
+  // 1. If Domino Auto-Swap is required, reassign the conflicting next booking within the same branch (with rollback snapshot)
   if (preview.resolution.kind === "domino_auto_swap") {
     const swap = preview.resolution;
     const { data: conflictingRow } = await admin
       .from("bookings")
-      .select("id, metadata")
+      .select("id, staff_id, branch_id, metadata")
       .eq("id", swap.conflictingBookingId)
+      .eq("branch_id", booking.branch_id)
       .maybeSingle();
 
+    if (!conflictingRow) {
+      return { ok: false, message: "Conflicting booking was not found in this branch." };
+    }
+
     const conflictMeta =
-      conflictingRow?.metadata &&
+      conflictingRow.metadata &&
       typeof conflictingRow.metadata === "object" &&
       !Array.isArray(conflictingRow.metadata)
         ? (conflictingRow.metadata as Record<string, unknown>)
         : {};
+
+    swapRollbackState = {
+      staffId: conflictingRow.staff_id ?? null,
+      metadata: conflictingRow.metadata,
+    };
 
     const { error: swapErr } = await admin
       .from("bookings")
@@ -467,7 +553,8 @@ export async function commitSessionExtensionAction(input: {
           domino_reassigned_reason: `Auto-reassigned to accommodate +${preview.extraMinutes}m session extension on prior booking`,
         } as Json,
       })
-      .eq("id", swap.conflictingBookingId);
+      .eq("id", swap.conflictingBookingId)
+      .eq("branch_id", booking.branch_id);
 
     if (swapErr) {
       return {
@@ -478,24 +565,20 @@ export async function commitSessionExtensionAction(input: {
 
     swappedBookingId = swap.conflictingBookingId;
     swappedToStaffName = swap.replacementStaffName;
-
-    // Notify replacement therapist via Web Push
-    void createOrUpdateNotification({
-      branchId: booking.branch_id,
-      targetWorkspace: "staff",
-      recipientStaffId: swap.replacementStaffId,
-      actorStaffId: operator.id,
-      type: "booking_reassigned",
-      title: `New Assigned Appointment at ${swap.conflictingStartTime}`,
-      body: `You have been assigned ${swap.conflictingCustomerName}'s ${swap.conflictingStartTime} appointment (covering for an extended session).`,
-      entityType: "booking",
-      entityId: swap.conflictingBookingId,
-      actionHref: "/staff-portal/schedule",
-      priority: "high",
-      requiresAction: false,
-      dedupeKey: `domino-swap:${swap.conflictingBookingId}:${Date.now()}`,
-    });
   }
+
+  const rollbackSwap = async () => {
+    if (swappedBookingId && swapRollbackState) {
+      await admin
+        .from("bookings")
+        .update({
+          staff_id: swapRollbackState.staffId as never,
+          metadata: swapRollbackState.metadata,
+        })
+        .eq("id", swappedBookingId)
+        .eq("branch_id", booking.branch_id);
+    }
+  };
 
   // 2. Update the extended booking's end_time, session_due_at, duration_minutes, price_paid, and payment_status
   const currentMeta =
@@ -537,9 +620,11 @@ export async function commitSessionExtensionAction(input: {
       payment_status: nextPaymentStatus,
       metadata: updatedMeta as Json,
     })
-    .eq("id", booking.id);
+    .eq("id", booking.id)
+    .eq("branch_id", booking.branch_id);
 
   if (updateError) {
+    await rollbackSwap();
     return { ok: false, message: "Could not save session extension." };
   }
 
@@ -561,7 +646,7 @@ export async function commitSessionExtensionAction(input: {
       const oldOrderTotal = Number(orderMeta.total_amount ?? preview.currentPrice);
       const oldSubtotal = Number(orderMeta.subtotal_amount ?? preview.currentPrice);
 
-      await admin
+      const { error: orderErr } = await admin
         .from("booking_orders")
         .update({
           metadata: {
@@ -571,8 +656,42 @@ export async function commitSessionExtensionAction(input: {
             payment_received: false,
           } as Json,
         })
-        .eq("id", orderRow.id);
+        .eq("id", orderRow.id)
+        .eq("branch_id", booking.branch_id);
+      if (orderErr) {
+        await admin
+          .from("bookings")
+          .update({
+            end_time: booking.end_time,
+            session_due_at: booking.session_due_at,
+            payment_status: booking.payment_status,
+            metadata: booking.metadata,
+          })
+          .eq("id", booking.id)
+          .eq("branch_id", booking.branch_id);
+        await rollbackSwap();
+        return { ok: false, message: "Could not synchronize order total for session extension." };
+      }
     }
+  }
+
+  if (swappedBookingId && preview.resolution.kind === "domino_auto_swap") {
+    const swap = preview.resolution;
+    void createOrUpdateNotification({
+      branchId: booking.branch_id,
+      targetWorkspace: "staff",
+      recipientStaffId: swap.replacementStaffId,
+      actorStaffId: operator.id,
+      type: "booking_reassigned",
+      title: `New Assigned Appointment at ${swap.conflictingStartTime}`,
+      body: `You have been assigned ${swap.conflictingCustomerName}'s ${swap.conflictingStartTime} appointment (covering for an extended session).`,
+      entityType: "booking",
+      entityId: swap.conflictingBookingId,
+      actionHref: "/staff-portal/schedule",
+      priority: "high",
+      requiresAction: false,
+      dedupeKey: `domino-swap:${swap.conflictingBookingId}:${Date.now()}`,
+    });
   }
 
   // 4. Notify the active therapist via Web Push that their session was extended

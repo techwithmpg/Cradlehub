@@ -8,6 +8,7 @@ import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
+import { CrmOptimizationAssistantPanel } from "@/components/features/optimization/crm-optimization-assistant-panel";
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -65,20 +66,23 @@ export default async function CrmSchedulePage({
 
   return (
     <RetainedWorkspaceModule moduleId="crm-schedule">
-      <ScheduleWorkspaceShell
-        branchId={branchId}
-        branchName={branchName}
-        date={selectedDate}
-        staffRows={staffRows}
-        availabilityItems={availabilityItems}
-        branchResources={resourcesResult.data ?? []}
-        stats={stats}
-        readiness={readiness}
-        schedulingRules={schedulingRules}
-        dailyTimelineError={dailyScheduleResult.error}
-        dailyTimelineNow={new Date().toISOString()}
-        assistanceEnabled={process.env.CRADLEHUB_INTERBRANCH_ASSISTANCE_ENABLED === "true"}
-      />
+      <div className="space-y-4">
+        <CrmOptimizationAssistantPanel date={selectedDate} compact />
+        <ScheduleWorkspaceShell
+          branchId={branchId}
+          branchName={branchName}
+          date={selectedDate}
+          staffRows={staffRows}
+          availabilityItems={availabilityItems}
+          branchResources={resourcesResult.data ?? []}
+          stats={stats}
+          readiness={readiness}
+          schedulingRules={schedulingRules}
+          dailyTimelineError={dailyScheduleResult.error}
+          dailyTimelineNow={new Date().toISOString()}
+          assistanceEnabled={process.env.CRADLEHUB_INTERBRANCH_ASSISTANCE_ENABLED === "true"}
+        />
+      </div>
     </RetainedWorkspaceModule>
   );
 }

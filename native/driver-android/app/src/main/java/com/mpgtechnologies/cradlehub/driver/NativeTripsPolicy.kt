@@ -366,4 +366,118 @@ internal object NativeTripsPolicy {
                 trip.actionable,
             )
         }
+
+    fun parseTripPlans(array: org.json.JSONArray?): List<TripsJourney>? {
+        if (array == null) return null
+        val parsed = mutableListOf<TripsJourney>()
+        for (i in 0 until array.length()) {
+            val obj = array.optJSONObject(i) ?: continue
+            val id = obj.nullableText("id") ?: continue
+            val driverId = obj.nullableText("driverId") ?: continue
+            val mode =
+                if (obj.optString("mode") == "PICK_UP") TripsMode.PICK_UP else TripsMode.DROP_OFF
+            val scheduled = obj.nullableText("scheduled") ?: "Scheduled"
+            val origin = obj.nullableText("origin") ?: "Assigned origin"
+            val destination = obj.nullableText("destination") ?: "Assigned destination"
+            val stage = obj.nullableText("stage") ?: "pickup_pending"
+            val routeAuthorized = obj.optBoolean("routeAuthorized", false)
+
+            val passengers = mutableListOf<TripsPassenger>()
+            val pArr = obj.optJSONArray("passengers")
+            if (pArr != null) {
+                for (j in 0 until pArr.length()) {
+                    val p = pArr.optJSONObject(j) ?: continue
+                    val pId = p.nullableText("id") ?: continue
+                    val service =
+                        when (p.optString("service")) {
+                            "IN_PROGRESS" -> ServiceReadiness.IN_PROGRESS
+                            "COMPLETED" -> ServiceReadiness.COMPLETED
+                            else -> ServiceReadiness.UNKNOWN
+                        }
+                    val col =
+                        when (p.optString("collection")) {
+                            "REQUIRED" -> CollectionNeed.REQUIRED
+                            "NOT_REQUIRED" -> CollectionNeed.NOT_REQUIRED
+                            else -> CollectionNeed.UNDECIDED
+                        }
+                    val est =
+                        p.nullableText("estimatedCompletion")?.let {
+                            runCatching { Instant.parse(it) }.getOrNull()
+                        }
+                    passengers.add(
+                        TripsPassenger(
+                            id = pId,
+                            name = p.nullableText("name") ?: "Therapist",
+                            service = service,
+                            estimatedCompletion = est,
+                            collection = col,
+                            boarded = p.optBoolean("boarded", false),
+                            dropped = p.optBoolean("dropped", false),
+                        )
+                    )
+                }
+            }
+
+            val stops = mutableListOf<TripsStop>()
+            val sArr = obj.optJSONArray("stops")
+            if (sArr != null) {
+                for (j in 0 until sArr.length()) {
+                    val s = sArr.optJSONObject(j) ?: continue
+                    val sId = s.nullableText("id") ?: continue
+                    val bId = s.nullableText("bookingId") ?: continue
+                    val role =
+                        when (s.optString("role")) {
+                            "BRANCH_PICKUP" -> StopRole.BRANCH_PICKUP
+                            "CUSTOMER_DROP" -> StopRole.CUSTOMER_DROP
+                            "THERAPIST_COLLECTION" -> StopRole.THERAPIST_COLLECTION
+                            else -> StopRole.DESTINATION
+                        }
+                    val progress =
+                        when (s.optString("progress")) {
+                            "ENROUTE" -> StopProgress.ENROUTE
+                            "ARRIVED" -> StopProgress.ARRIVED
+                            "CONFIRMED" -> StopProgress.CONFIRMED
+                            else -> StopProgress.PENDING
+                        }
+                    val passIds = mutableSetOf<String>()
+                    val spArr = s.optJSONArray("passengers")
+                    if (spArr != null) {
+                        for (k in 0 until spArr.length()) {
+                            spArr.optString(k)?.takeIf { it.isNotBlank() }?.let(passIds::add)
+                        }
+                    }
+                    val lat = if (s.isNull("lat")) null else s.optDouble("lat").takeIf { it.isFinite() }
+                    val lng = if (s.isNull("lng")) null else s.optDouble("lng").takeIf { it.isFinite() }
+                    stops.add(
+                        TripsStop(
+                            id = sId,
+                            bookingId = bId,
+                            role = role,
+                            label = s.nullableText("label") ?: "Stop",
+                            passengers = passIds,
+                            progress = progress,
+                            lat = lat,
+                            lng = lng,
+                        )
+                    )
+                }
+            }
+
+            parsed.add(
+                TripsJourney(
+                    id = id,
+                    driverId = driverId,
+                    mode = mode,
+                    scheduled = scheduled,
+                    origin = origin,
+                    destination = destination,
+                    passengers = passengers,
+                    stops = stops,
+                    stage = stage,
+                    routeAuthorized = routeAuthorized,
+                )
+            )
+        }
+        return parsed
+    }
 }

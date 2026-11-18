@@ -25,6 +25,7 @@ import {
   validateBranchServiceEligibility,
 } from "@/lib/services/service-catalog";
 import type { ServiceDeliveryMode } from "@/lib/services/service-types";
+import { filterSlotsByRoomAndHomeTravel } from "@/lib/optimization/onsite-availability-adapter";
 import { findDistinctStaffAssignment } from "./staff-assignment";
 export { findDistinctStaffAssignment } from "./staff-assignment";
 
@@ -601,6 +602,15 @@ export async function getAvailableSlots(params: {
     allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });
 
+  slots = await filterSlotsByRoomAndHomeTravel({
+    supabase,
+    branchId: params.branchId,
+    date: params.date,
+    deliveryMode: params.deliveryMode === "home_service" ? "home_service" : "in_spa",
+    blockMinutes,
+    slots,
+  });
+
   return filterPastSlotsForDate({
     selectedDate: params.date,
     slots,
@@ -758,12 +768,21 @@ export async function getAvailableSlotsMulti(params: {
     allowStaffTypeFallbackAlongsideAssignments: params.allowStaffTypeFallbackAlongsideAssignments,
   });
 
+  const unifiedSlots = await filterSlotsByRoomAndHomeTravel({
+    supabase,
+    branchId,
+    date,
+    deliveryMode: params.deliveryMode === "home_service" ? "home_service" : "in_spa",
+    blockMinutes: totalMinutes,
+    slots: qualifiedSlots,
+  });
+
   // Belt-and-suspenders: ensure same-day past slots are never returned even if
   // they somehow survived the baseSlots filter (e.g. clock skew between the RPC
   // call and this post-filter, or a future code path that bypasses getAvailableSlots).
   return filterPastSlotsForDate({
     selectedDate: date,
-    slots: qualifiedSlots,
+    slots: unifiedSlots,
     timezone: BRANCH_TIMEZONE,
   });
 }

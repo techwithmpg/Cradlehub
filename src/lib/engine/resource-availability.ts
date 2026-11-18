@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
+import { getActiveRoomTurnoversForDate } from "@/lib/optimization/onsite-availability-adapter";
 import { rangesOverlap, timeToMinutes } from "./slot-time";
 
 type BookingResourceRow = {
@@ -10,6 +11,30 @@ type BookingResourceRow = {
   status: string | null;
   hold_expires_at: string | null;
 };
+
+async function getBranchRoomResetBuffer(
+  supabase: ReturnType<typeof createAdminClient>,
+  branchId: string
+): Promise<number> {
+  try {
+    const tbl = (supabase as unknown as { from: (t: string) => unknown }).from(
+      "scheduling_rules"
+    ) as {
+      select?: (c: string) => {
+        eq?: (k: string, v: unknown) => {
+          maybeSingle?: () => Promise<{ data?: { room_reset_buffer_minutes?: number | null } | null; error?: unknown }>;
+        };
+      };
+    };
+    const res = await tbl?.select?.("room_reset_buffer_minutes")?.eq?.("branch_id", branchId)?.maybeSingle?.();
+    if (!res || res.error) return 0;
+    return res.data?.room_reset_buffer_minutes != null
+      ? Math.max(0, Number(res.data.room_reset_buffer_minutes))
+      : 10;
+  } catch {
+    return 0;
+  }
+}
 
 /**
  * Checks if a physical resource (room/bed) has enough capacity for a new booking
@@ -27,15 +52,34 @@ export async function isResourceAvailable(
 ): Promise<boolean> {
   const supabase = createAdminClient();
 
-  // 1. Get resource capacity
+  // 1. Get resource capacity & branch
   const { data: resource, error: resourceError } = await supabase
     .from("branch_resources")
-    .select("capacity")
+    .select("branch_id, capacity")
     .eq("id", params.resourceId)
     .single();
 
   if (resourceError && options?.throwOnError) throw resourceError;
   if (!resource) return false;
+
+  const start = timeToMinutes(params.startTime);
+  const end = timeToMinutes(params.endTime);
+
+  const [turnovers, resetBuffer] = resource.branch_id
+    ? await Promise.all([
+        getActiveRoomTurnoversForDate({
+          supabase,
+          branchId: resource.branch_id,
+          date: params.date,
+        }),
+        getBranchRoomResetBuffer(supabase, resource.branch_id),
+      ])
+    : [new Map<string, number>(), 0];
+
+  const turnUntil = turnovers.get(params.resourceId);
+  if (turnUntil !== undefined && start < turnUntil) {
+    return false;
+  }
 
   // 2. Get overlapping bookings using this resource
   const { data: overlaps, error: overlapsError } = await supabase
@@ -47,14 +91,16 @@ export async function isResourceAvailable(
   if (overlapsError && options?.throwOnError) throw overlapsError;
   if (!overlaps) return true;
 
-  const start = timeToMinutes(params.startTime);
-  const end = timeToMinutes(params.endTime);
-
   const now = new Date();
   const conflictingBookings = ((overlaps ?? []) as BookingResourceRow[]).filter((b) => {
     if (params.excludeBookingId && b.id === params.excludeBookingId) return false;
     if (!bookingBlocksAvailability(b, now)) return false;
-    return rangesOverlap(start, end, timeToMinutes(b.start_time), timeToMinutes(b.end_time));
+    return rangesOverlap(
+      start,
+      end + resetBuffer,
+      timeToMinutes(b.start_time),
+      timeToMinutes(b.end_time) + resetBuffer
+    );
   });
 
   // Resource is available if current conflicts are less than capacity
@@ -99,14 +145,32 @@ export async function autoAssignBookingResource(params: {
   const start = timeToMinutes(params.startTime);
   const end = timeToMinutes(params.endTime);
   const now = new Date();
+  const [turnovers, resetBuffer] = await Promise.all([
+    getActiveRoomTurnoversForDate({
+      supabase,
+      branchId: params.branchId,
+      date: params.date,
+      now,
+    }),
+    getBranchRoomResetBuffer(supabase, params.branchId),
+  ]);
 
-  // 3. Find the first resource where current occupancy < capacity
+  // 3. Find the first resource where current occupancy < capacity and no active turnover overlaps
   for (const res of resources) {
+    const turnUntil = turnovers.get(res.id);
+    if (turnUntil !== undefined && start < turnUntil) {
+      continue;
+    }
     const occupancy = ((bookings ?? []) as BookingResourceRow[]).filter((b) => {
       if (b.resource_id !== res.id) return false;
       if (params.excludeBookingId && b.id === params.excludeBookingId) return false;
       if (!bookingBlocksAvailability(b, now)) return false;
-      return rangesOverlap(start, end, timeToMinutes(b.start_time), timeToMinutes(b.end_time));
+      return rangesOverlap(
+        start,
+        end + resetBuffer,
+        timeToMinutes(b.start_time),
+        timeToMinutes(b.end_time) + resetBuffer
+      );
     }).length;
 
     if (occupancy < res.capacity) {
@@ -143,18 +207,35 @@ export async function allocateResourcesForAttendees(params: {
   if (bookingError) throw bookingError;
 
   const now = new Date();
+  const [turnovers, resetBuffer] = await Promise.all([
+    getActiveRoomTurnoversForDate({
+      supabase,
+      branchId: params.branchId,
+      date: params.date,
+      now,
+    }),
+    getBranchRoomResetBuffer(supabase, params.branchId),
+  ]);
   const reservations: Array<{ resourceId: string; start: number; end: number }> = [];
   const assigned: Array<string | null> = [];
   for (const window of params.windows) {
     const start = timeToMinutes(window.startTime);
     const end = timeToMinutes(window.endTime);
     const resource = resources.find((candidate) => {
+      const turnUntil = turnovers.get(candidate.id);
+      if (turnUntil !== undefined && start < turnUntil) return false;
       const existing = ((bookings ?? []) as BookingResourceRow[]).filter((booking) =>
         booking.resource_id === candidate.id && bookingBlocksAvailability(booking, now) &&
-        rangesOverlap(start, end, timeToMinutes(booking.start_time), timeToMinutes(booking.end_time))
+        rangesOverlap(
+          start,
+          end + resetBuffer,
+          timeToMinutes(booking.start_time),
+          timeToMinutes(booking.end_time) + resetBuffer
+        )
       ).length;
       const inRequest = reservations.filter((reservation) =>
-        reservation.resourceId === candidate.id && rangesOverlap(start, end, reservation.start, reservation.end)
+        reservation.resourceId === candidate.id &&
+        rangesOverlap(start, end + resetBuffer, reservation.start, reservation.end + resetBuffer)
       ).length;
       return existing + inRequest < candidate.capacity;
     });
