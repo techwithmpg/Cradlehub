@@ -198,7 +198,6 @@ export default function EnableNotificationsPage() {
           {ready && (
             <button
               type="button"
-              disabled={state === "working"}
               onClick={() => void enable()}
               className="w-full rounded-xl bg-[#153A2D] px-5 py-4 text-base font-semibold text-white transition hover:bg-[#23533f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153A2D]"
             >
