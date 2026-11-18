@@ -6,10 +6,13 @@ import { resolveAttendanceDayStaffStates } from "@/lib/attendance/day-model";
 import { buildAttendanceStaffDiagnostics } from "@/lib/attendance/staff-diagnostics";
 import {
   findExceptionRecord,
+  matchTodayReviewItemForStaffRow,
   resolveExceptionBusinessDate,
   resolveExceptionTargetCheckinId,
 } from "@/lib/attendance/crm-attendance-presenter";
 import { buildAttendanceReviewItems, applyCanonicalReviewToStaff } from "@/lib/attendance/crm-review";
+import { getResolvedStaffSchedulesForDate } from "@/lib/queries/resolved-staff-schedules";
+import { partitionStaffPortalExceptions } from "@/lib/staff-portal/attendance";
 import type {
   AttendanceException,
   AttendanceRecord,
@@ -467,5 +470,240 @@ describe("Stale exception attribution and active-session isolation", () => {
     expect(sql).toContain("coalesce(nullif(p_current_checkin->>'exception_state', ''), 'none')");
     expect(sql).toContain("p_exception => null::jsonb");
     expect(sql).toContain("array[p_stale_checkin_id]");
+  });
+
+  it("preserves missing_schedule and off_day_exception instead of overwriting with outside_schedule_window and formats two hours at 121+m", async () => {
+    const commitStub = vi.fn(
+      async (
+        _admin: unknown,
+        input: { result: unknown; event: unknown; exception?: unknown }
+      ) => {
+        harness.commitInputs.push(input as unknown as Record<string, unknown>);
+        return {
+          result: input.result as Awaited<ReturnType<typeof resumeAttendanceScanFromStoredSource>>,
+          scanEventId: "scan-blocked",
+        };
+      }
+    );
+
+    // Missing schedule with an existing stale open checkin must stay missing_schedule
+    vi.setSystemTime(new Date("2026-11-18T03:55:00.000Z"));
+    vi.mocked(getResolvedStaffSchedulesForDate).mockResolvedValueOnce(
+      new Map([
+        [
+          staffId,
+          {
+            source: "none",
+            status: "missing",
+            state: "NO_SCHEDULE_CONFIGURED",
+            isWorking: false,
+            isDayOff: false,
+            windows: [],
+          },
+        ],
+      ])
+    );
+    const missingRes = await resumeAttendanceScanFromStoredSource({
+      sourceScanEventId: "source-scan-event",
+      continuationRequestId: "req-missing-sched",
+      expectedStaffId: staffId,
+      expectedBranchId: branchId,
+      commit: commitStub,
+      reconcileProvisional: async () => {
+        throw new Error("should not reconcile");
+      },
+    });
+    expect(missingRes.reasonCode).toBe("missing_schedule");
+
+    // Off-day schedule with an existing stale open checkin must stay off_day_exception
+    vi.mocked(getResolvedStaffSchedulesForDate).mockResolvedValueOnce(
+      new Map([
+        [
+          staffId,
+          {
+            source: "individual",
+            status: "day_off",
+            state: "CONFIGURED_DAY_OFF",
+            isWorking: false,
+            isDayOff: true,
+            windows: [],
+          },
+        ],
+      ])
+    );
+    const dayOffRes = await resumeAttendanceScanFromStoredSource({
+      sourceScanEventId: "source-scan-event",
+      continuationRequestId: "req-day-off",
+      expectedStaffId: staffId,
+      expectedBranchId: branchId,
+      commit: commitStub,
+      reconcileProvisional: async () => {
+        throw new Error("should not reconcile");
+      },
+    });
+    expect(dayOffRes.reasonCode).toBe("off_day_exception");
+
+    // 125 minutes early (03:55Z vs 06:00Z) triggers outside_schedule_window citing two hours
+    const earlyRes = await resumeAttendanceScanFromStoredSource({
+      sourceScanEventId: "source-scan-event",
+      continuationRequestId: "req-125m-early",
+      expectedStaffId: staffId,
+      expectedBranchId: branchId,
+      commit: commitStub,
+      reconcileProvisional: async () => {
+        throw new Error("should not reconcile");
+      },
+    });
+    expect(earlyRes.reasonCode).toBe("outside_schedule_window");
+    expect(earlyRes.message).toContain("two hours before the authorized shift");
+  });
+
+  it("isolates prior-day stale exceptions from Staff Portal issues, Today row matches, and resolves hydrated exceptionRecords", () => {
+    const yesterdayRecord: AttendanceRecord = {
+      id: "checkin-yesterday",
+      branch_id: branchId,
+      staff_id: staffId,
+      staff_name: "Maria Santos",
+      staff_nickname: null,
+      staff_type: "therapist",
+      system_role: "staff",
+      shift_date: "2026-11-17",
+      shift_type: "single",
+      scheduled_start_at: "2026-11-17T06:00:00.000Z",
+      scheduled_end_at: "2026-11-17T14:00:00.000Z",
+      checked_in_at: "2026-11-17T06:00:00.000Z",
+      checked_out_at: "2026-11-17T14:00:00.000Z",
+      status: "checked_out",
+      attendance_status: "exception",
+      exception_state: "open",
+      worked_minutes: 480,
+      late_minutes: 0,
+      early_leave_minutes: 0,
+      overtime_minutes: 0,
+      clock_in_method: "qr",
+      clock_out_method: "system_auto_close",
+      attendance_expected_end_at: "2026-11-17T14:00:00.000Z",
+      earliest_normal_clock_out_at: "2026-11-17T13:55:00.000Z",
+      latest_normal_clock_out_at: "2026-11-17T14:10:00.000Z",
+      attendance_policy_source: "schedule",
+      attendance_policy_snapshot: {},
+      provisional_auto_closed_at: "2026-11-18T02:00:00.000Z",
+      clock_out_confirmation_required: true,
+      actual_clock_out_reconciled_at: null,
+      source_label: "Main QR",
+    };
+    const todayRecord: AttendanceRecord = {
+      ...yesterdayRecord,
+      id: "checkin-today",
+      shift_date: "2026-11-18",
+      checked_in_at: "2026-11-18T06:00:00.000Z",
+      checked_out_at: null,
+      status: "checked_in",
+      attendance_status: "present",
+      exception_state: "none",
+      clock_out_method: null,
+      provisional_auto_closed_at: null,
+      clock_out_confirmation_required: false,
+    };
+    const staleExc: AttendanceException = {
+      id: "exc-stale-1",
+      branch_id: branchId,
+      staff_id: staffId,
+      checkin_id: "checkin-yesterday",
+      scan_event_id: "scan-yesterday",
+      staff_name: "Maria Santos",
+      exception_type: "missed_checkout",
+      severity: "warning",
+      status: "open",
+      message: "Yesterday unclosed",
+      metadata: {
+        internalExceptionType: "stale_open_checkin",
+        staleCheckinId: "checkin-yesterday",
+        staleShiftDate: "2026-11-17",
+        staleBusinessDate: "2026-11-17",
+      },
+      detected_at: "2026-11-18T02:00:00.000Z",
+      resolved_at: null,
+    };
+
+    // P1-1: Staff Portal partitions stale exception out of today's blocking issues
+    const partitioned = partitionStaffPortalExceptions({
+      exceptions: [staleExc],
+      staffName: "Maria Santos",
+      records: [todayRecord, yesterdayRecord],
+      scanEventIds: ["scan-today"],
+      branchId,
+      businessDate: "2026-11-18",
+      businessDayStart: "2026-11-17T22:00:00.000Z",
+      businessDayEnd: "2026-11-18T22:00:00.000Z",
+    });
+    expect(partitioned.dailyExceptions).toEqual([]);
+    expect(partitioned.issues).toEqual([]);
+    expect(partitioned.priorShiftIssues).toHaveLength(1);
+
+    // P1-2a/b: Clean Today worker row does not match yesterday's reviewItem, and fallback exceptionRecords resolves yesterday
+    const reviewItems = buildAttendanceReviewItems([staleExc]);
+    const cleanWorkerRow = applyCanonicalReviewToStaff(
+      buildAttendanceStaffDiagnostics({
+        branchId,
+        branchName: "Main Branch",
+        businessDate: "2026-11-18",
+        timezone: "Asia/Manila",
+        serverNowMs: Date.parse("2026-11-18T07:00:00.000Z"),
+        settings,
+        records: [todayRecord],
+        exceptionRecords: [yesterdayRecord],
+        testRecords: [],
+        exceptions: [staleExc],
+        scanEvents: [],
+        sessions: [],
+        corrections: [],
+        dailyStaffStates: resolveAttendanceDayStaffStates({
+          branchId,
+          businessDate: "2026-11-18",
+          timezone: "Asia/Manila",
+          now: new Date("2026-11-18T07:00:00.000Z"),
+          settings: {
+            clock_in_early_grace_minutes: 15,
+            clock_in_late_grace_minutes: 10,
+            late_grace_minutes: 10,
+          },
+          staff: [{ id: staffId, fullName: "Maria Santos", staffType: "therapist" }],
+          schedules: new Map([
+            [
+              staffId,
+              {
+                source: "individual",
+                status: "resolved",
+                state: "VALID_SCHEDULE",
+                isWorking: true,
+                isDayOff: false,
+                windows: [{ shiftType: "single", startTime: "14:00:00", endTime: "22:00:00" }],
+              },
+            ],
+          ]),
+          records: [todayRecord],
+          sessions: [],
+          exceptions: [],
+        }),
+        devices: [],
+        deviceRegistry: { entries: [] },
+      } as unknown as AttendanceWorkspaceData),
+      reviewItems
+    )[0]!;
+
+    expect(
+      matchTodayReviewItemForStaffRow({
+        row: cleanWorkerRow,
+        reviewItems,
+        records: [todayRecord],
+        exceptionRecords: [yesterdayRecord],
+        businessDate: "2026-11-18",
+        timezone: "Asia/Manila",
+      })
+    ).toBeNull();
+    expect(findExceptionRecord(staleExc, [todayRecord], [yesterdayRecord])?.id).toBe(
+      "checkin-yesterday"
+    );
   });
 });

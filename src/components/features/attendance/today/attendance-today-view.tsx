@@ -382,7 +382,11 @@ export function AttendanceTodayView({
                 {attentionPreview.map((item, idx) => {
                   const staffName = item.exception.staff_name ?? "Staff member";
                   const headline = getReviewIssueHeadline(item, data.timezone);
-                  const matchedRecord = findExceptionRecord(item.exception, data.records);
+                  const matchedRecord = findExceptionRecord(
+                    item.exception,
+                    data.records,
+                    data.exceptionRecords
+                  );
                   const canFix = hasAuthorizedCorrectionPath(item, Boolean(matchedRecord));
                   const originalDate = resolveExceptionBusinessDate(
                     item.exception,

@@ -176,6 +176,14 @@ export function AttendanceReadinessCard({
             <p className="mt-1">Use this phone and scan the branch Attendance QR once.</p>
           </div>
         ) : null}
+
+        {data.priorShiftIssues && data.priorShiftIssues.length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            An earlier shift has {data.priorShiftIssues.length}{" "}
+            {data.priorShiftIssues.length === 1 ? "item" : "items"} under CRM review; today&apos;s
+            Attendance readiness is unaffected.
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );

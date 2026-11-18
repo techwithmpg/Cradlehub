@@ -47,6 +47,7 @@ import {
   getReviewIssueHeadline,
   hasAuthorizedCorrectionPath,
   resolveExceptionBusinessDate,
+  resolveExceptionTargetCheckinId,
   resolveReviewSeverity,
   type ReviewIssueBucket,
   type ReviewSeverityRank,
@@ -262,7 +263,7 @@ export function AttendanceReviewView({
       const result = await quickFixAttendanceExceptionAction({
         exceptionId: item.exception.id,
         staffId: item.exception.staff_id,
-        checkinId: item.exception.checkin_id,
+        checkinId: resolveExceptionTargetCheckinId(item.exception),
         scanTimeIso: item.exception.last_detected_at ?? item.exception.detected_at,
         mode: "sync_and_close",
       });
@@ -593,7 +594,11 @@ export function AttendanceReviewView({
                       const detectedIso =
                         item.exception.last_detected_at ?? item.exception.detected_at;
                       const detectedYmd = toBranchYmd(detectedIso, data.timezone);
-                      const record = findExceptionRecord(item.exception, data.records);
+                      const record = findExceptionRecord(
+                        item.exception,
+                        data.records,
+                        data.exceptionRecords
+                      );
                       const originalYmd = resolveExceptionBusinessDate(
                         item.exception,
                         record,
@@ -708,7 +713,7 @@ export function AttendanceReviewView({
                                   </span>
                                 </div>
                               </div>
-                            ) : diag?.staff.scheduledStart ? (
+                            ) : originalYmd === data.businessDate && diag?.staff.scheduledStart ? (
                               <div className="space-y-0.5 tabular-nums">
                                 <div>
                                   <span className="text-[var(--cs-text-muted)]">Schedule:</span>{" "}
@@ -822,10 +827,19 @@ export function AttendanceReviewView({
                   const staffName = item.exception.staff_name ?? "Staff member";
                   const headline = getReviewIssueHeadline(item, data.timezone);
                   const severity = resolveReviewSeverity(item);
-                  const record = findExceptionRecord(item.exception, data.records);
+                  const record = findExceptionRecord(
+                    item.exception,
+                    data.records,
+                    data.exceptionRecords
+                  );
                   const canQuickFix = hasAuthorizedCorrectionPath(item, Boolean(record));
                   const detectedYmd = toBranchYmd(
                     item.exception.last_detected_at ?? item.exception.detected_at,
+                    data.timezone
+                  );
+                  const originalYmd = resolveExceptionBusinessDate(
+                    item.exception,
+                    record,
                     data.timezone
                   );
                   return (
@@ -846,7 +860,10 @@ export function AttendanceReviewView({
                           <div>
                             <div className="text-sm font-bold text-[var(--cs-text)]">{staffName}</div>
                             <div className="text-xs text-[var(--cs-text-muted)]">
-                              {formatShortShiftDate(detectedYmd)}
+                              {formatShortShiftDate(originalYmd)}
+                              {detectedYmd !== originalYmd
+                                ? ` (detected ${formatShortShiftDate(detectedYmd).replace(/, \d{4}$/, "")})`
+                                : ""}
                             </div>
                           </div>
                         </div>

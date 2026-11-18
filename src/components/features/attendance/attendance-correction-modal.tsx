@@ -196,12 +196,14 @@ function AttendanceCorrectionModalInner({
 
   const recordInWorkspace: AttendanceRecord | null = useMemo(() => {
     if (target.kind === "record") return target.record;
-    if (reviewItem) return findExceptionRecord(reviewItem.exception, data.records);
+    if (reviewItem) {
+      return findExceptionRecord(reviewItem.exception, data.records, data.exceptionRecords);
+    }
     if (staffRow?.staff.attendanceRecordId) {
       return data.records.find((r) => r.id === staffRow.staff.attendanceRecordId) ?? null;
     }
     return staffId ? (data.records.find((r) => r.staff_id === staffId) ?? null) : null;
-  }, [data.records, reviewItem, staffId, staffRow, target]);
+  }, [data.exceptionRecords, data.records, reviewItem, staffId, staffRow, target]);
 
   const [fetchedCheckin, setFetchedCheckin] = useState<LoadedCheckin | null>(null);
   const targetCheckinId =

@@ -346,20 +346,77 @@ export function resolveExceptionBusinessDate(
  */
 export function findExceptionRecord(
   exception: AttendanceException,
-  records: AttendanceRecord[]
+  records: AttendanceRecord[],
+  fallbackRecords: AttendanceRecord[] = []
 ): AttendanceRecord | null {
+  const pool = fallbackRecords.length > 0 ? [...records, ...fallbackRecords] : records;
   const targetCheckinId = resolveExceptionTargetCheckinId(exception);
   if (targetCheckinId) {
-    return records.find((r) => r.id === targetCheckinId) ?? null;
+    return pool.find((r) => r.id === targetCheckinId) ?? null;
   }
   if (exception.staff_id) {
     return (
-      records.find((r) => r.staff_id === exception.staff_id && !r.checked_out_at) ??
-      records.find((r) => r.staff_id === exception.staff_id) ??
+      pool.find((r) => r.staff_id === exception.staff_id && !r.checked_out_at) ??
+      pool.find((r) => r.staff_id === exception.staff_id) ??
       null
     );
   }
   return null;
+}
+
+export function matchTodayReviewItemForStaffRow(params: {
+  row: AttendanceStaffDiagnostic;
+  reviewItems: AttendanceReviewItem[];
+  records: AttendanceRecord[];
+  exceptionRecords?: AttendanceRecord[];
+  businessDate: string;
+  timezone: string;
+}): AttendanceReviewItem | null {
+  const { row, reviewItems, records, exceptionRecords, businessDate, timezone } = params;
+  const openExceptionId = row.openException?.id ?? null;
+  const currentExceptionIds = new Set(row.staff.currentExceptionIds);
+  if (!openExceptionId && currentExceptionIds.size === 0 && !row.needsHelp) {
+    return null;
+  }
+  if (openExceptionId) {
+    const exact = reviewItems.find(
+      (item) =>
+        item.exception.id === openExceptionId ||
+        item.relatedExceptionIds.includes(openExceptionId)
+    );
+    if (exact) return exact;
+  }
+  if (currentExceptionIds.size > 0) {
+    const byCurrent = reviewItems.find(
+      (item) =>
+        currentExceptionIds.has(item.exception.id) ||
+        item.relatedExceptionIds.some((id) => currentExceptionIds.has(id))
+    );
+    if (byCurrent) return byCurrent;
+  }
+  if (row.staff.attendanceRecordId) {
+    const byCheckin = reviewItems.find(
+      (item) =>
+        item.exception.staff_id === row.staff.staffId &&
+        resolveExceptionTargetCheckinId(item.exception) === row.staff.attendanceRecordId
+    );
+    if (byCheckin) return byCheckin;
+  }
+  return (
+    reviewItems.find((item) => {
+      if (item.exception.staff_id !== row.staff.staffId) return false;
+      const targetCheckinId = resolveExceptionTargetCheckinId(item.exception);
+      if (targetCheckinId) {
+        return row.staff.attendanceRecordId
+          ? targetCheckinId === row.staff.attendanceRecordId
+          : false;
+      }
+      const matchedRecord = findExceptionRecord(item.exception, records, exceptionRecords);
+      return (
+        resolveExceptionBusinessDate(item.exception, matchedRecord, timezone) === businessDate
+      );
+    }) ?? null
+  );
 }
 
 /**

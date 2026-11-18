@@ -445,6 +445,8 @@ export type AttendanceWorkspaceData = {
   records: AttendanceRecord[];
   testRecords: AttendanceRecord[];
   exceptions: AttendanceException[];
+  exceptionRecords?: AttendanceRecord[];
+  exceptionScanEvents?: AttendanceScanEvent[];
   corrections: AttendanceCorrection[];
   scanEvents: AttendanceScanEvent[];
   sessions: AttendanceSession[];

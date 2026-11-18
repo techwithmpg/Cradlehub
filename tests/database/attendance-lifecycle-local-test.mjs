@@ -7,25 +7,53 @@ import { dirname, resolve } from "node:path";
 
 const require = createRequire(import.meta.url);
 const repoRoot = resolve(import.meta.dirname, "../..");
-const postgresRoot = resolve(repoRoot, "../web-attendance-v2/.tmp/attendance-v2-postgres");
+const isWin = process.platform === "win32";
+const postgresBinaryName = isWin ? "postgres.exe" : "postgres";
+const embeddedPkg = isWin
+  ? "@embedded-postgres/windows-x64"
+  : process.platform === "darwin"
+    ? process.arch === "arm64"
+      ? "@embedded-postgres/darwin-arm64"
+      : "@embedded-postgres/darwin-x64"
+    : process.arch === "arm64"
+      ? "@embedded-postgres/linux-arm64"
+      : "@embedded-postgres/linux-x64";
+const candidatePgRoots = [
+  process.env.ATTENDANCE_TEST_PG_ROOT,
+  resolve(repoRoot, ".tmp/attendance-v2-postgres"),
+  resolve(repoRoot, "../web-attendance-v2/.tmp/attendance-v2-postgres"),
+  repoRoot,
+].filter(Boolean);
+const postgresRoot = candidatePgRoots.find(
+  (dir) =>
+    existsSync(resolve(dir, "node_modules/pg")) &&
+    existsSync(resolve(dir, "node_modules", embeddedPkg, "native/bin", postgresBinaryName))
+);
+if (!postgresRoot) {
+  throw new Error(
+    `Local embedded PostgreSQL harness not found (checked ATTENDANCE_TEST_PG_ROOT and ${candidatePgRoots.join(", ")}). Set ATTENDANCE_TEST_PG_ROOT or install pg + ${embeddedPkg}.`
+  );
+}
 const { Client } = require(resolve(postgresRoot, "node_modules/pg"));
-const binDir = resolve(postgresRoot, "node_modules/@embedded-postgres/windows-x64/native/bin");
+const binDir = resolve(postgresRoot, "node_modules", embeddedPkg, "native/bin");
+const initdbBin = resolve(binDir, isWin ? "initdb.exe" : "initdb");
+const pgCtlBin = resolve(binDir, isWin ? "pg_ctl.exe" : "pg_ctl");
 const pgDataDir = resolve(repoRoot, ".tmp/lifecycle-pgdata");
 const pgLogFile = resolve(repoRoot, ".tmp/lifecycle-pg.log");
 const pgPort = 55442;
 
-assert.ok(existsSync(resolve(binDir, "postgres.exe")), "Local embedded PostgreSQL binaries must exist");
+assert.ok(existsSync(resolve(binDir, postgresBinaryName)), "Local embedded PostgreSQL binaries must exist");
 
 rmSync(pgDataDir, { recursive: true, force: true });
 mkdirSync(dirname(pgDataDir), { recursive: true });
 
 execFileSync(
-  resolve(binDir, "initdb.exe"),
+  initdbBin,
   ["-D", pgDataDir, "-U", "postgres", "-A", "trust", "-E", "UTF8"],
   { stdio: "ignore" }
 );
 execFileSync(
-  resolve(binDir, "pg_ctl.exe"),
+  pgCtlBin,
   ["-D", pgDataDir, "-l", pgLogFile, "-o", `-h 127.0.0.1 -p ${pgPort}`, "start"],
   { stdio: "ignore" }
 );
@@ -654,11 +682,218 @@ try {
     assert.equal(failedRow.attempt_log[0].error, "provider_timeout");
   });
 
+  await test("late day shift near midnight emits +20m reminder before morning provisional auto-close", async () => {
+    const s = await createStaff();
+    // 15:00-23:50 Manila -> scheduled_end_at 15:50Z (< midnight 16:00Z), reminder 1 due at 16:10Z
+    const scan = await scanIn(s, {
+      shiftDate: "2026-11-16",
+      arrived: "2026-11-16T07:00:00Z",
+      start: "2026-11-16T07:00:00Z",
+      end: "2026-11-16T15:50:00Z",
+    });
+
+    await processAt("2026-11-16T16:10:00Z");
+    const afterFirst = await getRow(scan.checkin_id);
+    assert.equal(afterFirst.status, "checked_in");
+    assert.equal(afterFirst.provisional_auto_closed_at, null);
+    assert.equal((await getNotices(scan.checkin_id)).length, 1);
+
+    await processAt("2026-11-16T22:00:00Z");
+    const closedRow = await getRow(scan.checkin_id);
+    assert.equal(closedRow.status, "checked_out");
+    assert.equal(closedRow.clock_out_method, "system_auto_close");
+  });
+
+  await test("final home-service early completion obeys final_client_release_enabled flag and guard_credit shrink", async () => {
+    const heldBranch = randomUUID();
+    const relBranch = randomUUID();
+    await db.query("insert into branches(id) values($1),($2)", [heldBranch, relBranch]);
+    await db.query("insert into attendance_settings(branch_id) values($1),($2)", [heldBranch, relBranch]);
+    await db.query(
+      `insert into attendance_staff_category_rules(branch_id,staff_category,effective_from,home_service_wrap_up_buffer_minutes,final_client_release_enabled)
+       values($1,'therapists','2026-01-01Z',20,false),($2,'therapists','2026-01-01Z',20,true)`,
+      [heldBranch, relBranch]
+    );
+
+    const held = await createStaff({ role: "staff", type: "therapist" });
+    await db.query("update staff set branch_id=$2 where id=$1", [held.id, heldBranch]);
+    await db.query("update staff_devices set branch_id=$2 where id=$1", [held.deviceId, heldBranch]);
+    const heldScan = await scanIn(held, {
+      atBranch: heldBranch,
+      arrived: "2026-11-16T02:00:00Z",
+      start: "2026-11-16T02:00:00Z",
+      end: "2026-11-16T11:00:00Z",
+    });
+    await db.query(
+      "insert into bookings(branch_id,staff_id,booking_date,start_time,end_time,delivery_type,status,booking_progress_status,session_completed_at) values($1,$2,'2026-11-16','13:00','15:00','home_service','completed','completed','2026-11-16T07:00:00Z')",
+      [heldBranch, held.id]
+    );
+    await db.query("select recalculate_attendance_clock_out_policy($1, '2026-11-16T07:00:00Z')", [
+      heldScan.checkin_id,
+    ]);
+
+    await processAt("2026-11-16T07:35:00Z");
+    assert.equal((await getNotices(heldScan.checkin_id)).length, 0);
+    await processAt("2026-11-16T11:20:00Z");
+    const heldNotices = await getNotices(heldScan.checkin_id);
+    assert.equal(heldNotices.length, 1);
+    assert.equal(heldNotices[0].metadata.reminderKind, "shift_end");
+
+    const rel = await createStaff({ role: "staff", type: "therapist" });
+    await db.query("update staff set branch_id=$2 where id=$1", [rel.id, relBranch]);
+    await db.query("update staff_devices set branch_id=$2 where id=$1", [rel.deviceId, relBranch]);
+    const relScan = await scanIn(rel, {
+      atBranch: relBranch,
+      arrived: "2026-11-16T02:00:00Z",
+      start: "2026-11-16T02:00:00Z",
+      end: "2026-11-16T11:00:00Z",
+    });
+    await db.query(
+      "insert into bookings(branch_id,staff_id,booking_date,start_time,end_time,delivery_type,status,booking_progress_status,session_completed_at) values($1,$2,'2026-11-16','13:00','15:00','home_service','completed','completed','2026-11-16T07:00:00Z')",
+      [relBranch, rel.id]
+    );
+    await db.query("select recalculate_attendance_clock_out_policy($1, '2026-11-16T07:00:00Z')", [
+      relScan.checkin_id,
+    ]);
+
+    await processAt("2026-11-16T07:29:00Z");
+    assert.equal((await getNotices(relScan.checkin_id)).length, 0);
+    await processAt("2026-11-16T07:30:00Z");
+    const relNotices = await getNotices(relScan.checkin_id);
+    assert.equal(relNotices.length, 1);
+    assert.equal(relNotices[0].metadata.reminderKind, "final_home_service");
+    assert.equal(relNotices[0].metadata.delayMinutes, 10);
+  });
+
+  await test("crm_front_desk closing shift defers while cash session open and reminds +20m after handover", async () => {
+    const csr = await createStaff({ role: "csr", type: "csr" });
+    const otherCsr = await createStaff({ role: "csr", type: "csr" });
+    const cashId = randomUUID();
+    const scan = await scanIn(csr, {
+      shiftType: "closing",
+      arrived: "2026-11-16T04:00:00Z",
+      start: "2026-11-16T04:00:00Z",
+      end: "2026-11-16T12:00:00Z",
+    });
+    await db.query(
+      "insert into cash_sessions(id,branch_id,opened_by,current_custodian_id,business_date,status) values($1,$2,$3,$3,'2026-11-16','open')",
+      [cashId, branch, csr.id]
+    );
+
+    // Open cash session blocks closing reminder past +20m
+    await processAt("2026-11-16T12:25:00Z");
+    assert.equal((await getNotices(scan.checkin_id)).length, 0);
+
+    // Handover at 12:30Z transfers custody -> reminder at 12:50Z (+20m), not 12:49Z
+    await db.query("update cash_sessions set current_custodian_id=$2 where id=$1", [cashId, otherCsr.id]);
+    await db.query(
+      "insert into cash_session_handovers(cash_session_id,branch_id,outgoing_custodian_id,created_at) values($1,$2,$3,'2026-11-16T12:30:00Z')",
+      [cashId, branch, csr.id]
+    );
+
+    await processAt("2026-11-16T12:49:00Z");
+    assert.equal((await getNotices(scan.checkin_id)).length, 0);
+    await processAt("2026-11-16T12:50:00Z");
+    const csrNotices = await getNotices(scan.checkin_id);
+    assert.equal(csrNotices.length, 1);
+    assert.equal(csrNotices[0].metadata.delayMinutes, 20);
+  });
+
+  await test("brief booking added and cancelled inside same 15m interval re-emits reminder and stale recovery replay is idempotent", async () => {
+    const s = await createStaff();
+    const scan = await scanIn(s);
+    await processAt("2026-11-16T12:20:00Z");
+    const first = await getNotices(scan.checkin_id);
+    assert.equal(first.length, 1);
+    assert.equal(first[0].status, "unread");
+
+    const tempBookingId = randomUUID();
+    await db.query(
+      "insert into bookings(id,branch_id,staff_id,booking_date,start_time,end_time,delivery_type,status,booking_progress_status) values($1,$2,$3,'2026-11-16','20:30','21:30','in_spa','confirmed','not_started')",
+      [tempBookingId, branch, s.id]
+    );
+    await db.query("select recalculate_attendance_clock_out_policy($1, '2026-11-16T12:23:00Z')", [
+      scan.checkin_id,
+    ]);
+    await processAt("2026-11-16T12:23:00Z");
+    const suppressed = await getNotices(scan.checkin_id);
+    assert.equal(suppressed[0].status, "resolved");
+
+    // Cancelling the temporary booking within the same interval must re-emit immediately without waiting +15m
+    await db.query("update bookings set status='cancelled' where id=$1", [tempBookingId]);
+    await db.query("select recalculate_attendance_clock_out_policy($1, '2026-11-16T12:25:00Z')", [
+      scan.checkin_id,
+    ]);
+    await processAt("2026-11-16T12:25:00Z");
+    const reemitted = await getNotices(scan.checkin_id);
+    assert.equal(reemitted.length, 2);
+    assert.equal(reemitted[1].status, "unread");
+
+    // Verify p_request_id replay idempotency on recover_stale_attendance_and_clock_in
+    const stale = await createStaff();
+    const staleDay1 = await scanIn(stale, {
+      shiftDate: "2026-11-17",
+      arrived: "2026-11-17T06:00:00Z",
+      start: "2026-11-17T06:00:00Z",
+      end: "2026-11-17T14:00:00Z",
+    });
+    const replayReq = randomUUID();
+    const qrPt = randomUUID();
+    const callRecovery = async () =>
+      (
+        await db.query(
+          `select * from public.recover_stale_attendance_and_clock_in(
+            p_stale_checkin_id=>$1, p_staff_id=>$2, p_current_branch_id=>$3, p_qr_point_id=>$4,
+            p_is_test=>false, p_recovery_clock_out_at=>'2026-11-17T14:00:00Z',
+            p_current_checkin=>$5::jsonb, p_request_id=>$6, p_device_id=>$7,
+            p_public_result=>'{"ok":true}'::jsonb,
+            p_exception=>$8::jsonb
+          )`,
+          [
+            staleDay1.checkin_id,
+            stale.id,
+            branch,
+            qrPt,
+            JSON.stringify({
+              shift_date: "2026-11-18",
+              shift_type: "single",
+              shift_instance_key: `${stale.id}:2026-11-18:single`,
+              checked_in_at: "2026-11-18T06:00:00Z",
+              scheduled_start_at: "2026-11-18T06:00:00Z",
+              scheduled_end_at: "2026-11-18T14:00:00Z",
+              schedule_source: "weekly",
+              schedule_source_id: "TEST-weekly",
+              branch_timezone: "Asia/Manila",
+              attendance_business_date: "2026-11-18",
+            }),
+            replayReq,
+            stale.deviceId,
+            JSON.stringify({
+              exception_type: "missed_checkout",
+              severity: "warning",
+              message: "Replay check",
+              metadata: { internalExceptionType: "stale_open_checkin" },
+              dedupe_key: `${stale.id}|${staleDay1.checkin_id}|stale_open_checkin|live`,
+            }),
+          ]
+        )
+      ).rows[0];
+    const r1 = await callRecovery();
+    const r2 = await callRecovery();
+    assert.equal(r1.code, "committed");
+    assert.equal(r2.code, "replayed");
+    assert.equal(r2.checkin_id, r1.checkin_id);
+    const excCount = (
+      await db.query("select count(*)::int c from attendance_exceptions where checkin_id=$1", [staleDay1.checkin_id])
+    ).rows[0].c;
+    assert.equal(excCount, 1);
+  });
+
   process.stdout.write(`LOCAL POSTGRES 17.11 SUITE: ${passed} lifecycle integration scenarios passed.\n`);
 } finally {
   await db.end().catch(() => undefined);
   try {
-    execFileSync(resolve(binDir, "pg_ctl.exe"), ["-D", pgDataDir, "stop", "-m", "immediate"], {
+    execFileSync(pgCtlBin, ["-D", pgDataDir, "stop", "-m", "immediate"], {
       stdio: "ignore",
     });
   } catch {

@@ -32,6 +32,7 @@ import {
   type AttendanceReviewItem,
 } from "@/lib/attendance/crm-review";
 import { buildAttendanceStaffDiagnostics } from "@/lib/attendance/staff-diagnostics";
+import { matchTodayReviewItemForStaffRow } from "@/lib/attendance/crm-attendance-presenter";
 import type { AttendanceWorkspaceData } from "@/lib/attendance/types";
 import {
   mergeAttendanceWorkspaceCheckin,
@@ -200,8 +201,14 @@ export function CrmAttendanceWorkspace({
                 rows={staffRows}
                 reviewItems={reviewItems}
                 onOpen={(row) => {
-                  const matchedReview =
-                    reviewItems.find((i) => i.exception.staff_id === row.staff.staffId) ?? null;
+                  const matchedReview = matchTodayReviewItemForStaffRow({
+                    row,
+                    reviewItems,
+                    records: current.records,
+                    exceptionRecords: current.exceptionRecords,
+                    businessDate: current.businessDate,
+                    timezone: current.timezone,
+                  });
                   setModalTarget({ kind: "staff", row, reviewItem: matchedReview });
                 }}
                 onOpenReviewItem={(item) => {

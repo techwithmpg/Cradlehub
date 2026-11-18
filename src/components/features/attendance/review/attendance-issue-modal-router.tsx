@@ -6,6 +6,7 @@ import { AttendanceScheduleDialog } from "@/components/features/attendance/revie
 import { AttendanceTechnicalDialog } from "@/components/features/attendance/review/attendance-technical-dialog";
 import { ResolveAttendanceScanDialog } from "@/components/features/attendance/review/resolve-attendance-scan-dialog";
 import { RecoveryLinkDialog } from "@/components/features/attendance/devices/recovery-link-dialog";
+import { findExceptionRecord } from "@/lib/attendance/crm-attendance-presenter";
 import { attendanceReviewResolutionKind } from "@/lib/attendance/review-resolution";
 import type { AttendanceReviewItem } from "@/lib/attendance/crm-review";
 import type {
@@ -29,11 +30,16 @@ export function AttendanceIssueModalRouter({
 }) {
   if (!item) return null;
 
-  const record: AttendanceRecord | null = item.exception.checkin_id
-    ? (data.records.find((row) => row.id === item.exception.checkin_id) ?? null)
-    : null;
+  const record: AttendanceRecord | null = findExceptionRecord(
+    item.exception,
+    data.records,
+    data.exceptionRecords
+  );
+  const scanEventPool = data.exceptionScanEvents?.length
+    ? [...data.scanEvents, ...data.exceptionScanEvents]
+    : data.scanEvents;
   const scanEvent: AttendanceScanEvent | null = item.exception.scan_event_id
-    ? (data.scanEvents.find((row) => row.id === item.exception.scan_event_id) ?? null)
+    ? (scanEventPool.find((row) => row.id === item.exception.scan_event_id) ?? null)
     : null;
   const kind = attendanceReviewResolutionKind({
     item,

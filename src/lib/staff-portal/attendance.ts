@@ -5,7 +5,10 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addDaysToYmd } from "@/lib/attendance/time";
-import { filterAttendanceExceptionsForBusinessDay } from "@/lib/attendance/attendance-exception-actionability";
+import {
+  filterAttendanceExceptionsForBusinessDay,
+} from "@/lib/attendance/attendance-exception-actionability";
+import type { AttendanceException, AttendanceRecord } from "@/lib/attendance/types";
 import { attendanceV2Status, readAttendanceCredit, type AttendanceCredit } from "@/lib/attendance/v2-policy";
 import { getAttendanceSettingsReadOnly } from "@/lib/attendance/queries";
 import { branchDateTimeToIsoInTimezone, getAttendanceBranchNow } from "@/lib/attendance/shift-instance";
@@ -50,8 +53,80 @@ export type StaffAttendanceData = {
   todayState: AttendanceDayStaffState;
   history: StaffAttendanceHistoryRecord[];
   issues: StaffAttendanceIssueGuide[];
+  priorShiftIssues?: StaffAttendanceIssueGuide[];
   portalClockOut?: StaffPortalClockOutAvailability;
 };
+
+export function partitionStaffPortalExceptions<
+  TRow extends {
+    id: string;
+    branch_id: string;
+    staff_id: string | null;
+    checkin_id: string | null;
+    scan_event_id: string | null;
+    exception_type: string;
+    severity: string;
+    status: string;
+    message: string;
+    metadata: unknown;
+    detected_at: string;
+    resolved_at: string | null;
+    safe_error_code?: string | null;
+    resolution_owner?: string | null;
+    resolution_status?: string | null;
+    occurrence_count?: number | null;
+    staff_response_required?: boolean | null;
+  },
+>(params: {
+  exceptions: TRow[];
+  staffName: string;
+  records: AttendanceRecord[];
+  scanEventIds: Iterable<string>;
+  branchId: string;
+  businessDate: string;
+  businessDayStart: string;
+  businessDayEnd: string;
+}): {
+  dailyExceptions: AttendanceException[];
+  issues: StaffAttendanceIssueGuide[];
+  priorShiftIssues: StaffAttendanceIssueGuide[];
+} {
+  const mappedExceptions: AttendanceException[] = params.exceptions.map((row) => ({
+    ...row,
+    occurrence_count: row.occurrence_count ?? undefined,
+    staff_response_required: row.staff_response_required ?? undefined,
+    staff_name: params.staffName,
+    metadata: (row.metadata as Record<string, unknown> | null) ?? {},
+  }));
+  const dailyExceptions = filterAttendanceExceptionsForBusinessDay({
+    exceptions: mappedExceptions,
+    records: params.records,
+    scanEventIds: params.scanEventIds,
+    branchId: params.branchId,
+    businessDate: params.businessDate,
+    businessDayStart: params.businessDayStart,
+    businessDayEnd: params.businessDayEnd,
+  });
+  const dailyIds = new Set(dailyExceptions.map((exception) => exception.id));
+  const toGuide = (row: TRow): StaffAttendanceIssueGuide =>
+    buildStaffAttendanceIssueGuide({
+      id: row.id,
+      exception_type: row.exception_type,
+      message: row.message,
+      metadata: (row.metadata as Record<string, unknown> | null) ?? {},
+      safe_error_code: row.safe_error_code ?? null,
+      resolution_owner: row.resolution_owner ?? null,
+      resolution_status: row.resolution_status ?? null,
+      occurrence_count: row.occurrence_count ?? 1,
+      staff_response_required: row.staff_response_required ?? null,
+    });
+
+  return {
+    dailyExceptions,
+    issues: params.exceptions.filter((row) => dailyIds.has(row.id)).map(toGuide),
+    priorShiftIssues: params.exceptions.filter((row) => !dailyIds.has(row.id)).map(toGuide),
+  };
+}
 
 export type StaffPortalClockOutAvailability = {
   enabled: boolean;
@@ -241,6 +316,16 @@ export const getPureAttendanceSnapshot = cache(async (
   const settings = await getAttendanceSettingsReadOnly(staff.branch_id);
   const branchNow = getAttendanceBranchNow(settings);
   const today = branchNow.businessDate;
+  const currentBusinessDayStart = branchDateTimeToIsoInTimezone({
+    date: today,
+    time: branchNow.dayBoundary,
+    timezone: branchNow.timezone,
+  });
+  const currentBusinessDayEnd = branchDateTimeToIsoInTimezone({
+    date: addDaysToYmd(today, 1),
+    time: branchNow.dayBoundary,
+    timezone: branchNow.timezone,
+  });
   const historyStart = addDaysToYmd(today, -Math.max(1, Math.min(days, 90)));
   const [checkinsResult, exceptionsResult, sessionsResult, schedules] = await Promise.all([
     supabase
@@ -286,6 +371,29 @@ export const getPureAttendanceSnapshot = cache(async (
   if (checkinsResult.error) throw new Error(checkinsResult.error.message);
   if (exceptionsResult.error) throw new Error(exceptionsResult.error.message);
   if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+
+  const openExceptions = exceptionsResult.data ?? [];
+  const needsTodayScanEvents = openExceptions.some(
+    (row) => Boolean(row.scan_event_id) && !row.checkin_id
+  );
+  let todayScanEventIds: string[] = [];
+  if (needsTodayScanEvents) {
+    const scanEventsResult = await supabase
+      .from("qr_scan_events")
+      .select("id, created_at")
+      .eq("staff_id", staff.id)
+      .eq("is_test", false)
+      .gte("created_at", currentBusinessDayStart)
+      .limit(50);
+    const startMs = Date.parse(currentBusinessDayStart);
+    const endMs = Date.parse(currentBusinessDayEnd);
+    todayScanEventIds = ((scanEventsResult.error ? [] : scanEventsResult.data) ?? [])
+      .filter((row: { id: string; created_at: string }) => {
+        const createdMs = Date.parse(row.created_at);
+        return Number.isFinite(createdMs) ? createdMs >= startMs && createdMs < endMs : false;
+      })
+      .map((row: { id: string }) => row.id);
+  }
 
   const history = ((checkinsResult.data ?? []) as CheckinRow[]).map(mapCheckin);
   const rawCheckins = (checkinsResult.data ?? []) as CheckinRow[];
@@ -362,25 +470,11 @@ export const getPureAttendanceSnapshot = cache(async (
     actual_clock_out_reconciled_at: row.actual_clock_out_reconciled_at,
     source_label: null,
   }));
-  const mappedExceptions = (exceptionsResult.data ?? []).map((row) => ({
-    ...row,
-    staff_name: staff.full_name,
-    metadata: (row.metadata as Record<string, unknown> | null) ?? {},
-  }));
-  const currentBusinessDayStart = branchDateTimeToIsoInTimezone({
-    date: today,
-    time: branchNow.dayBoundary,
-    timezone: branchNow.timezone,
-  });
-  const currentBusinessDayEnd = branchDateTimeToIsoInTimezone({
-    date: addDaysToYmd(today, 1),
-    time: branchNow.dayBoundary,
-    timezone: branchNow.timezone,
-  });
-  const dailyExceptions = filterAttendanceExceptionsForBusinessDay({
-    exceptions: mappedExceptions,
+  const { dailyExceptions, issues, priorShiftIssues } = partitionStaffPortalExceptions({
+    exceptions: openExceptions,
+    staffName: staff.full_name,
     records: attendanceRecords,
-    scanEventIds: [],
+    scanEventIds: todayScanEventIds,
     branchId: staff.branch_id,
     businessDate: today,
     businessDayStart: currentBusinessDayStart,
@@ -425,22 +519,6 @@ export const getPureAttendanceSnapshot = cache(async (
           .map((window) => `${formatTime(window.startTime)}–${formatTime(window.endTime)}`)
           .join(" · ")
       : todayState.displayLabel;
-
-  const issues = (exceptionsResult.data ?? []).map((row) =>
-    buildStaffAttendanceIssueGuide({
-      id: row.id,
-      exception_type: row.exception_type,
-      message: row.message,
-      metadata: (row.metadata as Record<string, unknown> | null) ?? {},
-      safe_error_code: "safe_error_code" in row ? (row.safe_error_code as string | null) : null,
-      resolution_owner: "resolution_owner" in row ? (row.resolution_owner as string | null) : null,
-      resolution_status:
-        "resolution_status" in row ? (row.resolution_status as string | null) : null,
-      occurrence_count: "occurrence_count" in row ? (row.occurrence_count as number | null) : 1,
-      staff_response_required:
-        "staff_response_required" in row ? (row.staff_response_required as boolean | null) : null,
-    })
-  );
 
   let portalClockOut = portalAvailabilityCopy({
     code: currentClockState === "clocked_out" ? "already_clocked_out" : "no_open_attendance",
@@ -521,6 +599,7 @@ export const getPureAttendanceSnapshot = cache(async (
     todayState,
     history,
     issues,
+    priorShiftIssues,
     portalClockOut,
   };
 });

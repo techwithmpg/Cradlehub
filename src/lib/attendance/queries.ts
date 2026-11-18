@@ -30,7 +30,10 @@ import type {
   AttendanceWorkspaceData,
 } from "@/lib/attendance/types";
 import { resolveAttendanceDayStaffStates } from "@/lib/attendance/day-model";
-import { filterAttendanceExceptionsForBusinessDay } from "@/lib/attendance/attendance-exception-actionability";
+import {
+  filterAttendanceExceptionsForBusinessDay,
+  staleOpenCheckinTargetId,
+} from "@/lib/attendance/attendance-exception-actionability";
 import {
   branchDateTimeToIsoInTimezone,
   getAttendanceBranchNow,
@@ -673,6 +676,25 @@ export async function completeDueServiceSessionsNow(): Promise<number> {
   return Array.isArray(data) ? data.length : 0;
 }
 
+const ATTENDANCE_CHECKIN_SELECT =
+  "id, branch_id, staff_id, shift_date, shift_type, scheduled_start_at, scheduled_end_at, checked_in_at, checked_out_at, status, attendance_status, exception_state, worked_minutes, late_minutes, early_leave_minutes, overtime_minutes, clock_in_method, clock_out_method, attendance_expected_end_at, earliest_normal_clock_out_at, latest_normal_clock_out_at, attendance_policy_source, attendance_policy_snapshot, provisional_auto_closed_at, clock_out_confirmation_required, actual_clock_out_reconciled_at, source_qr_point_id, clock_in_scan_event_id, clock_out_scan_event_id, staff:staff!staff_shift_checkins_staff_id_fkey(id, full_name, nickname, staff_type, system_role), qr_points:qr_points!staff_shift_checkins_source_qr_point_id_fkey(label)";
+
+const ATTENDANCE_SCAN_EVENT_SELECT =
+  "id, scan_type, action, outcome, reason_code, message, created_at, booking_id, staff_id, staff:staff!qr_scan_events_staff_id_fkey(id, full_name), qr_points:qr_points!qr_scan_events_qr_point_id_fkey(id, label)";
+
+async function loadInChunks(
+  ids: string[],
+  fetchChunk: (chunk: string[]) => PromiseLike<{ data: unknown[] | null; error: unknown }>
+): Promise<unknown[]> {
+  if (ids.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let index = 0; index < ids.length; index += 50) {
+    chunks.push(ids.slice(index, index + 50));
+  }
+  const results = await Promise.all(chunks.map((chunk) => fetchChunk(chunk)));
+  return results.flatMap((result) => (result.error ? [] : (result.data ?? [])));
+}
+
 export async function getAttendanceWorkspaceData(params: {
   branchId: string;
   branchName: string;
@@ -892,6 +914,44 @@ export async function getAttendanceWorkspaceData(params: {
   const testRecords = testRecordsResult.map(mapRecord);
   const exceptions = exceptionsResult.map(mapException);
   const scanEvents = (scanEventsResult.data ?? []).map(mapScanEvent);
+  const recordIds = new Set(records.map((record) => record.id));
+  const missingCheckinIds = Array.from(
+    new Set(
+      exceptions
+        .flatMap((exception) => [exception.checkin_id, staleOpenCheckinTargetId(exception)])
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+        .filter((id) => !recordIds.has(id))
+    )
+  );
+  const scanEventIds = new Set(scanEvents.map((event) => event.id));
+  const missingScanEventIds = Array.from(
+    new Set(
+      exceptions
+        .flatMap((exception) => [exception.scan_event_id, exception.latest_scan_event_id ?? null])
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+        .filter((id) => !scanEventIds.has(id))
+    )
+  );
+  const [extraCheckinRows, extraScanEventRows] = await Promise.all([
+    loadInChunks(missingCheckinIds, (chunk) =>
+      admin
+        .from("staff_shift_checkins")
+        .select(ATTENDANCE_CHECKIN_SELECT)
+        .eq("branch_id", params.branchId)
+        .eq("is_test", false)
+        .in("id", chunk)
+    ),
+    loadInChunks(missingScanEventIds, (chunk) =>
+      admin
+        .from("qr_scan_events")
+        .select(ATTENDANCE_SCAN_EVENT_SELECT)
+        .eq("branch_id", params.branchId)
+        .eq("is_test", false)
+        .in("id", chunk)
+    ),
+  ]);
+  const exceptionRecords = extraCheckinRows.map(mapRecord);
+  const exceptionScanEvents = extraScanEventRows.map(mapScanEvent);
   const sessions = (sessionsResult.data ?? []).map(mapSession);
   const corrections = correctionsResult.map(mapCorrection);
   const dailyExceptions = filterAttendanceExceptionsForBusinessDay({
@@ -953,6 +1013,8 @@ export async function getAttendanceWorkspaceData(params: {
     records,
     testRecords,
     exceptions,
+    exceptionRecords,
+    exceptionScanEvents,
     corrections,
     scanEvents,
     sessions,

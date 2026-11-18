@@ -486,6 +486,11 @@ begin
     if coalesce((new.attendance_policy_snapshot->>'hasActiveAssignment')::boolean, false)
        or coalesce((new.attendance_policy_snapshot->>'hasUpcomingAssignment')::boolean, false) then
       perform attendance_v2_private.suppress_reminders(new.id, now());
+      update attendance_v2_private.work
+         set generation = generation + 1,
+             last_interval = 0
+       where checkin_id = new.id
+         and last_interval <> 0;
     end if;
     v_delay := case
       when coalesce(new.attendance_policy_snapshot->>'kind', new.attendance_policy_source, 'schedule') in ('home_service', 'driver_trip')
@@ -764,6 +769,8 @@ begin
          where id = c.id;
         update attendance_v2_private.work
            set next_due_at = p_processed_at + interval '5 minutes',
+               generation = case when last_interval <> 0 then generation + 1 else generation end,
+               last_interval = 0,
                last_reason = 'active_or_upcoming_work',
                updated_at = p_processed_at
          where checkin_id = c.id;
@@ -791,12 +798,12 @@ begin
       from public.attendance_settings where branch_id = c.branch_id;
       v_business_day_end := (((coalesce(c.attendance_business_date, c.shift_date) + 1)::timestamp + coalesce(v_settings_boundary, '06:00:00'::time)) at time zone v_timezone);
 
-      -- Overnight shifts (scheduled_end_at >= midnight) must remain open past midnight and past their
-      -- reminder delay until branch business-day end; regular shifts must also clear their first reminder deadline.
-      if c.scheduled_end_at >= v_midnight then
+      -- Overnight shifts and day shifts extended near/across midnight must remain open past their
+      -- first reminder + grace window (and past branch business-day end when crossing midnight).
+      if c.scheduled_end_at >= v_midnight or v_end + make_interval(mins => v_plan.delay_minutes) >= v_midnight then
         v_auto_close_at := greatest(v_business_day_end, v_end + make_interval(mins => v_plan.delay_minutes + 40));
       else
-        v_auto_close_at := greatest(v_midnight, v_end + make_interval(mins => v_plan.delay_minutes));
+        v_auto_close_at := greatest(v_midnight, v_end + make_interval(mins => v_plan.delay_minutes + 40));
       end if;
 
       if p_processed_at >= v_auto_close_at and p_processed_at >= v_end then

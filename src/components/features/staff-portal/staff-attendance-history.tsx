@@ -109,6 +109,24 @@ export function StaffAttendanceHistory({
         </Card>
       )}
 
+      {data.priorShiftIssues && data.priorShiftIssues.length > 0 ? (
+        <Card className="border-stone-200 bg-stone-50/70">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-stone-800">
+              Prior shift under CRM review ({data.priorShiftIssues.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-xs text-stone-700">
+            {data.priorShiftIssues.map((issue) => (
+              <div key={issue.id} className="rounded-lg border border-stone-200 bg-white px-3 py-2">
+                <p className="font-semibold text-stone-900">{issue.title}</p>
+                <p className="mt-0.5 leading-5 text-stone-600">{issue.guidance}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
