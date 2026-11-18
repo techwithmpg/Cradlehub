@@ -17,6 +17,15 @@ const loginSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+function sanitizeReturnTo(raw: FormDataEntryValue | string | null | undefined): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//") || trimmed.startsWith("/login") || trimmed.startsWith("/auth")) {
+    return null;
+  }
+  return trimmed;
+}
+
 export type LoginState = {
   error?: string;
   fieldErrors?: { email?: string; password?: string };
@@ -92,10 +101,11 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
 
   if (!user) return { error: "Authentication failed. Please try again." };
 
+  const requestedReturnTo = sanitizeReturnTo(formData.get("returnTo"));
   const destination = await getLoginDestinationForUser(user.id, formData.get("staffPwa") === "1");
   if (typeof destination !== "string") return destination;
 
-  redirect(destination);
+  redirect(requestedReturnTo ?? destination);
 }
 
 export async function completeGoogleLoginAction(staffPwa = false): Promise<GoogleLoginCompletion> {

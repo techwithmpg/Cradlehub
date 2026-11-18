@@ -61,7 +61,7 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
 
 const CRM_NAV_ITEMS: NavItem[] = [
   { label: "Cradle Live", href: "/crm/live-operations", icon: "Activity" },
-  { label: "Cradle Flow", href: "/crm/today", icon: "LayoutDashboard" },
+  { label: "Cradle Intake", href: "/crm/today", icon: "LayoutDashboard" },
   { label: "Bookings", href: "/crm/bookings", icon: "ClipboardList" },
   { label: "Cash Flow", href: "/crm/cash-flow", icon: "DollarSign" },
   { label: "Schedule", href: "/crm/schedule", icon: "CalendarDays" },

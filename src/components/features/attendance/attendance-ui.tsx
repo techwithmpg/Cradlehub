@@ -99,8 +99,8 @@ export function StatusPill({ value, tone }: { value: string; tone?: AttendanceTo
     ].includes(value)
       ? "good"
       : ["open", "late", "early_leave", "overtime", "blocked", "warning", "ending_soon"].includes(
-            value
-          )
+        value
+      )
         ? "warn"
         : ["revoked", "error", "overdue", "conflict", "rejected"].includes(value)
           ? "bad"

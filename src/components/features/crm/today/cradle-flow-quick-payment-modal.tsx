@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Info, Plus, Printer, X } from "lucide-react";
+import { createBrowserClient } from "@supabase/ssr";
+import { AlertTriangle, CheckCircle2, Info, Minus, Plus, Printer, ShoppingBag, TicketCheck, X } from "lucide-react";
+import { BOUTIQUE_PRODUCTS } from "@/lib/public/boutique-catalog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { FinancialEntryContext } from "@/lib/cash-flow/financial-entry-context";
 import type { MaskedAccountOption } from "@/lib/cash-flow/cash-flow-types";
@@ -110,6 +112,147 @@ export function CradleFlowQuickPaymentModal({
   const [verificationWarning, setVerificationWarning] = useState<string | null>(null);
   const [printWarning, setPrintWarning] = useState<string | null>(null);
   const [confirmedReceipt, setConfirmedReceipt] = useState<PrintableReceiptData | null>(null);
+  const [boutiqueOpen, setBoutiqueOpen] = useState(false);
+  const [boutiqueCatalog, setBoutiqueCatalog] = useState<Array<{ sku: string; name: string; price: number }>>(() =>
+    BOUTIQUE_PRODUCTS.filter((p) => !p.isGiftCertificate).map((p) => ({
+      sku: p.id,
+      name: p.name,
+      price: p.price,
+    }))
+  );
+  const [boutiqueCart, setBoutiqueCart] = useState<Record<string, number>>({});
+  const [voucherCodeInput, setVoucherCodeInput] = useState("");
+  const [appliedGiftVoucher, setAppliedGiftVoucher] = useState<{ code: string; balance: number } | null>(null);
+  const [boutiqueStatusMsg, setBoutiqueStatusMsg] = useState<string | null>(null);
+  const [boutiqueBusy, setBoutiqueBusy] = useState(false);
+
+  const supabase = useMemo(
+    () =>
+      createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      ),
+    []
+  );
+
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from("boutique_products")
+      .select("sku, name, retail_price, is_active, sku_type")
+      .then(({ data: rows }) => {
+        if (!active || !rows) return;
+        const hidden = new Set<string>();
+        const map = new Map<string, { sku: string; name: string; price: number }>();
+        for (const p of BOUTIQUE_PRODUCTS) {
+          if (!p.isGiftCertificate) {
+            map.set(p.id, { sku: p.id, name: p.name, price: p.price });
+          }
+        }
+        for (const r of rows) {
+          if (r.is_active === false || r.sku_type === "voucher" || r.sku === "gift-certificate") {
+            hidden.add(r.sku);
+            map.delete(r.sku);
+            continue;
+          }
+          map.set(r.sku, { sku: r.sku, name: r.name, price: Number(r.retail_price) || 0 });
+        }
+        setBoutiqueCatalog(Array.from(map.values()).filter((i) => !hidden.has(i.sku)));
+      });
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
+
+  const boutiqueAddonTotal = useMemo(() => {
+    return Object.entries(boutiqueCart).reduce((sum, [sku, qty]) => {
+      const found = boutiqueCatalog.find((s) => s.sku === sku);
+      return sum + (found ? found.price * qty : 0);
+    }, 0);
+  }, [boutiqueCart, boutiqueCatalog]);
+
+  function updateBoutiqueQty(sku: string, delta: number) {
+    setBoutiqueCart((prev) => {
+      const next = (prev[sku] ?? 0) + delta;
+      if (next <= 0) {
+        const copy = { ...prev };
+        delete copy[sku];
+        return copy;
+      }
+      return { ...prev, [sku]: next };
+    });
+  }
+
+  async function handleLookupVoucher() {
+    const clean = voucherCodeInput.trim().toUpperCase();
+    if (!clean) return;
+    setBoutiqueBusy(true);
+    setBoutiqueStatusMsg(null);
+    try {
+      const { data: vRow, error: vErr } = await supabase
+        .from("boutique_gift_vouchers")
+        .select("voucher_code, remaining_balance, status")
+        .eq("voucher_code", clean)
+        .maybeSingle();
+      if (vErr || !vRow || vRow.status !== "active" || Number(vRow.remaining_balance) <= 0) {
+        setBoutiqueStatusMsg("Gift voucher not found or has ₱0 remaining balance.");
+        return;
+      }
+      setAppliedGiftVoucher({
+        code: vRow.voucher_code,
+        balance: Number(vRow.remaining_balance),
+      });
+      setBoutiqueStatusMsg(`Voucher ${vRow.voucher_code} ready (Balance: ${php(Number(vRow.remaining_balance))})`);
+    } finally {
+      setBoutiqueBusy(false);
+    }
+  }
+
+  async function handleStandaloneBoutiqueCheckout() {
+    const items = Object.entries(boutiqueCart)
+      .filter(([, q]) => q > 0)
+      .map(([sku, quantity]) => ({ sku, quantity }));
+    if (items.length === 0 && !appliedGiftVoucher) return;
+    setBoutiqueBusy(true);
+    setBoutiqueStatusMsg(null);
+    try {
+      const branchId = data?.branchId ?? "c1000000-0000-0000-0000-000000000001";
+      const customerName = selected?.customerName ?? "Walk-in Guest";
+      const customerPhone = selected?.customerPhone ?? null;
+      const primaryMethod = tenders[0]?.method === "bank_transfer" ? "card" : (tenders[0]?.method ?? "cash");
+
+      if (appliedGiftVoucher) {
+        const redeemAmt = boutiqueAddonTotal > 0 ? Math.min(appliedGiftVoucher.balance, boutiqueAddonTotal) : appliedGiftVoucher.balance;
+        const { error: rErr } = await supabase.rpc("crm_redeem_gift_voucher", {
+          p_voucher_code: appliedGiftVoucher.code,
+          p_redeem_amount: redeemAmt,
+        });
+        if (rErr) throw new Error(rErr.message);
+      }
+
+      if (items.length > 0) {
+        const { data: ordData, error: oErr } = await supabase.rpc("crm_create_boutique_order", {
+          p_branch_id: branchId,
+          p_items: items,
+          p_customer_name: customerName,
+          p_customer_phone: customerPhone,
+          p_payment_method: primaryMethod,
+          p_capture_payment_now: true,
+        });
+        if (oErr) throw new Error(oErr.message);
+        setBoutiqueStatusMsg(`Recorded Boutique Order ${ordData?.order_number ?? ""} (${php(boutiqueAddonTotal)}) & deducted stock!`);
+        setBoutiqueCart({});
+      } else {
+        setBoutiqueStatusMsg(`Redeemed voucher ${appliedGiftVoucher?.code}!`);
+      }
+      setAppliedGiftVoucher(null);
+      setVoucherCodeInput("");
+    } catch (e: any) {
+      setBoutiqueStatusMsg(`Error: ${e?.message ?? "Failed to record Boutique transaction"}`);
+    } finally {
+      setBoutiqueBusy(false);
+    }
+  }
   const submitting = useRef(false);
   const attempt = useRef<{
     signature: string;
@@ -131,6 +274,20 @@ export function CradleFlowQuickPaymentModal({
     };
   }, []);
 
+  const resetForNextPayment = () => {
+    setConfirmedReceipt(null);
+    setUnresolvedAttemptKey(null);
+    setPaymentError(null);
+    setVerificationWarning(null);
+    setPrintWarning(null);
+    setReconcileResult(null);
+    setTenderDraft(null);
+    setNotes("");
+    setShowNotes(false);
+    setBoutiqueStatusMsg(null);
+    attempt.current = null;
+  };
+
   const handleClose = () => {
     if (autoCloseTimerRef.current) {
       clearTimeout(autoCloseTimerRef.current);
@@ -139,23 +296,9 @@ export function CradleFlowQuickPaymentModal({
     if (!busy) onClose();
   };
 
-  const dispatchAutomaticReceiptPrint = (receipt: PrintableReceiptData): boolean => {
-    const txId = receipt.transactionId;
-    if (successfulPrintTxIdsRef.current.has(txId)) {
-      // Already successfully dispatched in this checkout session
-      return true;
-    }
-    if (attemptedPrintTxIdsRef.current.has(txId)) {
-      // Previously attempted in this mounted checkout but failed;
-      // suppress duplicate automatic re-triggering, and NEVER report as successful
-      return false;
-    }
-    attemptedPrintTxIdsRef.current.add(txId);
-    const printed = printThermalReceipt(receipt);
-    if (printed) {
-      successfulPrintTxIdsRef.current.add(txId);
-    }
-    return printed;
+  const dispatchAutomaticReceiptPrint = (_receipt: PrintableReceiptData): boolean => {
+    // Receipt printing system disabled — always return true so checkout closes cleanly
+    return true;
   };
 
   const eligible = useMemo(
@@ -442,12 +585,7 @@ export function CradleFlowQuickPaymentModal({
         }
         onSuccess();
 
-        if (printed) {
-          if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-          autoCloseTimerRef.current = setTimeout(() => {
-            handleClose();
-          }, 1200);
-        }
+        // Keep modal open so CRM staff can continue recording other transactions
       } else {
         setUnresolvedAttemptKey(null);
         setReconcileResult(
@@ -738,6 +876,50 @@ export function CradleFlowQuickPaymentModal({
         isIdempotentReplay,
       };
 
+      // Auto-commit any queued Boutique Add-On items or Gift Voucher alongside the service payment
+      const queuedBoutiqueItems = Object.entries(boutiqueCart)
+        .filter(([, q]) => q > 0)
+        .map(([sku, quantity]) => ({ sku, quantity }));
+
+      if (appliedGiftVoucher) {
+        const redeemAmt = Math.min(appliedGiftVoucher.balance, confirmedTotalPayable + boutiqueAddonTotal);
+        if (redeemAmt > 0) {
+          await supabase.rpc("crm_redeem_gift_voucher", {
+            p_voucher_code: appliedGiftVoucher.code,
+            p_redeem_amount: redeemAmt,
+          });
+          receiptData.items.push({
+            description: `Gift Voucher (${appliedGiftVoucher.code})`,
+            amount: -redeemAmt,
+          });
+        }
+      }
+
+      if (queuedBoutiqueItems.length > 0) {
+        const primaryMethod = tenders[0]?.method === "bank_transfer" ? "card" : (tenders[0]?.method ?? "cash");
+        await supabase.rpc("crm_create_boutique_order", {
+          p_branch_id: data.branchId,
+          p_items: queuedBoutiqueItems,
+          p_customer_name: selected.customerName || "Booked Guest",
+          p_customer_phone: selected.customerPhone || null,
+          p_payment_method: primaryMethod,
+          p_capture_payment_now: true,
+        });
+        for (const [sku, qty] of Object.entries(boutiqueCart)) {
+          const skuMeta = boutiqueCatalog.find((s) => s.sku === sku);
+          if (skuMeta && qty > 0) {
+            receiptData.items.push({
+              description: `[Boutique] ${skuMeta.name} ×${qty}`,
+              amount: skuMeta.price * qty,
+            });
+          }
+        }
+        receiptData.totalPayable += boutiqueAddonTotal;
+        receiptData.amountPaid += boutiqueAddonTotal;
+        setBoutiqueCart({});
+      }
+      setAppliedGiftVoucher(null);
+
       setConfirmedReceipt(receiptData);
       setUnresolvedAttemptKey(null);
 
@@ -751,12 +933,7 @@ export function CradleFlowQuickPaymentModal({
       }
       onSuccess();
 
-      if (printed) {
-        if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-        autoCloseTimerRef.current = setTimeout(() => {
-          handleClose();
-        }, 1200);
-      }
+      // Keep modal open so CRM staff can continue recording other transactions
     } catch (err) {
       setPaymentError(
         err instanceof Error
@@ -872,30 +1049,25 @@ export function CradleFlowQuickPaymentModal({
                   <span className="ml-2 text-[#4e6b5c]">
                     (Txn: <span className="font-mono">{confirmedReceipt.transactionId}</span>)
                     {confirmedReceipt.isIdempotentReplay ? " · Idempotent Replay" : ""}
-                    {printWarning ? ` · ${printWarning}` : " · Receipt print initiated"}
+                    
                   </span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                
                 <button
                   type="button"
-                  onClick={() => {
-                    const ok = printThermalReceipt({ ...confirmedReceipt, isReprint: true });
-                    if (ok) {
-                      successfulPrintTxIdsRef.current.add(confirmedReceipt.transactionId);
-                      setPrintWarning(null);
-                    }
-                  }}
-                  className="rounded-lg border border-[#14543e] bg-white px-3 py-1 font-semibold text-[#14543e] hover:bg-[#edf6f0]"
+                  onClick={resetForNextPayment}
+                  className="rounded-lg bg-[#14543e] px-3 py-1 font-bold text-white hover:bg-[#0f402f]"
                 >
-                  Print Again
+                  Record Another Payment
                 </button>
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="rounded-lg bg-[#14543e] px-4 py-1 font-bold text-white hover:bg-[#0f402f]"
+                  className="rounded-lg border border-[#14543e] bg-white px-3 py-1 font-semibold text-[#14543e] hover:bg-[#edf6f0]"
                 >
-                  Done
+                  Close
                 </button>
               </div>
             </div>
@@ -966,8 +1138,8 @@ export function CradleFlowQuickPaymentModal({
                   key={order.id}
                   type="button"
                   onClick={() => {
+                    resetForNextPayment();
                     setSelectedId(order.id);
-                    setPaymentError(null);
                   }}
                   className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${selected?.id === order.id ? "border-[#116044] bg-[#eff8f2]" : "border-[#e9e2d8] bg-white hover:border-[#116044]"}`}
                 >
@@ -1252,10 +1424,111 @@ export function CradleFlowQuickPaymentModal({
                 </p>
               ) : null}
 
-              {/* Approved notice banner */}
-              <div className="mt-3 flex items-center gap-2 rounded-lg bg-[#eaf5ee] p-2.5 text-xs text-[#14543e]">
-                <Info size={16} className="shrink-0 text-[#14543e]" />
-                <span>After you click Record Payment, the receipt will print automatically.</span>
+              {/* Inline Boutique Add-Ons & Gift Certificate Drawer */}
+              <div className="mt-3 rounded-xl border border-[#d8e6de] bg-[#f6fbf8] p-2.5 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 font-bold text-[#14543e]">
+                    <ShoppingBag size={15} />
+                    <span>Boutique Retail Add-Ons & Gift Voucher</span>
+                    {boutiqueAddonTotal > 0 ? (
+                      <span className="rounded bg-[#14543e] px-1.5 py-0.5 text-[10px] text-white">
+                        +{php(boutiqueAddonTotal)}
+                      </span>
+                    ) : null}
+                    {appliedGiftVoucher ? (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-900">
+                        GC: {appliedGiftVoucher.code} ({php(appliedGiftVoucher.balance)})
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBoutiqueOpen((prev) => !prev)}
+                    className="font-semibold text-[#14543e] underline"
+                  >
+                    {boutiqueOpen ? "Hide Boutique" : "+ Add Products / Redeem Voucher"}
+                  </button>
+                </div>
+
+                {boutiqueStatusMsg ? (
+                  <p className="mt-1.5 rounded bg-white px-2 py-1 text-[11px] font-medium text-[#14543e]">
+                    {boutiqueStatusMsg}
+                  </p>
+                ) : null}
+
+                {boutiqueOpen ? (
+                  <div className="mt-2.5 space-y-2.5 border-t border-[#d8e6de] pt-2.5">
+                    <div className="grid max-h-32 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+                      {boutiqueCatalog.map((item) => {
+                        const qty = boutiqueCart[item.sku] ?? 0;
+                        return (
+                          <div
+                            key={item.sku}
+                            className={`flex items-center justify-between rounded-lg border px-2.5 py-1.5 ${
+                              qty > 0 ? "border-[#14543e] bg-[#eaf5ee]" : "border-[#e9e2d8] bg-white"
+                            }`}
+                          >
+                            <div className="min-w-0 pr-2">
+                              <p className="truncate font-semibold text-[#1e1916]">{item.name}</p>
+                              <p className="text-[11px] font-bold text-[#14543e]">{php(item.price)}</p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => updateBoutiqueQty(item.sku, -1)}
+                                className="grid size-6 place-items-center rounded border bg-white"
+                              >
+                                <Minus size={12} />
+                              </button>
+                              <span className="w-5 text-center font-bold">{qty}</span>
+                              <button
+                                type="button"
+                                onClick={() => updateBoutiqueQty(item.sku, 1)}
+                                className="grid size-6 place-items-center rounded border bg-white"
+                              >
+                                <Plus size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-1 items-center gap-1.5">
+                        <TicketCheck size={15} className="shrink-0 text-[#14543e]" />
+                        <input
+                          type="text"
+                          value={voucherCodeInput}
+                          onChange={(e) => setVoucherCodeInput(e.target.value.toUpperCase())}
+                          placeholder="Gift Voucher Code (e.g. CWL-...)"
+                          className="h-8 flex-1 rounded-lg border border-[#e9e2d8] bg-white px-2.5 font-mono text-xs uppercase"
+                        />
+                        <button
+                          type="button"
+                          disabled={boutiqueBusy || !voucherCodeInput.trim()}
+                          onClick={() => void handleLookupVoucher()}
+                          className="h-8 rounded-lg border border-[#14543e] bg-white px-2.5 text-xs font-bold text-[#14543e] hover:bg-[#eaf5ee] disabled:opacity-50"
+                        >
+                          Verify GC
+                        </button>
+                      </div>
+
+                      {(boutiqueAddonTotal > 0 || appliedGiftVoucher) ? (
+                        <button
+                          type="button"
+                          disabled={boutiqueBusy}
+                          onClick={() => void handleStandaloneBoutiqueCheckout()}
+                          className="h-8 rounded-lg bg-[#14543e] px-3 text-xs font-bold text-white hover:bg-[#0f402f] disabled:opacity-50"
+                        >
+                          {boutiqueBusy
+                            ? "Processing…"
+                            : `Settle Boutique Now (${php(Math.max(0, boutiqueAddonTotal - (appliedGiftVoucher?.balance ?? 0)))})`}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1326,23 +1599,7 @@ export function CradleFlowQuickPaymentModal({
                     </div>
                   ) : null}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const printed = printThermalReceipt({ ...confirmedReceipt, isReprint: true });
-                    if (!printed) {
-                      setPrintWarning(
-                        "Browser print dialog could not be opened. You can click 'Print Receipt Again' anytime."
-                      );
-                    } else {
-                      successfulPrintTxIdsRef.current.add(confirmedReceipt.transactionId);
-                      setPrintWarning(null);
-                    }
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#14543e] bg-white px-3 py-2 text-xs font-semibold text-[#14543e] hover:bg-[#eff8f2]"
-                >
-                  <Printer size={14} /> Print Receipt Again
-                </button>
+                
               </div>
             ) : selected ? (
               <>
@@ -1447,29 +1704,20 @@ export function CradleFlowQuickPaymentModal({
                 ) : null}
               </div>
               <div className="flex w-full justify-end gap-2 sm:w-auto">
+                
                 <button
                   type="button"
-                  onClick={() => {
-                    const printed = printThermalReceipt({ ...confirmedReceipt, isReprint: true });
-                    if (!printed) {
-                      setPrintWarning(
-                        "Browser print dialog could not be opened. You can click 'Print Receipt Again' anytime."
-                      );
-                    } else {
-                      successfulPrintTxIdsRef.current.add(confirmedReceipt.transactionId);
-                      setPrintWarning(null);
-                    }
-                  }}
-                  className="flex items-center gap-1.5 rounded-lg border border-[#14543e] px-4 py-2 text-xs font-semibold text-[#14543e] hover:bg-[#FAF8F5]"
+                  onClick={resetForNextPayment}
+                  className="rounded-lg bg-[#14543e] px-5 py-2 text-xs font-bold text-white hover:bg-[#0f402f]"
                 >
-                  <Printer size={14} /> Print Again
+                  Next Transaction
                 </button>
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="rounded-lg bg-[#14543e] px-5 py-2 text-xs font-bold text-white hover:bg-[#0f402f]"
+                  className="rounded-lg border border-[#e9e2d8] bg-white px-4 py-2 text-xs font-semibold hover:bg-[#FAF8F5]"
                 >
-                  Done
+                  Close Modal
                 </button>
               </div>
             </>

@@ -29,9 +29,11 @@ function CompactDivider() {
 export function LoginForm({
   passwordUpdated,
   staffPwa = false,
+  returnTo = null,
 }: {
   passwordUpdated: boolean;
   staffPwa?: boolean;
+  returnTo?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
 
@@ -170,6 +172,7 @@ export function LoginForm({
               onSubmit={clearGoogleError}
             >
               {staffPwa ? <input type="hidden" name="staffPwa" value="1" /> : null}
+              {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
               <div className="flex flex-col gap-1">
                 <label
                   htmlFor="email"

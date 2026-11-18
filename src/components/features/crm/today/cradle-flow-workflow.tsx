@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Search, UserRoundCheck, UsersRound } from "lucide-react";
+import { CalendarClock, RotateCcw, Search, UserRoundCheck, UsersRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CrmSectionCard, CrmStatCard } from "@/components/features/crm/shared/crm-cards";
 import { CradleFlowTicket } from "./cradle-flow-ticket";
@@ -45,6 +45,7 @@ export function CradleFlowWorkflow({
   businessDate,
   staffAvailable,
   pendingFollowUps,
+  pendingBooking,
   onOpen,
   onOpenGroup,
   onPrimary,
@@ -58,6 +59,7 @@ export function CradleFlowWorkflow({
   businessDate: string;
   staffAvailable: number;
   pendingFollowUps: number;
+  pendingBooking?: CradleFlowBooking | null;
   onOpen: (booking: CradleFlowBooking) => void;
   onOpenGroup?: (group: CradleFlowGroup) => void;
   onPrimary: (booking: CradleFlowBooking) => void;
@@ -96,19 +98,31 @@ export function CradleFlowWorkflow({
       description="Manage today’s customer visits and service flow."
       noPadding
       actions={
-        <label className="relative block w-full lg:w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Customer, phone, booking ID, therapist…"
-            className="h-9 w-full rounded-xl border border-[var(--cs-border)] bg-[#FAF8F5] pl-9 pr-3 text-sm text-[var(--cs-text)] outline-none focus:border-[#1F4E33]"
-          />
-        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          {pendingBooking ? (
+            <button
+              type="button"
+              onClick={() => onOpen(pendingBooking)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-dashed border-[var(--cs-sand)] bg-[var(--cs-sand-tint)] px-3 text-xs font-bold text-[var(--cs-sand-dark)] transition hover:bg-[#F5EBD6]"
+            >
+              <RotateCcw className="size-3.5" />
+              <span>Resume pending · {pendingBooking.customer_name ?? "Unfinished booking"}</span>
+            </button>
+          ) : null}
+          <label className="relative block w-full sm:w-68">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--cs-text-muted)]" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Customer, phone, booking ID, therapist…"
+              className="h-9 w-full rounded-xl border border-[var(--cs-border)] bg-[#FAF8F5] pl-9 pr-3 text-sm text-[var(--cs-text)] outline-none focus:border-[#1F4E33]"
+            />
+          </label>
+        </div>
       }
     >
-      <div className="border-b border-[var(--cs-border-soft)] bg-[#FAF8F5]/60 px-4 py-3 sm:px-5">
+      <div className="border-b border-[var(--cs-border-soft)] bg-[#FAF8F5]/60 px-4 py-2.5 sm:px-5">
         <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Service status">
           {CRADLE_FLOW_FILTERS.map((item) => {
             const count = counts[item.key];
@@ -138,7 +152,7 @@ export function CradleFlowWorkflow({
         </div>
       </div>
 
-      <div className="min-h-72 p-3 sm:p-4">
+      <div className="min-h-60 p-3 sm:p-4">
         {visible.length > 0 ? (
           <div className="grid gap-2.5">
             {visible.map((group) => (
@@ -157,7 +171,7 @@ export function CradleFlowWorkflow({
             ))}
           </div>
         ) : (
-          <div className="grid min-h-64 place-items-center">
+          <div className="grid min-h-56 place-items-center">
             <div className="w-full max-w-2xl text-center">
               <span className="mx-auto grid size-12 place-items-center rounded-xl bg-[#EEF7F1] text-[#1F4E33] ring-1 ring-[#CFE5D6]">
                 <CalendarClock className="size-5" />

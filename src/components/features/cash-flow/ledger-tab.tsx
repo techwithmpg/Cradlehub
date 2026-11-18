@@ -362,8 +362,19 @@ export function LedgerTab({ kpis, records, businessDate }: LedgerTabProps) {
                           <td className="py-3 px-3 font-mono font-semibold text-[#1E1916]">
                             {item.reference}
                           </td>
-                          <td className="py-3 px-3 text-[#1E1916] font-medium">
-                            {item.customerSource}
+                          <td className="py-3 px-3 text-[#1E1916]">
+                            {item.customerSource.includes("\n") ? (
+                              <>
+                                <span className="font-semibold">
+                                  {item.customerSource.split("\n")[0]}
+                                </span>
+                                <div className="text-[10px] text-stone-600">
+                                  {item.customerSource.split("\n").slice(1).join(" · ")}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="font-semibold">{item.customerSource}</span>
+                            )}
                           </td>
                           <td className="py-3 px-3">
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F0EDE8] text-[#3A3028]">

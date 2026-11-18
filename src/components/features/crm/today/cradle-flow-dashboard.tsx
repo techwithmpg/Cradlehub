@@ -220,11 +220,12 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   }
 
   return (
-    <div className="mx-auto grid w-full min-w-0 max-w-[1600px] grid-cols-[minmax(0,1fr)] gap-3 p-3 sm:p-5 lg:p-6">
+    <div className="mx-auto grid w-full min-w-0 max-w-[1640px] grid-cols-[minmax(0,1fr)] gap-3 p-3 sm:p-4 lg:p-5">
       <CradleFlowHeader
         branchName={props.branchName}
         fallbackDateLabel={props.dateLabel}
         warningCount={warnings}
+        duty={props.duty}
         isRefreshing={props.isRefreshing}
         onRefresh={handleHeaderRefresh}
         onReviewWarnings={() => setReadinessOpen(true)}
@@ -257,13 +258,18 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
       />
       <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start">
         <main
-          className={isActing ? "w-full min-w-0 opacity-80 xl:flex-1" : "w-full min-w-0 xl:flex-1"}
+          className={
+            isActing
+              ? "w-full min-w-0 opacity-80 xl:flex-1"
+              : "w-full min-w-0 xl:flex-1"
+          }
         >
           <CradleFlowWorkflow
             bookings={bookings}
             businessDate={props.attendanceScanDate}
             staffAvailable={props.snapshot.staffReadiness.availableNow}
             pendingFollowUps={props.actionNotifications.length}
+            pendingBooking={pendingBooking}
             onOpen={openBooking}
             onOpenGroup={openGroup}
             onPrimary={runPrimary}

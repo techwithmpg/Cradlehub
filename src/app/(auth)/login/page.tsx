@@ -15,6 +15,9 @@ export default async function LoginPage({
   const params = await searchParams;
 
   return (
-    <LoginForm passwordUpdated={getSearchParam(params.passwordUpdated) === "true"} />
+    <LoginForm
+      passwordUpdated={getSearchParam(params.passwordUpdated) === "true"}
+      returnTo={getSearchParam(params.returnTo)}
+    />
   );
 }

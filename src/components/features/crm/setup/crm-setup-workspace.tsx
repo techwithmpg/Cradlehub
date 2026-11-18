@@ -57,7 +57,7 @@ const MORE_TABS: { key: SetupTab; label: string }[] = [
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 type ServicesData = Omit<CrmServicesWorkspaceProps, "initialTab">;
-type SpacesData   = Omit<SpacesRulesWorkspaceProps, "initialTab">;
+type SpacesData = Omit<SpacesRulesWorkspaceProps, "initialTab">;
 
 export type CrmSetupWorkspaceProps = {
   initialTab: SetupTab;

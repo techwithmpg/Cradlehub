@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { ArrowLeftRight, Banknote, Plus, ReceiptText, RotateCcw } from "lucide-react";
+import { ArrowLeftRight, Banknote, Plus, ReceiptText } from "lucide-react";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { CrmActionCard, type CrmCardTone } from "@/components/features/crm/shared/crm-cards";
 import type { FinancialEntryMode } from "@/components/features/cash-flow/record-financial-entry-modal";
@@ -31,7 +31,8 @@ function ActionCard({
       icon={icon}
       tone={tone}
       onClick={onClick}
-      className="min-h-20"
+      compact
+      className="min-h-16"
       trailing={
         <kbd className="rounded-md border border-black/10 bg-white/90 px-1.5 py-0.5 text-[10px] font-bold text-[var(--cs-text-secondary)] shadow-2xs">
           {shortcut}
@@ -42,12 +43,10 @@ function ActionCard({
 }
 
 export function CradleFlowActions({
-  pendingBooking,
-  onResumePending,
   onOpenFinancialEntry,
 }: {
-  pendingBooking: CradleFlowBooking | null;
-  onResumePending: (booking: CradleFlowBooking) => void;
+  pendingBooking?: CradleFlowBooking | null;
+  onResumePending?: (booking: CradleFlowBooking) => void;
   onOpenFinancialEntry: (mode: FinancialEntryMode) => void;
 }) {
   const { openBookingModal } = useAdministrativeBookingModal();
@@ -70,12 +69,12 @@ export function CradleFlowActions({
   }, [onOpenFinancialEntry, openBookingModal]);
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Primary front desk actions">
+    <section className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="Primary front desk actions">
       <ActionCard
         title="NEW BOOKING"
         description="Create a booking, walk-in or Home Service"
         shortcut="F1"
-        icon={<Plus className="size-5" />}
+        icon={<Plus className="size-4" />}
         tone="success"
         onClick={() => openBookingModal({ mode: "walkin" })}
       />
@@ -83,7 +82,7 @@ export function CradleFlowActions({
         title="RECORD PAYMENT"
         description="Collect payments and settle visits"
         shortcut="F2"
-        icon={<Banknote className="size-5" />}
+        icon={<Banknote className="size-4" />}
         tone="info"
         onClick={() => onOpenFinancialEntry("customer_payment")}
       />
@@ -91,7 +90,7 @@ export function CradleFlowActions({
         title="RECORD EXPENSES"
         description="Log operational expenses"
         shortcut="F3"
-        icon={<ReceiptText className="size-5" />}
+        icon={<ReceiptText className="size-4" />}
         tone="warning"
         onClick={() => onOpenFinancialEntry("expense")}
       />
@@ -99,20 +98,10 @@ export function CradleFlowActions({
         title="CASH OPERATIONS"
         description="Adjust cash or transfer funds"
         shortcut="F4"
-        icon={<ArrowLeftRight className="size-5" />}
+        icon={<ArrowLeftRight className="size-4" />}
         tone="neutral"
         onClick={() => onOpenFinancialEntry("other_entry")}
       />
-      {pendingBooking ? (
-        <button
-          type="button"
-          onClick={() => onResumePending(pendingBooking)}
-          className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--cs-sand)] bg-[var(--cs-sand-tint)] px-3 py-2 text-left text-xs font-bold text-[var(--cs-sand-dark)] sm:col-span-2 xl:col-span-4"
-        >
-          <RotateCcw className="size-4" />
-          Resume pending · {pendingBooking.customer_name ?? "Unfinished booking"}
-        </button>
-      ) : null}
     </section>
   );
 }

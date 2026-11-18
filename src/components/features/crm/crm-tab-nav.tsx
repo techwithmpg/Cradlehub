@@ -8,7 +8,7 @@ export type CrmTabItem = {
 
 // ── Per-section tab configs ───────────────────────────────────────────────────
 
-export const TODAY_TABS: CrmTabItem[] = [{ label: "Cradle Flow", href: "/crm/today" }];
+export const TODAY_TABS: CrmTabItem[] = [{ label: "Cradle Intake", href: "/crm/today" }];
 
 export const BOOKINGS_TABS: CrmTabItem[] = [{ label: "Today's Bookings", href: "/crm/bookings" }];
 

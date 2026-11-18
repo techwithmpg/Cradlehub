@@ -279,7 +279,7 @@ export async function getCrmTodayOperationalData(params: {
       customer_phone: first(b.customers)?.phone ?? null,
       service_name: first(b.services)?.name ?? null,
       service_duration: first(b.services)?.duration_minutes ?? null,
-      staff_name: first(b.staff) ? getStaffAdminName(first(b.staff)!) : null,
+      staff_name: first(b.staff) ? (first(b.staff)!.nickname?.trim() || first(b.staff)!.full_name?.trim() || getStaffAdminName(first(b.staff)!)) : null,
       staff_id: first(b.staff)?.id ?? null,
       requested_staff_id: b.requested_staff_id ?? null,
       therapist_selection_source: b.therapist_selection_source ?? "legacy_unknown",

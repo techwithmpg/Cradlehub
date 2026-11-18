@@ -1,13 +1,23 @@
 "use client";
 
-import { Building2, Clock, Mail, MapPin, Phone } from "lucide-react";
+import { useMemo, useState } from "react";
+import { createBrowserClient } from "@supabase/ssr";
+import { Building2, Clock, Mail, MapPin, Phone, SlidersHorizontal, Tag } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { CrmStatusBadge } from "@/components/features/crm/premium/crm-status-badge";
 import {
   WorkspaceNotice,
   WorkspaceSection,
 } from "@/components/features/crm/shared/crm-workspace-primitives";
 import type { CrmBoutiqueBranchRecord } from "@/lib/boutique/crm-boutique-model";
-import { PendingActionButton } from "./pending-authorization-control";
 
 export function BoutiqueBranchAssignmentTab({
   branches,
@@ -18,29 +28,59 @@ export function BoutiqueBranchAssignmentTab({
   currentBranchName: string;
   totalSkus: number;
 }) {
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [branchId, setBranchId] = useState(
+    branches[0]?.id ?? "c1000000-0000-0000-0000-000000000001"
+  );
+  const [sku, setSku] = useState("ginger-oil");
+  const [isAssigned, setIsAssigned] = useState(true);
+  const [priceOverride, setPriceOverride] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+
+  const supabase = useMemo(
+    () =>
+      createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      ),
+    []
+  );
+
+  const handleSaveOverride = async () => {
+    setBusy(true);
+    setSavedNotice(null);
+    const { error } = await supabase.rpc("crm_set_branch_sku_override", {
+      p_branch_id: branchId,
+      p_sku: sku,
+      p_is_assigned: isAssigned,
+      p_price_override: priceOverride.trim() ? Number(priceOverride) : null,
+    });
+    setBusy(false);
+    if (error) {
+      setSavedNotice(`Error: ${error.message}`);
+      return;
+    }
+    setSavedNotice(`Updated branch settings for ${sku}.`);
+    setOverrideOpen(false);
+  };
+
   return (
     <div className="space-y-4">
-      <WorkspaceNotice tone="info" title="Global Canonical Catalogue Across Active Branches">
-        <p className="m-0 text-xs leading-5">
-          All {totalSkus} canonical Boutique SKUs apply uniformly across active Cradle Wellness
-          Living branches for reception pickup coordination. Your active workspace branch is{" "}
-          <strong>{currentBranchName}</strong>.
-        </p>
-      </WorkspaceNotice>
 
       <WorkspaceSection
         title="Branch Pickup & SKU Eligibility Directory"
         description="Live active sanctuaries loaded from CradleHub's branches directory."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <PendingActionButton
-              label="Assign Branch SKUs"
-              reason="Per-branch SKU visibility overrides await database schema authorization."
-            />
-            <PendingActionButton
-              label="Override Branch Price"
-              reason="Branch-specific boutique pricing awaits owner approval & database tables."
-            />
+            <Button type="button" variant="outline" size="sm" onClick={() => setOverrideOpen(true)}>
+              <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+              <span>Assign Branch SKUs</span>
+            </Button>
+            <Button type="button" size="sm" onClick={() => setOverrideOpen(true)}>
+              <Tag className="size-3.5" aria-hidden="true" />
+              <span>Override Branch Price</span>
+            </Button>
           </div>
         }
       >
@@ -72,8 +112,8 @@ export function BoutiqueBranchAssignmentTab({
                       <CrmStatusBadge variant="neutral" label="Active Sanctuary" size="sm" />
                     )}
                     <CrmStatusBadge
-                      variant="warning"
-                      label="Custom SKU Overrides Locked"
+                      variant="active"
+                      label="Branch Overrides Enabled"
                       size="sm"
                     />
                   </div>
@@ -107,14 +147,92 @@ export function BoutiqueBranchAssignmentTab({
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--cs-border-soft)] pt-3 text-xs">
                 <span className="font-medium text-[#1F4E33]">{branch.pickupConciergeStatus}</span>
-                <span className="text-[var(--cs-text-muted)]">
-                  {totalSkus} canonical SKUs visible
-                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setBranchId(branch.id);
+                    setOverrideOpen(true);
+                  }}
+                >
+                  Configure Branch SKUs
+                </Button>
               </div>
             </div>
           ))}
         </div>
       </WorkspaceSection>
+
+      <Dialog open={overrideOpen} onOpenChange={setOverrideOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Branch SKU Assignment & Price Override</DialogTitle>
+            <DialogDescription>
+              Updates <code>public.boutique_branch_inventory</code> for the selected sanctuary.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-xs">
+            <div>
+              <label className="block font-semibold">Branch</label>
+              <select
+                value={branchId}
+                onChange={(e) => setBranchId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold">SKU</label>
+              <select
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+              >
+                <option value="ginger-oil">Ginger Oil</option>
+                <option value="borneol-oil">Borneol Oil</option>
+                <option value="linen-spray">Linen Spray</option>
+                <option value="gift-certificate">Gift Certificate</option>
+                <option value="calm-evening-duo">Calm Evening Duo</option>
+                <option value="sanctuary-body-trilogy">Sanctuary Ritual Trio</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)]/60 p-3">
+              <label className="font-semibold">Available for Pickup at This Branch</label>
+              <input
+                type="checkbox"
+                checked={isAssigned}
+                onChange={(e) => setIsAssigned(e.target.checked)}
+              />
+            </div>
+            <div>
+              <label className="block font-semibold">
+                Branch Price Override (₱) — Leave blank to use default retail price
+              </label>
+              <input
+                type="number"
+                value={priceOverride}
+                onChange={(e) => setPriceOverride(e.target.value)}
+                placeholder="e.g. 280"
+                className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" size="sm" onClick={() => setOverrideOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" size="sm" disabled={busy} onClick={handleSaveOverride}>
+              {busy ? "Saving..." : "Save Branch Settings"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

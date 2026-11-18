@@ -818,6 +818,86 @@ export async function getCashFlowData(
     });
   }
 
+  // Build a fast lookup of customer names & service details by booking_id and order_id
+  const sourceDisplayMap = new Map<string, { title: string; subtitle: string; serviceName: string }>();
+
+  const registerBookingForSourceLookup = (booking: any) => {
+    const cust = Array.isArray(booking.customers) ? booking.customers[0] : booking.customers;
+    const svc = Array.isArray(booking.services) ? booking.services[0] : booking.services;
+    const att = Array.isArray(booking.booking_attendees) ? booking.booking_attendees[0] : booking.booking_attendees;
+    const ord = Array.isArray(booking.booking_orders) ? booking.booking_orders[0] : booking.booking_orders;
+    const meta = (booking.metadata && typeof booking.metadata === "object" ? booking.metadata : {}) as Record<string, any>;
+
+    const rawName =
+      cust?.full_name?.trim() ||
+      att?.display_name?.trim() ||
+      meta?.customer_name ||
+      meta?.booking_order?.organizer?.full_name ||
+      "Walk-in Guest";
+
+    const isHs = booking.type === "home_service" || booking.delivery_type === "home_service";
+    const isWi = booking.type === "walk_in";
+    const visitBadge = isHs ? "HS" : isWi ? "WI" : "IH";
+    const upperName = rawName.toUpperCase();
+    const titleWithBadge =
+      upperName.endsWith(" IH") || upperName.endsWith(" WI") || upperName.endsWith(" HS")
+        ? upperName
+        : `${upperName} ${visitBadge}`;
+
+    const svcName = svc?.name || "Spa Service";
+    const orderRef = ord?.order_number || (booking.order_id ? `ORDER-${String(booking.order_id).slice(0, 8)}` : `BK-${String(booking.id).slice(0, 8)}`);
+    const subtitle = `${svcName} · ${orderRef} · ${branchName}`;
+
+    if (booking.id && !sourceDisplayMap.has(booking.id)) {
+      sourceDisplayMap.set(booking.id, { title: titleWithBadge, subtitle, serviceName: svcName });
+    }
+    if (booking.order_id && !sourceDisplayMap.has(booking.order_id)) {
+      sourceDisplayMap.set(booking.order_id, { title: titleWithBadge, subtitle, serviceName: svcName });
+    }
+  };
+
+  for (const b of todayBookings) {
+    registerBookingForSourceLookup(b);
+  }
+
+  // Also resolve any transaction source_ids whose bookings were scheduled on another date
+  const missingSourceIds = Array.from(
+    new Set(
+      dateActivityTransactions
+        .map((tx) => tx.source_id)
+        .filter((id): id is string => Boolean(id) && !sourceDisplayMap.has(id!))
+    )
+  );
+
+  if (missingSourceIds.length > 0) {
+    const [{ data: extraByOrder }, { data: extraById }] = await Promise.all([
+      supabase
+        .from("bookings")
+        .select("id, order_id, type, delivery_type, metadata, customers(full_name), services(name), booking_attendees!attendee_id(display_name), booking_orders!order_id(order_number)")
+        .in("order_id", missingSourceIds),
+      supabase
+        .from("bookings")
+        .select("id, order_id, type, delivery_type, metadata, customers(full_name), services(name), booking_attendees!attendee_id(display_name), booking_orders!order_id(order_number)")
+        .in("id", missingSourceIds),
+    ]);
+    for (const row of [...(extraByOrder ?? []), ...(extraById ?? [])]) {
+      registerBookingForSourceLookup(row);
+    }
+  }
+
+  // Backfill recentPayments with resolved customer names & service descriptions
+  for (const rp of recentPayments) {
+    const resolved = rp.orderId ? sourceDisplayMap.get(rp.orderId) : undefined;
+    if (resolved) {
+      if (rp.customerName === "Walk-in Customer" || rp.customerName.toLowerCase() === "booking order") {
+        rp.customerName = resolved.title;
+      }
+      if (rp.serviceDescription === "booking order" || rp.serviceDescription === "legacy booking") {
+        rp.serviceDescription = resolved.serviceName;
+      }
+    }
+  }
+
   // 7. Build Ledger records
   let allLedgerRecords: LedgerRecordItem[] = [];
 
@@ -838,8 +918,15 @@ export async function getCashFlowData(
         id: m.id,
         dateTime: formatDateTimeString(m.created_at || tx.occurred_at),
         reference: m.external_reference || tx.external_reference || `TX-${tx.id.slice(0, 8)}`,
-        customerSource:
-          tx.notes || (tx.source_type ? tx.source_type.replace(/_/g, " ") : "Customer"),
+        customerSource: (() => {
+          const resolved = tx.source_id ? sourceDisplayMap.get(tx.source_id) : undefined;
+          if (resolved) {
+            return tx.notes
+              ? `${resolved.title}\n${resolved.subtitle} · ${tx.notes}`
+              : `${resolved.title}\n${resolved.subtitle}`;
+          }
+          return tx.notes || (tx.source_type ? tx.source_type.replace(/_/g, " ") : "Walk-in Customer");
+        })(),
         category:
           tx.transaction_type === "customer_deposit"
             ? "Deposit"

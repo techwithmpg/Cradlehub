@@ -126,20 +126,6 @@ export function CrmBoutiqueWorkspace({
         </WorkspaceNotice>
       ) : null}
 
-      <WorkspaceNotice tone="info" title={activeTabMeta.label}>
-        <p className="m-0 text-xs leading-5">
-          {activeTabMeta.description}{" "}
-          <span className="font-medium text-[var(--cs-text)]">
-            Live today: canonical catalog, category taxonomy, gift denominations, &amp; branch pickup
-            directory.
-          </span>{" "}
-          <span className="text-[var(--cs-text-muted)]">
-            Pending authorization: payments, stock ledger writes, persistent orders, &amp; serialized
-            voucher issuance.
-          </span>
-        </p>
-      </WorkspaceNotice>
-
       <CrmModuleTabs
         tabs={moduleTabs}
         activeKey={activeTab}

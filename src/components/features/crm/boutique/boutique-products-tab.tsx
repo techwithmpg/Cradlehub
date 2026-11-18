@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Eye, Sparkles } from "lucide-react";
+import { createBrowserClient } from "@supabase/ssr";
+import { ExternalLink, Eye, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,11 +19,11 @@ import {
   ToolbarSearch,
   ToolbarSelect,
   ToolbarShell,
-  WorkspaceNotice,
   WorkspaceSection,
 } from "@/components/features/crm/shared/crm-workspace-primitives";
 import {
   BOUTIQUE_CATEGORIES,
+  formatPhp,
   type BoutiqueCategoryId,
 } from "@/lib/public/boutique-catalog";
 import {
@@ -30,7 +31,6 @@ import {
   type BoutiqueCatalogItemView,
   type BoutiqueProductSortKey,
 } from "@/lib/boutique/crm-boutique-model";
-import { PendingActionButton } from "./pending-authorization-control";
 
 export function BoutiqueProductsTab({
   items,
@@ -45,20 +45,272 @@ export function BoutiqueProductsTab({
   const [sortBy, setSortBy] = useState<BoutiqueProductSortKey>("catalog");
   const [inspectedItemId, setInspectedItemId] = useState<string | null>(null);
 
+  const [dbOverrides, setDbOverrides] = useState<Record<string, {
+    name: string;
+    subtitle: string | null;
+    category?: string | null;
+    retail_price: number;
+    format_volume: string | null;
+    badge: string | null;
+    track_inventory: boolean;
+    is_active?: boolean;
+  }>>({});
+  const [hiddenSkus, setHiddenSkus] = useState<Record<string, boolean>>({});
+  const [deletingSku, setDeletingSku] = useState<string | null>(null);
+
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingSku, setEditingSku] = useState<string | null>(null);
+  const [formSku, setFormSku] = useState("");
+  const [formName, setFormName] = useState("");
+  const [formSubtitle, setFormSubtitle] = useState("");
+  const [formCategory, setFormCategory] = useState("Oils");
+  const [formFormat, setFormFormat] = useState("100 ml Bottle");
+  const [formPrice, setFormPrice] = useState("300");
+  const [formBadge, setFormBadge] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const supabase = useMemo(
+    () =>
+      createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      ),
+    []
+  );
+
+  const loadDbProducts = async () => {
+    const { data } = await supabase.from("boutique_products").select("*");
+    if (data) {
+      const map: typeof dbOverrides = {};
+      const hidden: Record<string, boolean> = {};
+      for (const row of data) {
+        if (row.is_active === false) {
+          hidden[row.sku] = true;
+          continue;
+        }
+        map[row.sku] = {
+          name: row.name,
+          subtitle: row.subtitle,
+          category: row.category,
+          retail_price: Number(row.retail_price),
+          format_volume: row.format_volume,
+          badge: row.badge,
+          track_inventory: Boolean(row.track_inventory),
+          is_active: row.is_active !== false,
+        };
+      }
+      setDbOverrides(map);
+      setHiddenSkus(hidden);
+    }
+  };
+
+  useEffect(() => {
+    loadDbProducts();
+  }, []);
+
+  const mergedItems = useMemo(() => {
+    const baseIds = new Set(items.map((i) => i.product.id));
+    const updatedBase = items
+      .filter((item) => !hiddenSkus[item.product.id])
+      .map((item) => {
+        const override = dbOverrides[item.product.id];
+        if (!override) return item;
+        return {
+          ...item,
+          stockTrackingLabel: item.product.isGiftCertificate
+            ? "Voucher (Serialized Ledger)"
+            : override.track_inventory
+            ? "Tracked in Branch Ledger"
+            : item.stockTrackingLabel,
+          product: {
+            ...item.product,
+            name: override.name || item.product.name,
+            subtitle: override.subtitle ?? item.product.subtitle,
+            sizeOrVolume: override.format_volume ?? item.product.sizeOrVolume,
+            price: override.retail_price,
+            priceLabel: item.product.isGiftCertificate
+              ? `From ${formatPhp(override.retail_price)}`
+              : formatPhp(override.retail_price),
+            badge: override.badge ?? item.product.badge,
+          },
+        };
+      });
+
+    // Include custom SKUs created in public.boutique_products
+    const templateItem = items[0];
+    const customDbItems: BoutiqueCatalogItemView[] = [];
+    if (templateItem) {
+      for (const [sku, override] of Object.entries(dbOverrides)) {
+        if (baseIds.has(sku) || hiddenSkus[sku]) continue;
+        const catLabel = override.category || "Oils";
+        const catId =
+          catLabel.toLowerCase().includes("spray")
+            ? "sprays"
+            : catLabel.toLowerCase().includes("gift")
+            ? "gift-cards"
+            : catLabel.toLowerCase().includes("kit")
+            ? "wellness-kits"
+            : "oils";
+        customDbItems.push({
+          ...templateItem,
+          categoryLabel: catLabel,
+          skuTypeLabel: sku === "gift-certificate" ? "Voucher SKU" : "Retail SKU",
+          stockTrackingLabel: override.track_inventory
+            ? "Tracked in Branch Ledger"
+            : "Voucher (Serialized Ledger)",
+          product: {
+            ...templateItem.product,
+            id: sku,
+            name: override.name,
+            subtitle: override.subtitle || "Boutique Retail SKU",
+            category: catId as BoutiqueCategoryId,
+            sizeOrVolume: override.format_volume || "Standard Format",
+            price: override.retail_price,
+            priceLabel: formatPhp(override.retail_price),
+            badge: override.badge || undefined,
+            isGiftCertificate: sku === "gift-certificate",
+          },
+        });
+      }
+    }
+
+    return [...updatedBase, ...customDbItems];
+  }, [items, dbOverrides, hiddenSkus]);
+
   const filteredItems = useMemo(
     () =>
-      filterAndSortBoutiqueCatalog(items, {
+      filterAndSortBoutiqueCatalog(mergedItems, {
         category: selectedCategory,
         search: searchQuery,
         sort: sortBy,
       }),
-    [items, selectedCategory, searchQuery, sortBy]
+    [mergedItems, selectedCategory, searchQuery, sortBy]
   );
 
   const inspectedItem = useMemo(
-    () => items.find((item) => item.product.id === inspectedItemId) ?? null,
-    [items, inspectedItemId]
+    () => mergedItems.find((item) => item.product.id === inspectedItemId) ?? null,
+    [mergedItems, inspectedItemId]
   );
+
+  const openCreateModal = () => {
+    setEditingSku(null);
+    setFormSku("");
+    setFormName("");
+    setFormSubtitle("");
+    setFormCategory("Oils");
+    setFormFormat("100 ml Bottle");
+    setFormPrice("300");
+    setFormBadge("");
+    setFeedback(null);
+    setEditorOpen(true);
+  };
+
+  const openEditModal = (item: BoutiqueCatalogItemView) => {
+    setEditingSku(item.product.id);
+    setFormSku(item.product.id);
+    setFormName(item.product.name);
+    setFormSubtitle(item.product.subtitle);
+    setFormCategory(item.categoryLabel);
+    setFormFormat(item.product.sizeOrVolume);
+    setFormPrice(String(item.product.price));
+    setFormBadge(item.product.badge ?? "");
+    setFeedback(null);
+    setEditorOpen(true);
+  };
+
+  const handleSaveProduct = async () => {
+    if (!formSku.trim() || !formName.trim()) {
+      setFeedback("SKU and Product Name are required.");
+      return;
+    }
+    setSaving(true);
+    setFeedback(null);
+    const cleanSku = formSku.trim().toLowerCase().replace(/\s+/g, "-");
+    const priceNum = Number(formPrice) || 0;
+
+    const { error } = await supabase.from("boutique_products").upsert(
+      {
+        sku: cleanSku,
+        name: formName.trim(),
+        subtitle: formSubtitle.trim() || null,
+        category: formCategory,
+        sku_type: cleanSku === "gift-certificate" ? "voucher" : "retail",
+        format_volume: formFormat.trim() || null,
+        retail_price: priceNum,
+        badge: formBadge.trim() || null,
+        is_active: true,
+        track_inventory: cleanSku !== "gift-certificate",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "sku" }
+    );
+
+    setSaving(false);
+    if (error) {
+      setFeedback(`Error saving SKU: ${error.message}`);
+      return;
+    }
+    await loadDbProducts();
+    setEditorOpen(false);
+  };
+
+  const handleDeleteProduct = async (item: BoutiqueCatalogItemView) => {
+    const sku = item.product.id;
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${item.product.name}" (SKU: ${sku})? This will remove it from the Boutique catalogue.`
+    );
+    if (!confirmed) return;
+
+    setDeletingSku(sku);
+    try {
+      const isCanonical = items.some((base) => base.product.id === sku);
+
+      // Clear any child stock rows referencing this SKU if applicable
+      await supabase.from("boutique_branch_stock").delete().eq("sku", sku);
+
+      if (isCanonical) {
+        // For canonical static items, mark is_active = false in DB so they stay hidden across reloads
+        const { error } = await supabase.from("boutique_products").upsert(
+          {
+            sku,
+            name: item.product.name,
+            subtitle: item.product.subtitle || null,
+            category: item.categoryLabel,
+            sku_type: item.product.isGiftCertificate ? "voucher" : "retail",
+            format_volume: item.product.sizeOrVolume || null,
+            retail_price: item.product.price,
+            badge: item.product.badge || null,
+            is_active: false,
+            track_inventory: !item.product.isGiftCertificate,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "sku" }
+        );
+        if (error) throw error;
+      } else {
+        // For custom SKUs, hard delete from public.boutique_products
+        const { error } = await supabase
+          .from("boutique_products")
+          .delete()
+          .eq("sku", sku);
+        if (error) throw error;
+      }
+
+      setHiddenSkus((prev) => ({ ...prev, [sku]: true }));
+      setDbOverrides((prev) => {
+        const next = { ...prev };
+        delete next[sku];
+        return next;
+      });
+      if (inspectedItemId === sku) setInspectedItemId(null);
+      if (editingSku === sku) setEditorOpen(false);
+    } catch (err: any) {
+      window.alert(`Failed to delete SKU "${sku}": ${err?.message || "Unknown error"}`);
+    } finally {
+      setDeletingSku(null);
+    }
+  };
 
   const hasFilters =
     selectedCategory !== "all" || searchQuery.trim().length > 0 || sortBy !== "catalog";
@@ -73,22 +325,22 @@ export function BoutiqueProductsTab({
     <div className="space-y-4">
       <WorkspaceSection
         title="Canonical Boutique Catalogue"
-        description="Read-only operational directory synced directly with src/lib/public/boutique-catalog.ts and the public /products storefront."
+        description="Live operational directory synced with public.boutique_products and the /products storefront."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/products"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 text-xs font-medium text-[var(--cs-text)] hover:bg-[var(--cs-surface-warm)]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-2.5 text-xs font-medium text-[var(--cs-text)] hover:bg-[var(--cs-surface-warm)]"
             >
               <ExternalLink className="size-3.5" aria-hidden="true" />
               <span>View /products</span>
             </Link>
-            <PendingActionButton
-              label="Add Product SKU"
-              reason="Creating or editing boutique SKUs requires authorized database catalog tables."
-            />
+            <Button type="button" size="sm" onClick={openCreateModal}>
+              <Plus className="size-3.5" aria-hidden="true" />
+              <span>Add Product SKU</span>
+            </Button>
           </div>
         }
       >
@@ -134,92 +386,83 @@ export function BoutiqueProductsTab({
             </ToolbarSelect>
           </ToolbarShell>
 
-          {filteredItems.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--cs-border)] bg-[var(--cs-surface-warm)]/60 px-6 py-10 text-center">
-              <p className="text-sm font-semibold text-[var(--cs-text)]">
-                No boutique SKUs matched your filters
-              </p>
-              <p className="mt-1 text-xs text-[var(--cs-text-muted)]">
-                Clear the active category filter or search term to inspect all {items.length} canonical items.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleResetFilters}
-                className="mt-3"
-              >
-                Show All {items.length} Products
-              </Button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-[var(--cs-border-soft)]">
-              <table className="w-full min-w-[740px] border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] text-[11px] font-semibold tracking-wider text-[var(--cs-text-muted)] uppercase">
-                    <th className="px-4 py-3">Product & SKU</th>
-                    <th className="px-3 py-3">Category</th>
-                    <th className="px-3 py-3">Format / Volume</th>
-                    <th className="px-3 py-3">Retail Price</th>
-                    <th className="px-3 py-3">Inventory Status</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--cs-border-soft)] bg-[var(--cs-surface)]">
-                  {filteredItems.map((item) => (
-                    <tr
-                      key={item.product.id}
-                      className="transition-colors hover:bg-[var(--cs-surface-warm)]/50"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)]">
-                            <Image
-                              src={item.product.image}
-                              alt={item.product.imageAlt}
-                              fill
-                              sizes="48px"
-                              className="object-cover"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="font-semibold text-[var(--cs-text)]">
-                                {item.product.name}
-                              </span>
-                              {item.product.badge ? (
-                                <CrmStatusBadge variant="gold" label={item.product.badge} size="sm" />
-                              ) : null}
-                            </div>
-                            <p className="truncate text-xs text-[var(--cs-text-muted)]">
-                              {item.product.subtitle}
-                            </p>
-                            <p className="mt-0.5 font-mono text-[10px] text-[var(--cs-text-muted)]">
-                              SKU: {item.product.id}
-                            </p>
-                          </div>
+          <div className="overflow-x-auto rounded-xl border border-[var(--cs-border-soft)]">
+            <table className="w-full min-w-[740px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] text-[11px] font-semibold tracking-wider text-[var(--cs-text-muted)] uppercase">
+                  <th className="px-4 py-3">Product & SKU</th>
+                  <th className="px-3 py-3">Category</th>
+                  <th className="px-3 py-3">Format / Volume</th>
+                  <th className="px-3 py-3">Retail Price</th>
+                  <th className="px-3 py-3">Inventory Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--cs-border-soft)] bg-[var(--cs-surface)]">
+                {filteredItems.map((item) => (
+                  <tr
+                    key={item.product.id}
+                    className="transition-colors hover:bg-[var(--cs-surface-warm)]/50"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)]">
+                          <Image
+                            src={item.product.image}
+                            alt={item.product.imageAlt}
+                            fill
+                            sizes="48px"
+                            className="object-cover"
+                          />
                         </div>
-                      </td>
-                      <td className="px-3 py-3 text-xs font-medium text-[var(--cs-text-secondary)]">
-                        <div>{item.categoryLabel}</div>
-                        <div className="mt-0.5 text-[11px] capitalize text-[var(--cs-text-muted)]">
-                          {item.skuKind} SKU
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-semibold text-[var(--cs-text)]">
+                              {item.product.name}
+                            </span>
+                            {item.product.badge ? (
+                              <CrmStatusBadge variant="gold" label={item.product.badge} size="sm" />
+                            ) : null}
+                          </div>
+                          <p className="truncate text-xs text-[var(--cs-text-muted)]">
+                            {item.product.subtitle}
+                          </p>
+                          <p className="mt-0.5 font-mono text-[10px] text-[var(--cs-text-muted)]">
+                            SKU: {item.product.id}
+                          </p>
                         </div>
-                      </td>
-                      <td className="px-3 py-3 text-xs text-[var(--cs-text-secondary)]">
-                        {item.product.sizeOrVolume}
-                      </td>
-                      <td className="px-3 py-3 font-semibold text-[var(--cs-text)]">
-                        {item.product.priceLabel}
-                      </td>
-                      <td className="px-3 py-3">
-                        <CrmStatusBadge
-                          variant={item.product.isGiftCertificate ? "info" : "neutral"}
-                          label={item.stockTrackingLabel}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-xs font-medium text-[var(--cs-text-secondary)]">
+                      <div>{item.categoryLabel}</div>
+                      <div className="mt-0.5 text-[11px] capitalize text-[var(--cs-text-muted)]">
+                        {item.skuKind} SKU
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-xs text-[var(--cs-text-secondary)]">
+                      {item.product.sizeOrVolume}
+                    </td>
+                    <td className="px-3 py-3 font-semibold text-[var(--cs-text)]">
+                      {item.product.priceLabel}
+                    </td>
+                    <td className="px-3 py-3">
+                      <CrmStatusBadge
+                        variant={item.product.isGiftCertificate ? "info" : "active"}
+                        label={item.stockTrackingLabel}
+                        size="sm"
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1.5">
+                        <Button
+                          type="button"
+                          variant="outline"
                           size="sm"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-right">
+                          onClick={() => openEditModal(item)}
+                        >
+                          <Pencil className="size-3.5" aria-hidden="true" />
+                          <span>Edit</span>
+                        </Button>
                         <Button
                           type="button"
                           variant="outline"
@@ -229,13 +472,24 @@ export function BoutiqueProductsTab({
                           <Eye className="size-3.5" aria-hidden="true" />
                           <span>Inspect</span>
                         </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={deletingSku === item.product.id}
+                          onClick={() => handleDeleteProduct(item)}
+                          className="border-red-200 bg-red-50/60 text-red-700 hover:bg-red-100 hover:text-red-800"
+                        >
+                          <Trash2 className="size-3.5" aria-hidden="true" />
+                          <span>{deletingSku === item.product.id ? "Deleting..." : "Delete"}</span>
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </WorkspaceSection>
 
@@ -325,13 +579,6 @@ export function BoutiqueProductsTab({
                 </div>
               </div>
 
-              <WorkspaceNotice tone="info" title="Mutation controls await authorization">
-                <p className="m-0 text-xs">
-                  Editing retail prices, archiving SKUs, or adjusting branch inventory from CRM is
-                  disabled until boutique persistence and owner approval workflows are authorized.
-                </p>
-              </WorkspaceNotice>
-
               <DialogFooter className="gap-2 sm:justify-between">
                 <Link
                   href={inspectedItem.publicHref}
@@ -343,10 +590,18 @@ export function BoutiqueProductsTab({
                   <span>Open Storefront Filter</span>
                 </Link>
                 <div className="flex flex-wrap items-center gap-2">
-                  <PendingActionButton
-                    label="Edit Price / Details"
-                    reason="Catalog mutations are locked pending database schema & owner approval."
-                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      const current = inspectedItem;
+                      setInspectedItemId(null);
+                      openEditModal(current);
+                    }}
+                  >
+                    <Pencil className="size-3.5" aria-hidden="true" />
+                    <span>Edit Price / Details</span>
+                  </Button>
                   <Button type="button" variant="outline" size="sm" onClick={() => setInspectedItemId(null)}>
                     Close
                   </Button>
@@ -354,6 +609,102 @@ export function BoutiqueProductsTab({
               </DialogFooter>
             </>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingSku ? `Edit SKU: ${editingSku}` : "Add New Boutique SKU"}</DialogTitle>
+            <DialogDescription>
+              Saves directly to <code>public.boutique_products</code>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-xs">
+            <div>
+              <label className="block font-semibold text-[var(--cs-text)]">SKU ID</label>
+              <input
+                type="text"
+                disabled={Boolean(editingSku)}
+                value={formSku}
+                onChange={(e) => setFormSku(e.target.value)}
+                placeholder="e.g. lavender-mist"
+                className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--cs-text)]">Product Name</label>
+              <input
+                type="text"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-[var(--cs-text)]">Subtitle / Notes</label>
+              <input
+                type="text"
+                value={formSubtitle}
+                onChange={(e) => setFormSubtitle(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block font-semibold text-[var(--cs-text)]">Retail Price (₱)</label>
+                <input
+                  type="number"
+                  value={formPrice}
+                  onChange={(e) => setFormPrice(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-[var(--cs-text)]">Format / Volume</label>
+                <input
+                  type="text"
+                  value={formFormat}
+                  onChange={(e) => setFormFormat(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block font-semibold text-[var(--cs-text)]">Category</label>
+                <select
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+                >
+                  <option value="Oils">Oils</option>
+                  <option value="Sprays">Sprays</option>
+                  <option value="Wellness Kits">Wellness Kits</option>
+                  <option value="Gift Cards">Gift Cards</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-[var(--cs-text)]">Badge (Optional)</label>
+                <input
+                  type="text"
+                  value={formBadge}
+                  onChange={(e) => setFormBadge(e.target.value)}
+                  placeholder="Bestseller, New..."
+                  className="mt-1 w-full rounded-lg border border-[var(--cs-border)] bg-[var(--cs-surface)] px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+            {feedback ? <p className="text-xs font-medium text-red-600">{feedback}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" size="sm" onClick={() => setEditorOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" size="sm" disabled={saving} onClick={handleSaveProduct}>
+              {saving ? "Saving..." : "Save SKU"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

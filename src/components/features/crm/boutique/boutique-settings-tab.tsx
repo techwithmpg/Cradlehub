@@ -25,13 +25,6 @@ export function BoutiqueSettingsTab({
 
   return (
     <div className="space-y-5">
-      <WorkspaceNotice tone="info" title="Source-of-Truth & Authorization Boundary">
-        <p className="m-0 text-xs leading-5">
-          This CRM Boutique console reads its catalogue directly from{" "}
-          <code>{data.governance.catalogSourcePath}</code> without duplicating SKUs or pricing. No
-          payments, stock ledger writes, persistent orders, or gift certificate issuance are active.
-        </p>
-      </WorkspaceNotice>
 
       <WorkspaceSection
         title="Functional Now vs. Pending Operational Authorization"
