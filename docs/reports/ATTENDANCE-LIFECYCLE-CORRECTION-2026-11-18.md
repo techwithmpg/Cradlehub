@@ -60,6 +60,8 @@ All production findings below were gathered strictly via `BEGIN READ ONLY; ... R
      - Instant reminder suppression + `generation`/`last_interval` reset inside `track_work()` and `process_due_attendance_v2()` when a new active or upcoming booking appears (so brief cancelled assignments re-emit cleanly), plus live pre-dispatch revalidation in `validate_attendance_v2_push()` and automatic cancellation on manual QR or `commit_attendance_portal_clock_out` clock-out.
      - Overnight & late-shift protection: both `scheduled_end_at >= v_midnight` overnight shifts and late day shifts whose `authorizedEndAt + delay_minutes >= v_midnight` defer provisional auto-close past branch `attendance_day_boundary` + the reminder grace window (and regular shifts also wait `delay_minutes + 40m` past `authorizedEndAt`) before provisional closure.
    - `safeAttendanceNoticeCopy` & V2 notifications retain CRM's manual **Send Clock-In Reminder** control and explain how staff can open **My Attendance** and tap **"Clock out"** when eligible (`commit_attendance_portal_clock_out`).
+   - Reconciled `recalculate_attendance_clock_out_policy` and `commit_attendance_portal_clock_out` in `20261118163000_attendance_lifecycle_correction.sql` (plus `portalAvailabilityCopy` in `src/lib/staff-portal/attendance.ts`) so open `cash_sessions` custody blocks Staff Portal clock-out (`open_cash_session`) even when `attendance_staff_category_rules` has 0 rows or no active/upcoming bookings remain.
+   - Updated `20261116094630_attendance_v2_automation.sql` to create `public.attendance_staff_reminder_checks` forward-only (`CREATE TABLE IF NOT EXISTS` with RLS/grants, without replaying historical migrations) and fixed the `Auto-closed at %s · Confirmation required` UTF-8 middot formatting; added an explicit `pg_net` / `net.http_post` preflight check to `supabase/operations/enable-attendance-v2.sql`.
    - Preserves original QR evidence, raw timestamps, `provisional_auto_closed_at`, `attendance_corrections`, and delivery logs; never treats service completion as physical clock-out or auto-finalizes unverified hours.
 
 ---
@@ -67,8 +69,8 @@ All production findings below were gathered strictly via `BEGIN READ ONLY; ... R
 ## 3. Release & Production Activation Checklist (Blocked Until Owner Sign-Off)
 
 Before considering Production activation:
-1. Review and merge via normal owner gate; back up Production schema & `staff_schedules` / `attendance_exceptions`.
+1. Review and merge via normal owner gate; back up Production schema, `pg_get_functiondef()` definitions, `staff_schedules`, and `attendance_exceptions`.
 2. Apply migrations (`20261116094630_attendance_v2_automation.sql` + `20261118163000_attendance_lifecycle_correction.sql`) to STAGING/PRODUCTION only via sanctioned release path.
 3. Run read-only queries in `supabase/operations/attendance-schedule-and-recovery-audit.sql` with branch managers to confirm schedule corrections (`22:03–22:30`, `10:00–22:30` 12.5h shifts, odd minutes, overnight windows) and optionally run the guarded exception link repair.
-4. Configure/verify `CRON_SECRET`, V2 feature flags (`CRADLEHUB_ATTENDANCE_V2_ENABLED`, `attendance_v2_private.control`), and `attendance-v2-due-work` scheduler (`supabase/operations/enable-attendance-v2.sql`).
+4. Enable `pg_net` extension (`net` schema), provision Vault secrets (`cradlehub_attendance_v2_endpoint`, `cradlehub_attendance_v2_cron_token`), configure/verify `CRON_SECRET` and `attendance_staff_category_rules` (including `driver_return_buffer_minutes` and `home_service_wrap_up_buffer_minutes`), confirm owner sign-off on `owns_closing = true` transition behavior, enable `CRADLEHUB_ATTENDANCE_V2_ENABLED=true`, and run `supabase/operations/enable-attendance-v2.sql`.
 5. Run live end-to-end verification on a registered device against STAGING/PRODUCTION push subscriptions (`web_push_subscriptions` + VAPID) — local tests cannot exercise external Web Push endpoints.

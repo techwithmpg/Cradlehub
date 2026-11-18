@@ -5,11 +5,18 @@ begin;
 do $$ begin
   if to_regprocedure('public.recalculate_attendance_clock_out_policy(uuid,timestamptz)') is null
      or to_regprocedure('public.enforce_qr_clock_in_shift_window()') is null
-     or to_regprocedure('public.resolve_effective_attendance_branch(uuid,uuid,date,boolean)') is null
-     or to_regclass('public.attendance_staff_reminder_checks') is null then
+     or to_regprocedure('public.resolve_effective_attendance_branch(uuid,uuid,date,boolean)') is null then
     raise exception 'Attendance V2 prerequisites missing. Review the exact installed schema; do not replay historical migrations.';
   end if;
 end $$;
+
+-- Forward-only Closing reminder check cursor table (without replaying historical migrations).
+create table if not exists public.attendance_staff_reminder_checks (
+  checkin_id uuid primary key references public.staff_shift_checkins(id) on delete cascade,
+  checked_at timestamptz not null
+);
+alter table public.attendance_staff_reminder_checks enable row level security;
+revoke all on public.attendance_staff_reminder_checks from public, anon, authenticated;
 
 create schema attendance_v2_private;
 revoke all on schema attendance_v2_private from public, anon, authenticated;
@@ -1412,7 +1419,7 @@ begin
               provisional_auto_closed_at = v_processed_at,
               clock_out_confirmation_required = true,
               notes = format(
-                'Auto-closed at %s Â· Confirmation required',
+                'Auto-closed at %s · Confirmation required',
                 to_char(
                   v_record.provisional_clock_out_at at time zone coalesce(
                     v_record.attendance_policy_snapshot->>'timezone', 'Asia/Manila'
@@ -1452,7 +1459,7 @@ begin
               v_record.branch_id, v_record.staff_id, v_record.id,
               'missed_checkout', 'warning',
               format(
-                'Auto-closed at %s Â· Confirmation required',
+                'Auto-closed at %s · Confirmation required',
                 to_char(
                   v_record.provisional_clock_out_at at time zone coalesce(
                     v_record.attendance_policy_snapshot->>'timezone', 'Asia/Manila'

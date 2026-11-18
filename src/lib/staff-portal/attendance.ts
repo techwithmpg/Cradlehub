@@ -200,6 +200,10 @@ export function portalAvailabilityCopy(input: {
       label: "Closing duties remain",
       message: "Clock-out becomes available after the closing completion window.",
     },
+    open_cash_session: {
+      label: "Close cash session first",
+      message: "Close or hand over your open cash session before clocking out.",
+    },
     unregistered_device: {
       label: "Registered device required",
       message: "Register this device from your profile before using portal clock-out.",

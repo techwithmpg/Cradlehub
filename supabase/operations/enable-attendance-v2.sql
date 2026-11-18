@@ -1,13 +1,23 @@
 -- REVIEW CANDIDATE ONLY. Never run during deploy or migration replay.
 -- Requires separate owner production release approval, exact installed-function
 -- comparison, independent review, LOCAL/TEST evidence, and staff/device acceptance.
--- Provision the two named Vault entries separately; never print their values.
--- Deploy the reviewed route and set CRADLEHUB_ATTENDANCE_V2_ENABLED=true first;
--- it remains inactive until this transaction enables the database owner.
+-- Prerequisites before running this transaction:
+--   1. Enable pg_net extension so schema net / net.http_post exist.
+--   2. Provision the two named Vault entries separately; never print their values.
+--   3. Configure attendance_staff_category_rules (e.g. driver_return_buffer_minutes) and
+--      confirm owner sign-off on owns_closing=true transition behavior.
+--   4. Deploy the reviewed route and set CRADLEHUB_ATTENDANCE_V2_ENABLED=true and CRON_SECRET first;
+--      it remains inactive until this transaction enables the database owner.
 begin;
 do $$ begin
   if current_setting('TimeZone')<>'UTC'
      or not exists(select 1 from attendance_v2_private.control where id and enabled_at is null)
+     or not exists(select 1 from pg_extension where extname='pg_net')
+     or not exists(
+       select 1 from pg_proc p
+       join pg_namespace n on n.oid=p.pronamespace
+       where n.nspname='net' and p.proname='http_post'
+     )
      or (select count(*) from cron.job where active and jobname in (
        'attendance-closing-reminder','attendance-closing-manager-escalation',
        'attendance-closing-auto-close','attendance-closing-catch-up'))<>4

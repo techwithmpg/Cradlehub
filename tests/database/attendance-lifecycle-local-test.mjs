@@ -780,7 +780,15 @@ try {
       [cashId, branch, csr.id]
     );
 
-    // Open cash session blocks closing reminder past +20m
+    // Open cash session blocks both closing reminder past +20m and Staff Portal clock-out past v_earliest
+    const portalBlocked = (
+      await db.query("select recalculate_attendance_clock_out_policy($1, '2026-11-16T12:05:00Z') p", [
+        scan.checkin_id,
+      ])
+    ).rows[0].p;
+    assert.equal(portalBlocked.portal_clock_out_eligible, false);
+    assert.equal(portalBlocked.portal_eligibility_reason, "open_cash_session");
+
     await processAt("2026-11-16T12:25:00Z");
     assert.equal((await getNotices(scan.checkin_id)).length, 0);
 
@@ -797,6 +805,72 @@ try {
     const csrNotices = await getNotices(scan.checkin_id);
     assert.equal(csrNotices.length, 1);
     assert.equal(csrNotices[0].metadata.delayMinutes, 20);
+
+    // Real commit_attendance_portal_clock_out RPC blocks while cash drawer open and allows once closed
+    const csrLive = await createStaff({ role: "csr", type: "csr" });
+    const liveBranchDate = (
+      await db.query("select to_char(now() at time zone 'Asia/Manila', 'YYYY-MM-DD') d")
+    ).rows[0].d;
+    const liveScan = await db.query(
+      `select * from commit_attendance_scan_transaction(
+        p_request_id=>$1, p_branch_id=>$2, p_qr_point_id=>$3, p_staff_id=>$4, p_device_id=>$5,
+        p_is_test=>false, p_scan_type=>'attendance', p_action=>'clock_in', p_outcome=>'success',
+        p_public_result=>'{"ok":true}'::jsonb,
+        p_checkin_insert=>$6::jsonb
+      )`,
+      [
+        randomUUID(),
+        branch,
+        randomUUID(),
+        csrLive.id,
+        csrLive.deviceId,
+        JSON.stringify({
+          shift_date: liveBranchDate,
+          shift_type: "closing",
+          shift_instance_key: `${csrLive.id}:${liveBranchDate}:closing`,
+          checked_in_at: new Date(Date.now() - 8 * 3600_000).toISOString(),
+          scheduled_start_at: new Date(Date.now() - 8 * 3600_000).toISOString(),
+          scheduled_end_at: new Date(Date.now() - 2 * 60_000).toISOString(),
+          schedule_source: "weekly",
+          schedule_source_id: "TEST-weekly",
+          branch_timezone: "Asia/Manila",
+          attendance_business_date: liveBranchDate,
+        }),
+      ]
+    );
+    const liveCheckinId = liveScan.rows[0].checkin_id;
+    const liveCashId = randomUUID();
+    await db.query(
+      "insert into cash_sessions(id,branch_id,opened_by,current_custodian_id,business_date,status) values($1,$2,$3,$3,$4::date,'open')",
+      [liveCashId, branch, csrLive.id, liveBranchDate]
+    );
+
+    const rpcBlocked = (
+      await db.query("select commit_attendance_portal_clock_out($1, $2, $3) r", [
+        csrLive.authUserId,
+        csrLive.fpHash,
+        randomUUID(),
+      ])
+    ).rows[0].r;
+    assert.equal(rpcBlocked.ok, false);
+    assert.equal(rpcBlocked.code, "open_cash_session");
+    assert.equal((await getRow(liveCheckinId)).status, "checked_in");
+
+    await db.query(
+      "update cash_sessions set status='closed', closed_by=$2, closed_at=now() - interval '1 minute' where id=$1",
+      [liveCashId, csrLive.id]
+    );
+    const rpcAllowed = (
+      await db.query("select commit_attendance_portal_clock_out($1, $2, $3) r", [
+        csrLive.authUserId,
+        csrLive.fpHash,
+        randomUUID(),
+      ])
+    ).rows[0].r;
+    assert.equal(rpcAllowed.ok, true);
+    assert.equal(rpcAllowed.code, "clocked_out");
+    assert.equal(rpcAllowed.clock_out_method, "staff_portal_closing_shift");
+    assert.equal((await getRow(liveCheckinId)).status, "checked_out");
   });
 
   await test("brief booking added and cancelled inside same 15m interval re-emits reminder and stale recovery replay is idempotent", async () => {
@@ -887,6 +961,112 @@ try {
       await db.query("select count(*)::int c from attendance_exceptions where checkin_id=$1", [staleDay1.checkin_id])
     ).rows[0].c;
     assert.equal(excCount, 1);
+  });
+
+  await test("production-parity apply succeeds without prior attendance_staff_reminder_checks and enable script fails closed without pg_net", async () => {
+    const parityDb = `attendance_parity_test_${Date.now()}`;
+    const sys = new Client({ ...baseConfig, database: "postgres" });
+    await sys.connect();
+    await sys.query(`create database ${parityDb}`);
+    await sys.end();
+
+    const pdb = new Client({ ...baseConfig, database: parityDb });
+    await pdb.connect();
+    try {
+      await pdb.query("set timezone='UTC'; set statement_timeout='15s'");
+      await pdb.query(read("tests/database/attendance-v2-fixture.sql"));
+      await pdb.query("drop table public.attendance_staff_reminder_checks");
+      assert.equal(
+        (await pdb.query("select to_regclass('public.attendance_staff_reminder_checks') reg")).rows[0].reg,
+        null
+      );
+      await pdb.query("alter table public.staff add column if not exists nickname text");
+      await pdb.query(
+        "alter table public.staff_devices add column if not exists device_fingerprint_hash text, add column if not exists status text default 'active', add column if not exists trusted_after timestamptz default '2026-01-01Z', add column if not exists revoked_at timestamptz"
+      );
+
+      for (const fn of [
+        "resolve_attendance_staff_category",
+        "recalculate_attendance_clock_out_policy",
+        "write_attendance_portal_audit",
+        "commit_attendance_portal_clock_out",
+      ]) {
+        await pdb.query(extract(dynamic, fn));
+      }
+      await pdb.query(extract(accepted, "commit_attendance_scan_transaction"));
+      await pdb.query(extract(accepted, "reconcile_provisional_attendance_clock_out"));
+      await pdb.query(
+        extract(
+          "supabase/migrations/20260722110000_attendance_correct_times_transaction.sql",
+          "correct_attendance_times_transaction"
+        )
+      );
+      await pdb.query(
+        extract(
+          "supabase/migrations/20260721190000_attendance_stale_recovery_transaction.sql",
+          "recover_stale_attendance_and_clock_in"
+        )
+      );
+      await pdb.query(
+        p0.slice(start, p0.indexOf("$attendance_p0_guard$;", start) + "$attendance_p0_guard$;".length)
+      );
+      await pdb.query(
+        extract(
+          "supabase/migrations/20260821034409_repair_attendance_branch_authority.sql",
+          "resolve_effective_attendance_branch"
+        )
+      );
+
+      await pdb.query(read("supabase/migrations/20261116094630_attendance_v2_automation.sql"));
+      await pdb.query(read("supabase/migrations/20261118163000_attendance_lifecycle_correction.sql"));
+
+      const checksTable = (
+        await pdb.query(
+          "select c.relrowsecurity, to_regclass('public.attendance_staff_reminder_activation') act from pg_class c where c.oid = to_regclass('public.attendance_staff_reminder_checks')"
+        )
+      ).rows[0];
+      assert.equal(checksTable.relrowsecurity, true);
+      assert.equal(checksTable.act, null);
+
+      const anonPriv = (
+        await pdb.query(
+          "select has_table_privilege('anon', 'public.attendance_staff_reminder_checks', 'SELECT') can_sel"
+        )
+      ).rows[0].can_sel;
+      assert.equal(anonPriv, false);
+
+      const fnDef = (
+        await pdb.query(
+          "select pg_get_functiondef('public.process_due_attendance_closing_interventions(text,timestamptz,integer)'::regprocedure) def"
+        )
+      ).rows[0].def;
+      assert.equal(fnDef.includes("Â"), false);
+
+      await pdb.query(`
+        create schema cron;
+        create table cron.job(jobname text, active boolean);
+        insert into cron.job(jobname, active) values
+          ('attendance-closing-reminder', true),
+          ('attendance-closing-manager-escalation', true),
+          ('attendance-closing-auto-close', true),
+          ('attendance-closing-catch-up', true);
+        create schema vault;
+        create table vault.decrypted_secrets(name text, decrypted_secret text);
+        insert into vault.decrypted_secrets(name, decrypted_secret) values
+          ('cradlehub_attendance_v2_endpoint', 'https://example.invalid/api/attendance/automation'),
+          ('cradlehub_attendance_v2_cron_token', 'test-token');
+      `);
+
+      await assert.rejects(
+        pdb.query(read("supabase/operations/enable-attendance-v2.sql")),
+        /Attendance V2 activation prerequisites failed/
+      );
+      await pdb.query("rollback").catch(() => undefined);
+      const ctrl = (await pdb.query("select enabled_at from attendance_v2_private.control")).rows[0];
+      assert.equal(ctrl.enabled_at, null);
+    } finally {
+      await pdb.end().catch(() => undefined);
+    }
   });
 
   process.stdout.write(`LOCAL POSTGRES 17.11 SUITE: ${passed} lifecycle integration scenarios passed.\n`);
