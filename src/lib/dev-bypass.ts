@@ -23,6 +23,7 @@ export function isDevAuthBypassEnabled(): boolean {
  * but no real staff record exists.
  */
 export function getDevBypassLayoutStaff(): {
+  id: string;
   full_name: string;
   nickname: string | null;
   system_role: string;
@@ -31,6 +32,7 @@ export function getDevBypassLayoutStaff(): {
   avatar_url: string | null;
 } {
   return {
+    id: "00000000-0000-0000-0000-000000000000",
     full_name: process.env.DEV_BYPASS_USER_NAME ?? "Dev User",
     nickname: null,
     system_role: "owner",

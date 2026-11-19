@@ -701,6 +701,35 @@ export function DriverMobileHome({ driver, trips }: DriverMobileHomeProps) {
           <ChevronRight size={16} color="var(--cs-text-muted)" />
         </Link>
 
+        {/* Compact Download Driver App entry */}
+        <Link
+          href={isCanonical ? "/staff/driver/app" : "/driver/app"}
+          style={{
+            textDecoration: "none",
+            backgroundColor: "#fff",
+            borderRadius: 12,
+            border: "1px solid var(--cs-border-soft)",
+            padding: "0.875rem 1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            boxShadow: "var(--cs-shadow-xs)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+            <Navigation size={16} color="#19563c" />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cs-text)" }}>
+                Download Driver App
+              </div>
+              <div style={{ fontSize: 11, color: "var(--cs-text-muted)" }}>
+                Android native navigation and trip companion
+              </div>
+            </div>
+          </div>
+          <ChevronRight size={16} color="var(--cs-text-muted)" />
+        </Link>
+
         {/* Quick action row */}
         <div
           style={{

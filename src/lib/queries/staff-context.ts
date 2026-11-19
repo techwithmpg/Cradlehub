@@ -16,7 +16,7 @@ export type SharedStaffProfileRow = {
 };
 
 export type LayoutStaffContext = {
-  user: { id: string };
+  user: { id: string; email?: string | null };
   me: SharedStaffProfileRow | null;
 };
 
@@ -27,7 +27,7 @@ export const getLayoutStaffContext = cache(async (): Promise<LayoutStaffContext 
     const verifiedStaffEncoded = hdrs.get("x-cradle-verified-staff-json");
     if (verifiedUserId && verifiedStaffEncoded) {
       const me = JSON.parse(decodeURIComponent(verifiedStaffEncoded)) as SharedStaffProfileRow;
-      return { user: { id: verifiedUserId }, me };
+      return { user: { id: verifiedUserId, email: null }, me };
     }
   } catch {
     // Fallback to standard Supabase lookup if headers() is unavailable
@@ -42,7 +42,7 @@ export const getLayoutStaffContext = cache(async (): Promise<LayoutStaffContext 
   const superAdmin = await resolveSuperAdminContext(user.id);
   if (superAdmin) {
     return {
-      user: { id: user.id },
+      user: { id: user.id, email: user.email ?? null },
       me: {
         id: user.id,
         full_name: superAdmin.full_name,
@@ -67,5 +67,8 @@ export const getLayoutStaffContext = cache(async (): Promise<LayoutStaffContext 
     logError("staff_context.lookup_failed", { error });
   }
 
-  return { user: { id: user.id }, me: (me as SharedStaffProfileRow | null) ?? null };
+  return {
+    user: { id: user.id, email: user.email ?? null },
+    me: (me as SharedStaffProfileRow | null) ?? null,
+  };
 });
