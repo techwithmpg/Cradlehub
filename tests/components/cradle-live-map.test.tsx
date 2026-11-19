@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, render, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Dispatch } from "@/components/features/cradle-live/board-dispatch";
 import type { LiveBoardData, LiveTrip } from "@/lib/cradle-live/types";
@@ -42,15 +42,6 @@ describe("Cradle Live driver map reconciliation", () => {
     }
     class Bounds {
       extend() {}
-      isEmpty() {
-        return false;
-      }
-      getNorthEast() {
-        return { equals: () => false };
-      }
-      getSouthWest() {
-        return {};
-      }
     }
     vi.stubGlobal("google", {
       maps: { Map: TestMap, Marker, LatLngBounds: Bounds, SymbolPath: { CIRCLE: 0 } },
@@ -71,6 +62,8 @@ describe("Cradle Live driver map reconciliation", () => {
       businessDate: "2026-11-19",
       refreshedAt: new Date(now).toISOString(),
     } as LiveBoardData;
+    const priorAuthFailure = vi.fn();
+    vi.stubGlobal("gm_authFailure", priorAuthFailure);
     const view = render(<Dispatch data={board} now={now} />);
     await waitFor(() => expect(fit).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("button", { name: /^Select B:/ }));
@@ -88,5 +81,13 @@ describe("Cradle Live driver map reconciliation", () => {
     expect(markerCreated).toHaveBeenCalledTimes(4);
     expect(mounted).toHaveBeenCalledTimes(1);
     expect(fit).toHaveBeenCalledTimes(2);
+    act(() => (window as Window & { gm_authFailure: () => void }).gm_authFailure());
+    expect(priorAuthFailure).toHaveBeenCalledOnce();
+    expect(screen.getByText("Google Maps unavailable for this site")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Select B:/ })).toBeTruthy();
+    view.unmount();
+    expect((window as Window & { gm_authFailure: () => void }).gm_authFailure).toBe(
+      priorAuthFailure
+    );
   });
 });

@@ -54,6 +54,16 @@ const RoadMap = memo(function RoadMap({
   useEffect(() => {
     if (!key) return;
     let active = true;
+    const host = window as Window & { gm_authFailure?: () => void };
+    const previousFailure = host.gm_authFailure;
+    const authFailed = () => {
+      if (active) {
+        setError(true);
+        setMap(null);
+      }
+      previousFailure?.();
+    };
+    host.gm_authFailure = authFailed;
     loadGoogleMaps(key)
       .then(() => {
         if (active && container.current)
@@ -72,12 +82,13 @@ const RoadMap = memo(function RoadMap({
       });
     return () => {
       active = false;
+      if (host.gm_authFailure === authFailed) host.gm_authFailure = previousFailure;
     };
   }, [key]);
   useEffect(() => {
-    if (!map) return;
+    if (!map || error) return;
     const keep = new Set<string>(),
-      bounds = new google.maps.LatLngBounds();
+      points: Array<{ lat: number; lng: number }> = [];
     for (const trip of trips) {
       const driver = position(trip);
       for (const [kind, point] of [
@@ -106,7 +117,7 @@ const RoadMap = memo(function RoadMap({
           strokeColor: "#fff",
           strokeWeight: 2,
         });
-        if (!selectedId || selected) bounds.extend(point);
+        if (!selectedId || selected) points.push(point);
       }
     }
     for (const [id, marker] of markers.current)
@@ -115,14 +126,19 @@ const RoadMap = memo(function RoadMap({
         markers.current.delete(id);
       }
     const focus = selectedId ?? "overview";
-    if (!bounds.isEmpty() && focused.current !== focus) {
-      if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
-        map.setCenter(bounds.getCenter());
+    const first = points[0];
+    if (first && focused.current !== focus) {
+      if (points.every((p) => p.lat === first.lat && p.lng === first.lng)) {
+        map.setCenter(first);
         map.setZoom(14);
-      } else map.fitBounds(bounds, 50);
+      } else {
+        const bounds = new google.maps.LatLngBounds();
+        for (const point of points) bounds.extend(point);
+        map.fitBounds(bounds, 50);
+      }
       focused.current = focus;
     }
-  }, [map, trips, selectedId, onSelect]);
+  }, [map, error, trips, selectedId, onSelect]);
   useEffect(() => {
     if (!map || !path) return;
     const points = decodeEncodedPolyline(path);
@@ -153,7 +169,7 @@ const RoadMap = memo(function RoadMap({
   }, [map, path]);
   return (
     <>
-      <div className={s.mapCanvas} ref={container} />
+      <div className={s.mapCanvas} hidden={error} ref={container} />
       {(!key || error || !map) && (
         <div className={s.mapFallback}>
           <MapPin size={26} />
@@ -164,7 +180,7 @@ const RoadMap = memo(function RoadMap({
               : !key
                 ? "Google Maps is not configured"
                 : error
-                  ? "Google Maps could not load"
+                  ? "Google Maps unavailable for this site"
                   : "Waiting for map tiles"}
           </small>
         </div>
