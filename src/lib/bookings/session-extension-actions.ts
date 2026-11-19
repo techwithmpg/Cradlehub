@@ -241,7 +241,7 @@ export async function previewSessionExtensionAction(input: {
     admin
       .from("bookings")
       .select(
-        "id, service_id, staff_id, resource_id, start_time, end_time, status, hold_expires_at, delivery_type, metadata, customers(full_name)"
+        "id, service_id, staff_id, therapist_selection_source, resource_id, start_time, end_time, status, hold_expires_at, delivery_type, metadata, customers(full_name)"
       )
       .eq("branch_id", booking.branch_id)
       .eq("booking_date", booking.booking_date)
@@ -382,7 +382,11 @@ export async function previewSessionExtensionAction(input: {
     typeof nextMeta._therapist_provenance === "object"
       ? (nextMeta._therapist_provenance as Record<string, unknown>)
       : {};
-  const wasCustomerRequested = provenance.therapist_selection_source === "customer_selected";
+  const dbSelectionSource = (nextBooking as { therapist_selection_source?: unknown })
+    .therapist_selection_source;
+  const wasCustomerRequested =
+    dbSelectionSource === "customer_selected" ||
+    provenance.therapist_selection_source === "customer_selected";
   const nextCustRel = Array.isArray(nextBooking.customers)
     ? nextBooking.customers[0]
     : nextBooking.customers;
@@ -514,14 +518,18 @@ export async function commitSessionExtensionAction(input: {
 
   let swappedBookingId: string | null = null;
   let swappedToStaffName: string | null = null;
-  let swapRollbackState: { staffId: string | null; metadata: Json } | null = null;
+  let swapRollbackState: {
+    staffId: string | null;
+    therapistSelectionSource: string | null;
+    metadata: Json;
+  } | null = null;
 
   // 1. If Domino Auto-Swap is required, reassign the conflicting next booking within the same branch (with rollback snapshot)
   if (preview.resolution.kind === "domino_auto_swap") {
     const swap = preview.resolution;
     const { data: conflictingRow } = await admin
       .from("bookings")
-      .select("id, staff_id, branch_id, metadata")
+      .select("id, staff_id, therapist_selection_source, branch_id, metadata")
       .eq("id", swap.conflictingBookingId)
       .eq("branch_id", booking.branch_id)
       .maybeSingle();
@@ -539,6 +547,9 @@ export async function commitSessionExtensionAction(input: {
 
     swapRollbackState = {
       staffId: conflictingRow.staff_id ?? null,
+      therapistSelectionSource:
+        (conflictingRow as { therapist_selection_source?: string | null })
+          .therapist_selection_source ?? null,
       metadata: conflictingRow.metadata,
     };
 
@@ -546,6 +557,7 @@ export async function commitSessionExtensionAction(input: {
       .from("bookings")
       .update({
         staff_id: swap.replacementStaffId,
+        therapist_selection_source: "front_desk_selected",
         metadata: {
           ...conflictMeta,
           domino_reassigned_at: new Date().toISOString(),
@@ -573,6 +585,9 @@ export async function commitSessionExtensionAction(input: {
         .from("bookings")
         .update({
           staff_id: swapRollbackState.staffId as never,
+          ...(swapRollbackState.therapistSelectionSource
+            ? { therapist_selection_source: swapRollbackState.therapistSelectionSource }
+            : {}),
           metadata: swapRollbackState.metadata,
         })
         .eq("id", swappedBookingId)

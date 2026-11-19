@@ -9,6 +9,7 @@ import {
   solveOnsiteFallback,
 } from "@/lib/optimization/fallback-evaluator";
 import { filterSlotsByRoomAndHomeTravel } from "@/lib/optimization/onsite-availability-adapter";
+import { loadUnifiedOperationalSnapshot } from "@/lib/optimization/snapshot-loader";
 import { fakeDatabase } from "../../helpers/stage08a-db";
 
 describe("Unified Optimization Engine TypeScript Layer", () => {
@@ -800,5 +801,128 @@ describe("Unified Optimization Engine TypeScript Layer", () => {
     expect(issueTypes.has("location_or_gps_degraded")).toBe(true);
     expect(issueTypes.has("rule_drift_or_cross_branch_gap")).toBe(true);
     expect(issueTypes.has("earlier_slot_opportunity")).toBe(true);
+  });
+
+  it("preserves top-level bookings.therapist_selection_source when metadata._therapist_provenance was stripped by PG trigger", async () => {
+    const tables: Record<string, unknown[]> = {
+      branches: [{ id: "b1", name: "Main Spa", latitude: 10.6765, longitude: 122.9509, slot_interval_minutes: 30 }],
+      branch_booking_rules: [
+        { branch_id: "b1", travel_buffer_mins: 30, in_spa_start_time: "10:00:00", in_spa_end_time: "22:00:00", home_service_start_time: "10:00:00", home_service_end_time: "22:00:00", home_service_enabled: true },
+      ],
+      scheduling_rules: [
+        { branch_id: "b1", home_service_travel_buffer_minutes: 30, room_reset_buffer_minutes: 10, min_daily_therapists: 1, max_services_per_staff_per_day: 6, max_working_hours_per_day: 12 },
+      ],
+      branch_resources: [{ id: "r1", name: "Suite A", type: "couple_suite", capacity: 2, sort_order: 1, is_active: true }],
+      staff: [
+        { id: "t1", full_name: "Ana", nickname: "Ana", branch_id: "b1", system_role: "therapist", staff_type: "therapist", is_active: true, tier: "senior", created_at: "2026-01-01T00:00:00Z", archived_at: null, merged_into_staff_id: null },
+        { id: "t2", full_name: "Bea", nickname: "Bea", branch_id: "b1", system_role: "therapist", staff_type: "therapist", is_active: true, tier: "senior", created_at: "2026-01-01T00:00:00Z", archived_at: null, merged_into_staff_id: null },
+      ],
+      staff_services: [
+        { staff_id: "t1", service_id: "svc-1" },
+        { staff_id: "t2", service_id: "svc-1" },
+      ],
+      bookings: [
+        {
+          id: "bk-hs",
+          order_id: null,
+          branch_id: "b1",
+          service_id: "svc-1",
+          staff_id: "t1",
+          therapist_selection_source: "system_assigned",
+          requested_staff_id: null,
+          driver_id: null,
+          resource_id: null,
+          booking_date: "2026-11-18",
+          start_time: "12:00:00",
+          end_time: "13:00:00",
+          status: "confirmed",
+          booking_progress_status: "confirmed",
+          hold_expires_at: null,
+          delivery_type: "home_service",
+          travel_buffer_minutes: null,
+          travel_buffer_mins: 30,
+          session_started_at: null,
+          session_due_at: null,
+          session_duration_minutes_snapshot: 60,
+          metadata: {},
+          customers: { full_name: "Home Guest" },
+          services: { name: "Massage", duration_minutes: 60, buffer_before: 0, buffer_after: 0 },
+          booking_attendees: [],
+        },
+        {
+          id: "bk-req",
+          order_id: null,
+          branch_id: "b1",
+          service_id: "svc-1",
+          staff_id: "t1",
+          therapist_selection_source: "customer_selected",
+          requested_staff_id: "t1",
+          driver_id: null,
+          resource_id: "r1",
+          booking_date: "2026-11-18",
+          start_time: "13:15:00",
+          end_time: "14:15:00",
+          status: "confirmed",
+          booking_progress_status: "confirmed",
+          hold_expires_at: null,
+          delivery_type: "in_spa",
+          travel_buffer_mins: 0,
+          session_started_at: null,
+          session_due_at: null,
+          session_duration_minutes_snapshot: 60,
+          metadata: {}, // _therapist_provenance stripped by 20261016001208 PG trigger
+          customers: { full_name: "VIP Customer" },
+          services: { name: "Massage", duration_minutes: 60, buffer_before: 0, buffer_after: 0 },
+          booking_attendees: [],
+        },
+      ],
+      staff_shift_checkins: [],
+      workflow_tasks: [],
+      staff_location_snapshots: [],
+      staff_assistance_requests: [],
+      staff_schedules: [
+        { staff_id: "t1", start_time: "10:00:00", end_time: "22:00:00", ends_next_day: false, is_active: true, day_of_week: 3 },
+        { staff_id: "t2", start_time: "10:00:00", end_time: "22:00:00", ends_next_day: false, is_active: true, day_of_week: 3 },
+      ],
+      schedule_overrides: [],
+      blocked_times: [],
+    };
+    const mockDb = {
+      from(table: string) {
+        const rows = tables[table] ?? [];
+        const q = {
+          select: () => q,
+          eq: () => q,
+          neq: () => q,
+          is: () => q,
+          in: () => q,
+          or: () => q,
+          lte: () => q,
+          gte: () => q,
+          order: () => q,
+          limit: () => q,
+          maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
+          then: (res: (v: { data: unknown[]; error: null }) => unknown) =>
+            Promise.resolve({ data: rows, error: null }).then(res),
+        };
+        return q;
+      },
+    };
+
+    const loaded = await loadUnifiedOperationalSnapshot({
+      supabase: mockDb as never,
+      branchId: "b1",
+      date: "2026-11-18",
+      now: new Date("2026-11-18T11:00:00+08:00"),
+    });
+    const reqBooking = loaded.request.bookings.find((b) => b.booking_id === "bk-req");
+    expect(reqBooking?.therapist_selection_source).toBe("customer_selected");
+
+    const evaluation = evaluateUnifiedOperationsFallback(loaded.request);
+    const swapAction = evaluation.conflicts_and_opportunities
+      .flatMap((c) => c.recommended_actions)
+      .find((a) => a.action_type === "swap_therapist" && a.target_booking_id === "bk-req");
+    expect(swapAction).toBeDefined();
+    expect(swapAction?.requires_customer_approval).toBe(true);
   });
 });

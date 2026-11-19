@@ -114,6 +114,11 @@ function ConflictItemRow({
           <span className="text-[11px] font-medium text-[var(--cs-text-muted)]">
             {firstAction.label}
           </span>
+          {canApply && firstAction.requires_customer_approval && (
+            <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+              Guest approval required
+            </span>
+          )}
           {canApply && !firstAction.requires_customer_approval && (
             <Button
               type="button"
