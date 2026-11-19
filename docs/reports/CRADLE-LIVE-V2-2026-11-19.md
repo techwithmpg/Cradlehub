@@ -76,3 +76,7 @@ This report is the additional handoff file. Independent source review passed aft
 ## F. Remaining gates and rollback
 
 Resolve the baseline build and test gates under their owning scopes, verify remaining connected scenarios and obtain separate owner approval before integration. To roll back this local trial, stop the stage development listener and relaunch the original checkout on port 3000. Production requires no rollback. The original checkout and its seven pre-existing edits were preserved.
+
+### Concurrent local-main advancement
+
+After the reviewed implementation, local main advanced independently to `d48da20f9d3035daedbf165abd409353bf238d2b`; remote main remained at the original base. The newer local changes include fixes for both baseline TypeScript errors, changes to the CRM realtime bridge, and updated optimization workflows. `git merge-tree --write-tree HEAD main` succeeded without conflicts. That check did not update either branch or execute the combined application. The running reviewed stage and its evidence use the original base. Reconcile and retest against the newer local main before an integration decision.
