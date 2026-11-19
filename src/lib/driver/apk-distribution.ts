@@ -200,7 +200,8 @@ export function resolveDriverApkReleaseState(
   if (
     !/^[a-z0-9][a-z0-9._-]{2,62}$/.test(storageBucket) ||
     !STORAGE_OBJECT_PATTERN.test(storageObject) ||
-    storageObject.includes("..")
+    storageObject.includes("..") ||
+    /localtest|local-test|owner-phone|fixture|debug/i.test(storageObject)
   ) {
     return {
       publicInfo: {
