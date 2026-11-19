@@ -320,9 +320,29 @@ class NativeDriverPolicyTest {
         val api = "https://www.cradlewellnessliving.com"
         val db = "https://lsrbwqhvzjfpiabeolkv.supabase.co"
         assertFalse(NativeTargetPolicy.allowed("PRODUCTION", api, db, key))
-        assertTrue(NativeTargetPolicy.allowed("PRODUCTION", api, db, key, true))
+        assertTrue(NativeTargetPolicy.allowed("PRODUCTION", api, db, key, ownerPhone = true))
+        assertTrue(
+            NativeTargetPolicy.allowed(
+                "PRODUCTION",
+                api,
+                db,
+                key,
+                ownerPhone = false,
+                releaseSigned = true,
+            )
+        )
         assertFalse(
             NativeTargetPolicy.allowed("PRODUCTION", "https://other.example.com", db, key, true)
+        )
+        assertFalse(
+            NativeTargetPolicy.allowed(
+                "PRODUCTION",
+                "https://other.example.com",
+                db,
+                key,
+                ownerPhone = false,
+                releaseSigned = true,
+            )
         )
         assertFalse(NativeTargetPolicy.allowed("TEST", api, db, key, true))
     }

@@ -30,6 +30,7 @@ import { GroupTherapistAllocationError, SlotUnavailableError } from "@/types/err
 import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { evaluateOnlineSelectedStaff } from "@/lib/bookings/online-selected-staff";
 import { bookingCreationProvenance } from "@/lib/bookings/therapist-provenance";
 import {
@@ -537,6 +538,11 @@ export async function createOnlineBookingAction(
       bookingType: d.type,
     });
     revalidateOperationalBookingSurfaces(d.branchId);
+    scheduleBranchOptimizationReevaluation({
+      branchId: d.branchId,
+      date: d.date,
+      reason: "online_booking_created",
+    });
     if (d.smsConsentChoice) {
       await captureBookingSmsConsent({ bookingId: booking.id, orderId, customerId: resolvedCustomerId,
         phone: d.phone, choice: d.smsConsentChoice, source: "public_booking" });
@@ -1325,6 +1331,11 @@ export async function createOnlineBookingMultiAction(
       attendeeCount: attendees.length,
     });
     revalidateOperationalBookingSurfaces(d.branchId);
+    scheduleBranchOptimizationReevaluation({
+      branchId: d.branchId,
+      date: d.date,
+      reason: "online_booking_created",
+    });
     if (d.smsConsentChoice) {
       await captureBookingSmsConsent({ bookingId: primaryBookingId, orderId, customerId: resolvedCustomerId,
         phone: d.phone, choice: d.smsConsentChoice, source: "public_booking" });

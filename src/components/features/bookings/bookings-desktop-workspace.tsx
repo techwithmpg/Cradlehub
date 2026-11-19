@@ -48,6 +48,8 @@ import { sortSheetReferencesRecentFirst } from "@/lib/bookings/booking-recency";
 import { isOperationalBookingGroup } from "@/lib/bookings/operational-booking-eligibility";
 import { CrmBookingsOperationsGrid } from "./crm-bookings-operations-grid";
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
+import { CrmOperationsAssistantBar } from "@/components/features/optimization/crm-operations-assistant-bar";
+import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 const NO_SELECTION = "__no_booking_selected__";
 
@@ -63,7 +65,9 @@ function replaceSelectionQuery(bookingId: string | null) {
 type DesktopWorkspaceProps = {
   workspaceContext: WorkspaceContext;
   viewerRole: string;
+  branchId?: string;
   branches?: Branch[];
+  initialOptimizationSummary?: TieredCrmOperationsSummary | null;
   date: string;
   businessDate?: string;
   clockTime?: string;
@@ -380,22 +384,48 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
   }
 
   if (props.workspaceContext === "crm" && props.referenceSource !== "master_sheet") {
-    return <CrmBookingsOperationsGrid
-      bookings={props.bookings}
-      date={props.date}
-      businessDate={props.businessDate}
-      initialQuickFilter={props.initialQuickFilter}
-      initialSelectedId={props.initialSelectedId}
-      services={availableServices}
-      staff={availableStaff}
-      rooms={availableRooms}
-      onNewBooking={handleNewBooking}
-      onChanged={props.onBookingsChanged}
-      onRefresh={props.onRefresh ?? props.onBookingsChanged}
-      isRefreshing={props.isRefreshing}
-      paymentAction={props.paymentAction}
-      hasSheetReferences={props.sheetState?.status === "available" && props.sheetState.bookings.length > 0}
-    />;
+    const selectedIdFromUrl =
+      searchParams.get("bookingId") ?? searchParams.get("highlight") ?? props.initialSelectedId;
+    return (
+      <div className="space-y-3">
+        {props.initialQuickFilter !== "upcoming" ? (
+          <div className="space-y-2.5 px-4 pt-3 sm:px-6 lg:px-8">
+            <CrmOperationsAssistantBar
+              initialSummary={props.initialOptimizationSummary ?? null}
+              branchId={props.branchId}
+              date={props.date}
+              surface="bookings"
+              selectedBookingId={selectedIdFromUrl}
+              onSelectBooking={(bookingId) => {
+                const sp = new URLSearchParams(searchParams.toString());
+                sp.set("bookingId", bookingId);
+                if (props.date) sp.set("date", props.date);
+                router.replace(`/crm/bookings?${sp.toString()}`);
+              }}
+              onAfterMutation={props.onRefresh ?? props.onBookingsChanged}
+            />
+          </div>
+        ) : null}
+        <CrmBookingsOperationsGrid
+          bookings={props.bookings}
+          date={props.date}
+          businessDate={props.businessDate}
+          initialQuickFilter={props.initialQuickFilter}
+          initialSelectedId={props.initialSelectedId}
+          services={availableServices}
+          staff={availableStaff}
+          rooms={availableRooms}
+          onNewBooking={handleNewBooking}
+          onChanged={props.onBookingsChanged}
+          onRefresh={props.onRefresh ?? props.onBookingsChanged}
+          isRefreshing={props.isRefreshing}
+          paymentAction={props.paymentAction}
+          hasSheetReferences={
+            props.sheetState?.status === "available" && props.sheetState.bookings.length > 0
+          }
+        />
+      </div>
+    );
   }
 
   return (

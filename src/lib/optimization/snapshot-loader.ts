@@ -197,7 +197,7 @@ export async function loadUnifiedOperationalSnapshot(params: {
     db
       .from("bookings")
       .select(
-        "id, order_id, branch_id, service_id, staff_id, driver_id, resource_id, booking_date, start_time, end_time, status, booking_progress_status, hold_expires_at, delivery_type, travel_buffer_mins, session_started_at, session_due_at, session_duration_minutes_snapshot, metadata, customers(full_name), services(name, duration_minutes, buffer_before, buffer_after), booking_attendees(display_name)"
+        "id, order_id, branch_id, service_id, staff_id, therapist_selection_source, requested_staff_id, driver_id, resource_id, booking_date, start_time, end_time, status, booking_progress_status, hold_expires_at, delivery_type, travel_buffer_mins, session_started_at, session_due_at, session_duration_minutes_snapshot, metadata, customers(full_name), services(name, duration_minutes, buffer_before, buffer_after), booking_attendees(display_name)"
       )
       .eq("branch_id", params.branchId)
       .eq("booking_date", date),
@@ -484,11 +484,18 @@ export async function loadUnifiedOperationalSnapshot(params: {
       booking_progress_status: b.booking_progress_status,
       tracking_status: trackingStatus ?? null,
       therapist_id: b.staff_id,
-      therapist_selection_source:
-        isRecord(meta._therapist_provenance) &&
-        typeof meta._therapist_provenance.therapist_selection_source === "string"
-          ? meta._therapist_provenance.therapist_selection_source
-          : null,
+      therapist_selection_source: (() => {
+        const colSource = (b as { therapist_selection_source?: unknown }).therapist_selection_source;
+        const metaSource =
+          isRecord(meta._therapist_provenance) &&
+          typeof meta._therapist_provenance.therapist_selection_source === "string"
+            ? meta._therapist_provenance.therapist_selection_source
+            : null;
+        if (typeof colSource === "string" && colSource !== "legacy_unknown") {
+          return colSource;
+        }
+        return metaSource ?? (typeof colSource === "string" ? colSource : null);
+      })(),
       driver_id: b.driver_id,
       collection_driver_id: collectionDriverId,
       resource_id: b.resource_id,

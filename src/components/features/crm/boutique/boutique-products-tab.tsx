@@ -121,8 +121,8 @@ export function BoutiqueProductsTab({
           stockTrackingLabel: item.product.isGiftCertificate
             ? "Voucher (Serialized Ledger)"
             : override.track_inventory
-            ? "Tracked in Branch Ledger"
-            : item.stockTrackingLabel,
+              ? "Tracked in Branch Ledger"
+              : item.stockTrackingLabel,
           product: {
             ...item.product,
             name: override.name || item.product.name,
@@ -148,14 +148,19 @@ export function BoutiqueProductsTab({
           catLabel.toLowerCase().includes("spray")
             ? "sprays"
             : catLabel.toLowerCase().includes("gift")
-            ? "gift-cards"
-            : catLabel.toLowerCase().includes("kit")
-            ? "wellness-kits"
-            : "oils";
+              ? "gift-cards"
+              : catLabel.toLowerCase().includes("kit")
+                ? "wellness-kits"
+                : "oils";
         customDbItems.push({
           ...templateItem,
           categoryLabel: catLabel,
-          skuTypeLabel: sku === "gift-certificate" ? "Voucher SKU" : "Retail SKU",
+          skuKind:
+            sku === "gift-certificate"
+              ? "voucher"
+              : catId === "wellness-kits"
+                ? "kit"
+                : "retail",
           stockTrackingLabel: override.track_inventory
             ? "Tracked in Branch Ledger"
             : "Voucher (Serialized Ledger)",
@@ -164,7 +169,7 @@ export function BoutiqueProductsTab({
             id: sku,
             name: override.name,
             subtitle: override.subtitle || "Boutique Retail SKU",
-            category: catId as BoutiqueCategoryId,
+            category: catId,
             sizeOrVolume: override.format_volume || "Standard Format",
             price: override.retail_price,
             priceLabel: formatPhp(override.retail_price),

@@ -660,6 +660,57 @@ async function main() {
       );
       assert.equal(splitStart.rows[0].j.stage, "pickup_enroute");
 
+      // Regression guard (P1): Historical and same-day un-enrolled completed bookings must NEVER leak
+      // into driver_unified_snapshot(null) or allow driver_unified_event() initialization, and 'review' stage
+      // must block driver_unified_collection_ready() until dispatch reconciles.
+      const histUnenrolledId = "50000000-0000-4000-8000-000000000101";
+      const todayUnenrolledDoneId = "50000000-0000-4000-8000-000000000102";
+      const reviewProtectedId = "50000000-0000-4000-8000-000000000103";
+      await admin.query(`
+        insert into public.bookings(
+          id, branch_id, staff_id, customer_id, driver_id, booking_date, start_time, end_time,
+          status, booking_progress_status, delivery_type, home_service_tracking_status, metadata
+        ) values
+          ('${histUnenrolledId}', '${BRANCH_ID}', '${TH1_ID}', '${CUST_ID}', '${DRV_B_ID}',
+           ((now() at time zone 'Asia/Manila')::date - 2), '10:00:00', '11:00:00',
+           'completed', 'completed', 'home_service', 'arrived_at_customer',
+           '{"home_service_address":{"lat":10.6800,"lng":122.9550,"full_address":"Old Done"}}'::jsonb),
+          ('${todayUnenrolledDoneId}', '${BRANCH_ID}', '${TH2_ID}', '${CUST_ID}', '${DRV_B_ID}',
+           (now() at time zone 'Asia/Manila')::date, '11:00:00', '12:00:00',
+           'completed', 'completed', 'home_service', 'arrived_at_customer',
+           '{"home_service_address":{"lat":10.6810,"lng":122.9560,"full_address":"Today Unenrolled"}}'::jsonb),
+          ('${reviewProtectedId}', '${BRANCH_ID}', '${TH1_ID}', '${CUST_ID}', '${DRV_A_ID}',
+           (now() at time zone 'Asia/Manila')::date, '18:00:00', '19:00:00',
+           'completed', 'completed', 'home_service', 'arrived_at_customer',
+           '{"home_service_address":{"lat":10.6820,"lng":122.9570,"full_address":"Needs Review"}}'::jsonb);
+        update public.bookings set session_completed_at = now(), session_completion_source = 'staff_pwa' where id = '${reviewProtectedId}';
+        insert into driver_unified_private.journeys(booking_id, branch_id, driver_id, delivery_driver_id, collection_driver_id, therapist_id, stage, reason)
+        values ('${reviewProtectedId}', '${BRANCH_ID}', '${DRV_A_ID}', '${DRV_A_ID}', '${DRV_A_ID}', '${TH1_ID}', 'review', 'Address changed mid-trip');
+      `);
+      const snapAfterHist = await withSession(dbConfig, { sub: DRV_B_AUTH, role: "authenticated" }, (c) =>
+        c.query("select public.driver_unified_snapshot() as snap")
+      );
+      const leakedIds = (snapAfterHist.rows[0].snap || [])
+        .map((r) => r.bookingId)
+        .filter((id) => id === histUnenrolledId || id === todayUnenrolledDoneId);
+      assert.deepEqual(leakedIds, []);
+
+      await expectError(
+        withSession(dbConfig, { sub: DRV_B_AUTH, role: "authenticated" }, (c) =>
+          c.query("select public.driver_unified_event($1)", [
+            { bookingId: todayUnenrolledDoneId, requestId: "84000000-0000-4000-8000-000000000102", expectedRevision: 0, action: "start" },
+          ])
+        ),
+        "legacy_trip_requires_review"
+      );
+
+      await expectError(
+        withSession(dbConfig, { sub: CRM_AUTH, role: "authenticated" }, (c) =>
+          c.query("select public.driver_unified_collection_ready($1)", [reviewProtectedId])
+        ),
+        "journey_assignment_changed"
+      );
+
       console.log("ALL_O4_SQL_TESTS_PASSED");
     } finally {
       await admin.end().catch(() => {});

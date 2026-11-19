@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   Calendar,
   CheckCircle2,
   Clock,
@@ -12,6 +13,7 @@ import {
   UserRound,
   Wallet,
 } from "lucide-react";
+import type { PredictiveConflictItem } from "@/lib/optimization/types";
 import {
   formatCradleFlowMoney,
   getCradleFlowAmountPaid,
@@ -66,6 +68,7 @@ export function CradleFlowTicket({
   onAssignRoom,
   onAssignTherapist,
   primaryPending = false,
+  optimizationConflicts = [],
 }: {
   booking: CradleFlowBooking;
   group?: CradleFlowGroup;
@@ -76,7 +79,12 @@ export function CradleFlowTicket({
   onAssignRoom: (booking: CradleFlowBooking) => void;
   onAssignTherapist: (booking: CradleFlowBooking) => void;
   primaryPending?: boolean;
+  optimizationConflicts?: PredictiveConflictItem[];
 }) {
+  const hasPersistentOpt = optimizationConflicts.some(
+    (c) => c.assistant_tier === "persistent_action_required"
+  );
+  const hasWarningOpt = !hasPersistentOpt && optimizationConflicts.length > 0;
   // ── Multi-Service / Group Booking Card ──────────────────────────────────────
   if (group && group.orderId && group.serviceCount > 1) {
     const guests = [...new Set(group.lines.map(getCradleFlowServiceRecipientName))];
@@ -119,6 +127,19 @@ export function CradleFlowTicket({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {(hasPersistentOpt || hasWarningOpt) && (
+              <span
+                title={optimizationConflicts[0]?.predicted_impact}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider ${
+                  hasPersistentOpt
+                    ? "border-red-200 bg-red-50 text-red-800"
+                    : "border-amber-200 bg-amber-50 text-amber-800"
+                }`}
+              >
+                <AlertTriangle className="size-3" />
+                {hasPersistentOpt ? "Schedule Action" : "Early Risk"}
+              </span>
+            )}
             <span className="rounded-lg bg-[#F0ECE5] px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wider text-[#493F37]">
               {stageLabel}
             </span>
@@ -284,6 +305,21 @@ export function CradleFlowTicket({
 
         {/* Right: Workflow Stage Chip & Payment Summary Pill */}
         <div className="flex flex-wrap items-center gap-2">
+          {(hasPersistentOpt || hasWarningOpt) && (
+            <button
+              type="button"
+              onClick={() => onOpen(booking)}
+              title={optimizationConflicts[0]?.predicted_impact}
+              className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider transition ${
+                hasPersistentOpt
+                  ? "border-red-200 bg-red-50 text-red-800 hover:bg-red-100"
+                  : "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+              }`}
+            >
+              <AlertTriangle className="size-3" />
+              {hasPersistentOpt ? "Schedule Action" : "Early Risk"}
+            </button>
+          )}
           {homeService ? (
             <span className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-blue-800">
               <Home className="size-3" /> Home Service

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { createNotification } from "@/lib/notifications/create";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import {
   assistanceSubmitSchema,
@@ -78,7 +79,21 @@ async function getActor() {
   if (!user || !ctx.branchId) return null;
   const role = canonicalizeSystemRole(ctx.role);
   if (!canSubmitAssistance(role)) return null;
-  return { role, branchId: ctx.branchId, branchName: ctx.branchName, userId: user.id };
+  const { data: staffRow } = await adminDb()
+    .from("staff")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
+    .maybeSingle();
+  return {
+    role,
+    branchId: ctx.branchId,
+    branchName: ctx.branchName,
+    userId: user.id,
+    staffId: typeof staffRow?.id === "string" ? staffRow.id : null,
+  };
 }
 
 function adminDb(): SupabaseClient {
@@ -279,6 +294,19 @@ export async function submitStaffAssistanceAction(
     dedupeKey: `assistance:${data.id}:requested`,
   });
   revalidatePath("/crm/schedule");
+  const assistanceDate = toManilaDate(value.startAt);
+  scheduleBranchOptimizationReevaluation({
+    branchId: value.requestingBranchId,
+    date: assistanceDate,
+    reason: "assistance_requested",
+    actorStaffId: actor.staffId,
+  });
+  scheduleBranchOptimizationReevaluation({
+    branchId: value.lendingBranchId,
+    date: assistanceDate,
+    reason: "assistance_requested_lending",
+    actorStaffId: actor.staffId,
+  });
   return { success: true, data: { id: String(data.id) } };
 }
 
@@ -347,5 +375,18 @@ export async function decideStaffAssistanceAction(
     dedupeKey: `assistance:${request.id}:${next}`,
   });
   revalidatePath("/crm/schedule");
+  const decisionDate = toManilaDate(request.start_at);
+  scheduleBranchOptimizationReevaluation({
+    branchId: request.requesting_branch_id,
+    date: decisionDate,
+    reason: `assistance_${next}`,
+    actorStaffId: actor.staffId,
+  });
+  scheduleBranchOptimizationReevaluation({
+    branchId: request.lending_branch_id,
+    date: decisionDate,
+    reason: `assistance_${next}_lending`,
+    actorStaffId: actor.staffId,
+  });
   return { success: true, data: { status: next } };
 }

@@ -32,6 +32,7 @@ import {
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import { recordBookingPaymentChange } from "@/lib/bookings/payment-transaction";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import {
   getOpenStaffScheduleException,
   resolveStaffScheduleExceptionMetadata,
@@ -290,6 +291,12 @@ export async function resolveStaffScheduleExceptionAction(
   });
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "staff_schedule_exception_resolved",
+    actorStaffId: actorId,
+  });
   return { success: true };
 }
 
@@ -458,6 +465,12 @@ export async function assignBookingRoomAction(
   }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "room_assigned",
+    actorStaffId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+  });
   return { success: true };
 }
 

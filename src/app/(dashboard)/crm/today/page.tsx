@@ -11,6 +11,7 @@ import {
 } from "@/lib/attendance/recent-scans";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 import { getCrmTodayOperationalData } from "@/lib/queries/crm-today-operational";
+import { evaluateBranchSummarySafe } from "@/lib/optimization/auto-reevaluate";
 
 export default async function CrmTodayPage({
   searchParams,
@@ -22,7 +23,7 @@ export default async function CrmTodayPage({
   const today = getBranchBusinessDate();
   const params = await searchParams;
 
-  const [duty, operationalData, attendanceScanFeed] = await Promise.all([
+  const [duty, operationalData, attendanceScanFeed, optResult] = await Promise.all([
     getFrontDeskDutyContext(
       context,
       today,
@@ -44,6 +45,13 @@ export default async function CrmTodayPage({
         error: "Attendance activity could not be refreshed.",
       })
     ),
+    evaluateBranchSummarySafe({
+      branchId,
+      branchName,
+      date: today,
+      syncAlerts: false,
+      timeoutMs: 2200,
+    }),
   ]);
 
   const canonicalRole = canonicalizeSystemRole(role);
@@ -71,6 +79,7 @@ export default async function CrmTodayPage({
         attendanceScanDate={today}
         readinessIssues={operationalData.readinessIssues}
         readinessStatus={operationalData.readinessStatus}
+        initialOptimizationSummary={optResult.summary}
         paymentAction={updateBookingPaymentAction}
         statusAction={updateWorkQueueBookingStatusAction}
         assistanceEnabled={process.env.CRADLEHUB_INTERBRANCH_ASSISTANCE_ENABLED === "true"}

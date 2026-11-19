@@ -299,15 +299,20 @@ function setupDisplay(notification: WorkspaceNotification): NotificationDisplay 
   ]);
   const area = readString(metadata, ["area", "where", "branch_name", "branchName", "branch"]);
   const detail = affected ? compactJoin([`${affected} affected`, safeDetail(notification)]) : safeDetail(notification);
+  const isResourceConflict = notification.type === "resource_conflict_warning";
 
   return {
-    title: notification.type === "system_warning" ? "System Warning" : "Setup Warning",
+    title: isResourceConflict
+      ? "Room Capacity Alert"
+      : notification.type === "system_warning"
+        ? "System Warning"
+        : "Setup Warning",
     detail,
     meta: area,
-    actionLabel: "Fix Now",
-    tone: notification.priority === "critical" ? "warning" : "setup",
+    actionLabel: isResourceConflict ? "Review Booking" : "Fix Now",
+    tone: notification.priority === "critical" || isResourceConflict ? "warning" : "setup",
     href: resolvedHref(notification),
-    iconName: notification.priority === "critical" ? "warning" : "settings",
+    iconName: notification.priority === "critical" || isResourceConflict ? "warning" : "settings",
   };
 }
 
@@ -317,23 +322,29 @@ function scheduleDisplay(notification: WorkspaceNotification): NotificationDispl
   const time = bookingTime(metadata);
   const issue = readString(metadata, ["issue", "update", "reason"]);
   const detail = compactJoin([staffName, issue]) || safeDetail(notification);
+  const href = resolvedHref(notification);
+  const isConflict = notification.type === "staff_availability_conflict";
 
   return {
     title:
       notification.type === "schedule_suggestion_approved" ||
       notification.type === "schedule_block_applied"
         ? "Schedule Update"
-        : "Schedule Warning",
+        : isConflict
+          ? "Therapist Schedule Alert"
+          : "Schedule Warning",
     detail,
     meta: time,
-    actionLabel: "Open Schedule",
+    actionLabel: href.includes("/crm/bookings") ? "Review Booking" : "Open Schedule",
     tone:
       notification.type === "schedule_suggestion_approved" ||
       notification.type === "schedule_block_applied"
         ? "success"
-        : "schedule",
-    href: resolvedHref(notification),
-    iconName: "calendar",
+        : isConflict
+          ? "warning"
+          : "schedule",
+    href,
+    iconName: isConflict ? "warning" : "calendar",
   };
 }
 

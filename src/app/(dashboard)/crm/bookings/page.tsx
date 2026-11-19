@@ -4,6 +4,7 @@ import { updateBookingPaymentAction } from "@/app/(dashboard)/manager/bookings/a
 import { confirmBookingPaymentAction } from "./actions";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 import { getCrmBookingsOperationalData } from "@/lib/queries/crm-bookings-operational";
+import { evaluateBranchSummarySafe } from "@/lib/optimization/auto-reevaluate";
 
 export default async function CrmBookingsPage({
   searchParams,
@@ -29,19 +30,31 @@ export default async function CrmBookingsPage({
   const upcoming = params.tab === "upcoming";
   const bookingId = params.bookingId ?? params.highlight;
 
-  const initialData = await getCrmBookingsOperationalData({
-    branchId,
-    branchName,
-    role,
-    date: params.date,
-    upcoming,
-    bookingId,
-  });
+  const [initialData, optResult] = await Promise.all([
+    getCrmBookingsOperationalData({
+      branchId,
+      branchName,
+      role,
+      date: params.date,
+      upcoming,
+      bookingId,
+    }),
+    !upcoming
+      ? evaluateBranchSummarySafe({
+          branchId,
+          branchName,
+          date: params.date,
+          syncAlerts: false,
+          timeoutMs: 2200,
+        })
+      : Promise.resolve(null),
+  ]);
 
   return (
     <RetainedWorkspaceModule moduleId="crm-bookings">
       <CrmBookingsView
         initialData={initialData}
+        initialOptimizationSummary={optResult?.summary ?? null}
         paymentAction={updateBookingPaymentAction}
         confirmPaymentAction={confirmBookingPaymentAction}
       />
