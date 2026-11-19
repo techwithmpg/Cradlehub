@@ -550,6 +550,52 @@ describe("CRM Operations Assistant Pipeline & Synchronization", () => {
       expect(pc2.summary?.persistentActions).toHaveLength(0);
     }
     expect(state.assignTherapistMock).toHaveBeenCalledTimes(1);
+    expect(
+      (state.tables.booking_events ?? []).some((e) =>
+        String(e.notes ?? "").includes("with confirmed guest approval")
+      )
+    ).toBe(true);
+
+    // 2b. When swap_therapist also proposes a room that is not active/valid in branch_resources, fail BEFORE mutating therapist
+    const swapAndInvalidRoomConflict = makeConflict({
+      recommended_actions: [
+        {
+          action_id: "act-swap-room",
+          action_type: "swap_therapist",
+          label: "Swap therapist and move room",
+          detail: "Moves to inactive room",
+          target_booking_id: BOOKING_A,
+          proposed_staff_id: STAFF_SWAP,
+          proposed_staff_name: "Ana Santos",
+          proposed_resource_id: "eeee5555-5555-4555-8555-555555555555",
+          proposed_resource_name: "Closed Suite",
+          proposed_driver_id: null,
+          proposed_driver_name: null,
+          proposed_start_minute: null,
+          requires_customer_approval: true,
+          verified_feasible: true,
+        },
+      ],
+    });
+    evalSpy.mockResolvedValue(
+      makeEval({
+        branch_id: BRANCH_MAIN,
+        source_snapshot_version: "2026-11-19:swap-room-v1",
+        conflicts_and_opportunities: [swapAndInvalidRoomConflict],
+      })
+    );
+    const badRoomRes = await applyRecommendedFixAction({
+      sourceSnapshotVersion: "2026-11-19:swap-room-v1",
+      date: "2026-11-19",
+      actionType: "swap_therapist",
+      targetBookingId: BOOKING_A,
+      proposedStaffId: STAFF_SWAP,
+      proposedResourceId: "eeee5555-5555-4555-8555-555555555555",
+      confirmCustomerApproval: true,
+    });
+    expect(badRoomRes.success).toBe(false);
+    // Therapist must NOT have been mutated when the room pre-check failed
+    expect(state.assignTherapistMock).toHaveBeenCalledTimes(1);
 
     // 3. Collection driver reassignment executes through authoritative optimizer-bridge helper
     const collConflict = makeConflict({

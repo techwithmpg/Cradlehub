@@ -79,7 +79,21 @@ async function getActor() {
   if (!user || !ctx.branchId) return null;
   const role = canonicalizeSystemRole(ctx.role);
   if (!canSubmitAssistance(role)) return null;
-  return { role, branchId: ctx.branchId, branchName: ctx.branchName, userId: user.id };
+  const { data: staffRow } = await adminDb()
+    .from("staff")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .eq("is_active", true)
+    .is("archived_at", null)
+    .is("merged_into_staff_id", null)
+    .maybeSingle();
+  return {
+    role,
+    branchId: ctx.branchId,
+    branchName: ctx.branchName,
+    userId: user.id,
+    staffId: typeof staffRow?.id === "string" ? staffRow.id : null,
+  };
 }
 
 function adminDb(): SupabaseClient {
@@ -280,17 +294,18 @@ export async function submitStaffAssistanceAction(
     dedupeKey: `assistance:${data.id}:requested`,
   });
   revalidatePath("/crm/schedule");
+  const assistanceDate = toManilaDate(value.startAt);
   scheduleBranchOptimizationReevaluation({
     branchId: value.requestingBranchId,
-    date: value.startAt.slice(0, 10),
+    date: assistanceDate,
     reason: "assistance_requested",
-    actorStaffId: actor.userId,
+    actorStaffId: actor.staffId,
   });
   scheduleBranchOptimizationReevaluation({
     branchId: value.lendingBranchId,
-    date: value.startAt.slice(0, 10),
+    date: assistanceDate,
     reason: "assistance_requested_lending",
-    actorStaffId: actor.userId,
+    actorStaffId: actor.staffId,
   });
   return { success: true, data: { id: String(data.id) } };
 }
@@ -360,17 +375,18 @@ export async function decideStaffAssistanceAction(
     dedupeKey: `assistance:${request.id}:${next}`,
   });
   revalidatePath("/crm/schedule");
+  const decisionDate = toManilaDate(request.start_at);
   scheduleBranchOptimizationReevaluation({
     branchId: request.requesting_branch_id,
-    date: request.start_at.slice(0, 10),
+    date: decisionDate,
     reason: `assistance_${next}`,
-    actorStaffId: actor.userId,
+    actorStaffId: actor.staffId,
   });
   scheduleBranchOptimizationReevaluation({
     branchId: request.lending_branch_id,
-    date: request.start_at.slice(0, 10),
+    date: decisionDate,
     reason: `assistance_${next}_lending`,
-    actorStaffId: actor.userId,
+    actorStaffId: actor.staffId,
   });
   return { success: true, data: { status: next } };
 }

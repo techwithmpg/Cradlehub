@@ -8,10 +8,15 @@ import {
 } from "@/app/(dashboard)/crm/bookings/actions";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
-import { insertBookingAuditEvent } from "@/lib/bookings/crm-booking-operations";
+import {
+  CLOSED_BOOKING_STATUSES,
+  insertBookingAuditEvent,
+  isHomeServiceBooking,
+} from "@/lib/bookings/crm-booking-operations";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { updateBookingCollectionDisposition } from "@/lib/dispatch/optimizer-bridge";
+import { isResourceAvailable } from "@/lib/engine/resource-availability";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { assignHomeServiceDriver } from "@/lib/home-service/dispatch-operations";
 import { logBusinessEvent } from "@/lib/logger";
@@ -258,13 +263,20 @@ export async function applyRecommendedFixAction(
         bookingId &&
         parsed.data.proposedStaffId
       ) {
+        const admin = createAdminClient();
+        const { data: bookingRow } = await admin
+          .from("bookings")
+          .select(
+            "id, branch_id, staff_id, resource_id, booking_date, start_time, end_time, status, type, delivery_type, metadata, therapist_selection_source"
+          )
+          .eq("id", bookingId)
+          .eq("branch_id", actor.branchId)
+          .maybeSingle();
+
+        const previousStaffId =
+          (bookingRow as { staff_id?: string | null } | null)?.staff_id ?? null;
+
         if (parsed.data.actionType === "swap_therapist" && !parsed.data.confirmCustomerApproval) {
-          const { data: bookingRow } = await createAdminClient()
-            .from("bookings")
-            .select("metadata, therapist_selection_source")
-            .eq("id", bookingId)
-            .eq("branch_id", actor.branchId)
-            .maybeSingle();
           const meta =
             bookingRow?.metadata &&
             typeof bookingRow.metadata === "object" &&
@@ -287,7 +299,77 @@ export async function applyRecommendedFixAction(
               code: "CUSTOMER_APPROVAL_REQUIRED",
               error:
                 "Customer requested the original therapist. Confirm guest approval before swapping.",
+              summary: summarizeOptimizationEvaluation(freshEval),
             };
+          }
+        }
+
+        if (parsed.data.proposedResourceId) {
+          const bookingForRoom = bookingRow as {
+            status?: string | null;
+            type?: string | null;
+            delivery_type?: string | null;
+            booking_date?: string | null;
+            start_time?: string | null;
+            end_time?: string | null;
+          } | null;
+          if (!bookingForRoom) {
+            return {
+              success: false,
+              code: "EXECUTION_FAILED",
+              error: "Target booking could not be loaded for room verification.",
+            };
+          }
+          if (CLOSED_BOOKING_STATUSES.has(String(bookingForRoom.status ?? ""))) {
+            return {
+              success: false,
+              code: "EXECUTION_FAILED",
+              error: "This booking can no longer be assigned a room.",
+            };
+          }
+          if (
+            isHomeServiceBooking({
+              type: bookingForRoom.type ?? null,
+              delivery_type: bookingForRoom.delivery_type ?? null,
+            })
+          ) {
+            return {
+              success: false,
+              code: "EXECUTION_FAILED",
+              error: "Room assignment does not apply to home-service bookings.",
+            };
+          }
+          const { data: targetResource } = await admin
+            .from("branch_resources")
+            .select("id, branch_id, is_active")
+            .eq("id", parsed.data.proposedResourceId)
+            .maybeSingle();
+          if (
+            !targetResource ||
+            targetResource.branch_id !== actor.branchId ||
+            !targetResource.is_active
+          ) {
+            return {
+              success: false,
+              code: "EXECUTION_FAILED",
+              error: "Proposed room is not active for this branch.",
+            };
+          }
+          if (bookingForRoom.booking_date && bookingForRoom.start_time) {
+            const roomAvailable = await isResourceAvailable({
+              resourceId: parsed.data.proposedResourceId,
+              date: bookingForRoom.booking_date,
+              startTime: bookingForRoom.start_time,
+              endTime: bookingForRoom.end_time ?? bookingForRoom.start_time,
+              excludeBookingId: bookingId,
+            });
+            if (!roomAvailable) {
+              return {
+                success: false,
+                code: "EXECUTION_FAILED",
+                error: "The proposed room is no longer available for this time window.",
+              };
+            }
           }
         }
 
@@ -310,17 +392,60 @@ export async function applyRecommendedFixAction(
             resourceId: parsed.data.proposedResourceId,
           });
           if (!roomRes.success) {
+            // Compensate therapist assignment so multi-field action never leaves a partial commit
+            if (previousStaffId) {
+              await assignBookingTherapistAction({
+                bookingId,
+                staffId: previousStaffId,
+                overrideReason: "workload_balance",
+              }).catch(() => undefined);
+            } else {
+              await admin
+                .from("bookings")
+                .update({ staff_id: null as unknown as string | undefined })
+                .eq("id", bookingId)
+                .eq("branch_id", actor.branchId);
+            }
             clearOptimizationEvaluationCache();
             revalidateOperationalBookingSurfaces(actor.branchId);
+            const failStartedAtMs = Date.now();
+            const failEval = await evaluateBranchOperationsCached({
+              branchId: actor.branchId,
+              date,
+              bypassCache: true,
+            });
+            const failSummary = await syncCrmOptimizationAlerts({
+              evaluation: failEval,
+              actorStaffId: actor.staffId,
+              forceSync: true,
+              evaluationStartedAtMs: failStartedAtMs,
+            });
+            void broadcastOptimizationOpsUpdated({
+              branchId: actor.branchId,
+              date: failEval.date,
+              sourceSnapshotVersion: failEval.source_snapshot_version,
+              reason: "room_assignment_rolled_back",
+            });
             return {
               success: false,
               code: "EXECUTION_FAILED",
               error:
                 roomRes.error ??
-                "Therapist updated, but the proposed room assignment could not be completed.",
+                "Proposed room became unavailable; therapist assignment was restored.",
+              summary: failSummary,
             };
           }
         }
+        await auditOptimizationBookingMutation({
+          bookingId,
+          actorId: actor.staffId,
+          actionType: parsed.data.actionType,
+          note: `Operations Assistant applied ${parsed.data.actionType} (${parsed.data.proposedStaffId})${
+            parsed.data.confirmCustomerApproval ? " with confirmed guest approval" : ""
+          }${
+            parsed.data.proposedResourceId ? ` and room (${parsed.data.proposedResourceId})` : ""
+          }.`,
+        });
         appliedMessage = "Therapist assignment updated safely.";
       } else if (
         (parsed.data.actionType === "reassign_room" ||
@@ -468,6 +593,7 @@ export async function applyRecommendedFixAction(
       revalidatePath("/crm/dispatch");
       revalidatePath("/crm/schedule");
 
+      const postMutationEvalStartedAtMs = Date.now();
       const nextEval = await evaluateBranchOperationsCached({
         branchId: actor.branchId,
         date,
@@ -477,7 +603,7 @@ export async function applyRecommendedFixAction(
         evaluation: nextEval,
         actorStaffId: actor.staffId,
         forceSync: true,
-        evaluationStartedAtMs: Date.now(),
+        evaluationStartedAtMs: postMutationEvalStartedAtMs,
       });
 
       void broadcastOptimizationOpsUpdated({

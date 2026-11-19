@@ -14,6 +14,7 @@ import {
   subscribeOptimizationSyncChannel,
 } from "@/lib/optimization/client-events";
 import {
+  buildUnavailableOptimizationSummary,
   validCrmActionHrefForConflict,
   type TieredCrmOperationsSummary,
 } from "@/lib/optimization/assistant-summary";
@@ -178,6 +179,7 @@ export function useCrmOptimizationAssistant(params: {
       }
 
       if (!resp.ok) {
+        const fallbackDate = resolvedDate ?? new Date().toISOString().slice(0, 10);
         setSummary((prev) =>
           prev
             ? {
@@ -186,7 +188,12 @@ export function useCrmOptimizationAssistant(params: {
                 degradedReason:
                   "Operations Assistant could not refresh right now. Retrying automatically on next change.",
               }
-            : null
+            : buildUnavailableOptimizationSummary({
+                branchId: resolvedBranchId ?? "",
+                date: fallbackDate,
+                reason:
+                  "Operations Assistant could not refresh right now. Retrying automatically on next change.",
+              })
         );
         return;
       }
@@ -206,6 +213,7 @@ export function useCrmOptimizationAssistant(params: {
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") return;
       if (!mountedRef.current || applyInFlightRef.current || summaryEpochRef.current !== epoch) return;
+      const fallbackDate = resolvedDate ?? new Date().toISOString().slice(0, 10);
       setSummary((prev) =>
         prev
           ? {
@@ -214,10 +222,17 @@ export function useCrmOptimizationAssistant(params: {
               degradedReason:
                 "Operations Assistant lost connection while refreshing. Retry when ready.",
             }
-          : null
+          : buildUnavailableOptimizationSummary({
+              branchId: resolvedBranchId ?? "",
+              date: fallbackDate,
+              reason:
+                "Operations Assistant lost connection while refreshing. Retry when ready.",
+            })
       );
     } finally {
-      if (mountedRef.current) setIsSyncing(false);
+      if (mountedRef.current && abortRef.current === controller) {
+        setIsSyncing(false);
+      }
     }
   }, [resolvedBranchId, resolvedDate]);
 
@@ -243,7 +258,9 @@ export function useCrmOptimizationAssistant(params: {
         (!resolvedBranchId || maybeSummary.branchId === resolvedBranchId) &&
         (!resolvedDate || maybeSummary.date === resolvedDate)
       ) {
-        setSummary(maybeSummary);
+        if (!applyInFlightRef.current) {
+          setSummary(maybeSummary);
+        }
         return;
       }
 
@@ -322,8 +339,7 @@ export function useCrmOptimizationAssistant(params: {
           proposedStaffId: action.proposed_staff_id,
           proposedResourceId: action.proposed_resource_id,
           proposedDriverId: action.proposed_driver_id,
-          confirmCustomerApproval:
-            options?.confirmCustomerApproval ?? !action.requires_customer_approval,
+          confirmCustomerApproval: Boolean(options?.confirmCustomerApproval),
         });
 
         if (!res.success) {
@@ -341,7 +357,9 @@ export function useCrmOptimizationAssistant(params: {
             notifyBookingsChanged();
             onAfterMutation?.();
             router.refresh();
-          } else if (res.code !== "CUSTOMER_APPROVAL_REQUIRED") {
+          } else if (res.code === "CUSTOMER_APPROVAL_REQUIRED") {
+            toast.warning(res.error);
+          } else {
             toast.error(res.error);
           }
           return res;

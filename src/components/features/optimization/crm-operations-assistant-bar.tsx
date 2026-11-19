@@ -75,12 +75,19 @@ export function CrmOperationsAssistantBar({
     onSummaryChange?.(summary);
   }, [onSummaryChange, summary]);
 
+  const selectedBookingMatches =
+    surface === "bookings" && selectedBookingId && summary
+      ? [...summary.persistentActions, ...summary.earlyWarnings].filter((c) =>
+          c.affected_booking_ids.includes(selectedBookingId)
+        )
+      : [];
   const selectedAlreadySpotlighted = Boolean(
     selectedBookingId &&
-      initialSummary &&
-      [...initialSummary.persistentActions, ...initialSummary.earlyWarnings].some((c) =>
-        c.affected_booking_ids.includes(selectedBookingId)
-      )
+      ((initialSummary &&
+        [...initialSummary.persistentActions, ...initialSummary.earlyWarnings].some((c) =>
+          c.affected_booking_ids.includes(selectedBookingId)
+        )) ||
+        selectedBookingMatches.length > 0)
   );
   const [expanded, setExpanded] = useState(
     Boolean(initialSummary && initialSummary.persistentActions.length > 0 && !selectedAlreadySpotlighted)
@@ -117,13 +124,14 @@ export function CrmOperationsAssistantBar({
         : "border-[#CFE5D6] bg-[#EEF7F1]/75";
 
   return (
-    <section
-      aria-label="Operations Assistant"
-      data-testid="crm-ops-assistant-bar"
-      data-ops-status={summary.status}
-      data-snapshot-version={summary.sourceSnapshotVersion}
-      className={`rounded-xl border px-3.5 py-2.5 shadow-2xs transition-colors ${containerStyle}`}
-    >
+    <div className="space-y-2.5">
+      <section
+        aria-label="Operations Assistant"
+        data-testid="crm-ops-assistant-bar"
+        data-ops-status={summary.status}
+        data-snapshot-version={summary.sourceSnapshotVersion}
+        className={`rounded-xl border px-3.5 py-2.5 shadow-2xs transition-colors ${containerStyle}`}
+      >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
           {isUnavailable ? (
@@ -306,7 +314,33 @@ export function CrmOperationsAssistantBar({
           ))}
         </div>
       )}
-    </section>
+      </section>
+
+      {selectedBookingMatches.length > 0 ? (
+        <div
+          data-testid="selected-booking-optimization-notice"
+          className="space-y-2 rounded-xl border border-amber-300 bg-[#FFFBF2] p-3"
+        >
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-950">
+            <AlertTriangle className="size-4 text-amber-700" />
+            <span>
+              Selected Booking Alert ({selectedBookingMatches.length} operational finding
+              {selectedBookingMatches.length === 1 ? "" : "s"})
+            </span>
+          </div>
+          {selectedBookingMatches.map((conflict) => (
+            <OptimizationConflictCard
+              key={conflict.dedupe_key}
+              conflict={conflict}
+              busyActionKey={busyActionKey}
+              disabled={isPending}
+              onApply={applyRecommendedAction}
+              compact
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

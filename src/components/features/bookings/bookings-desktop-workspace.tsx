@@ -48,10 +48,7 @@ import { sortSheetReferencesRecentFirst } from "@/lib/bookings/booking-recency";
 import { isOperationalBookingGroup } from "@/lib/bookings/operational-booking-eligibility";
 import { CrmBookingsOperationsGrid } from "./crm-bookings-operations-grid";
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
-import {
-  BookingOptimizationNotice,
-  CrmOperationsAssistantBar,
-} from "@/components/features/optimization/crm-operations-assistant-bar";
+import { CrmOperationsAssistantBar } from "@/components/features/optimization/crm-operations-assistant-bar";
 import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 const NO_SELECTION = "__no_booking_selected__";
@@ -400,15 +397,11 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
               surface="bookings"
               selectedBookingId={selectedIdFromUrl}
               onSelectBooking={(bookingId) => {
-                router.replace(`/crm/bookings?bookingId=${encodeURIComponent(bookingId)}`);
+                const sp = new URLSearchParams(searchParams.toString());
+                sp.set("bookingId", bookingId);
+                if (props.date) sp.set("date", props.date);
+                router.replace(`/crm/bookings?${sp.toString()}`);
               }}
-              onAfterMutation={props.onRefresh ?? props.onBookingsChanged}
-            />
-            <BookingOptimizationNotice
-              bookingId={selectedIdFromUrl}
-              initialSummary={props.initialOptimizationSummary ?? null}
-              branchId={props.branchId}
-              date={props.date}
               onAfterMutation={props.onRefresh ?? props.onBookingsChanged}
             />
           </div>

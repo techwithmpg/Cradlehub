@@ -73,6 +73,14 @@ async function resolveTargetBranch(
     return { ok: true as const, branchId };
   }
 
+  if (!caller.defaultBranchId) {
+    return {
+      ok: false as const,
+      status: 403,
+      error: "Staff account has no assigned branch.",
+    };
+  }
+
   if (requestedBranchId && requestedBranchId !== caller.defaultBranchId) {
     return {
       ok: false as const,

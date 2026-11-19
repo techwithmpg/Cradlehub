@@ -51,10 +51,7 @@ import {
   withPossibleMatch,
 } from "@/lib/integrations/google-sheets/sheet-native-match";
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
-import {
-  BookingOptimizationNotice,
-  CrmOperationsAssistantBar,
-} from "@/components/features/optimization/crm-operations-assistant-bar";
+import { CrmOperationsAssistantBar } from "@/components/features/optimization/crm-operations-assistant-bar";
 import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 export type { Branch, WorkspaceBookingRow, WorkspaceContext } from "./booking-workspace-types";
@@ -586,15 +583,11 @@ export function BookingsWorkspace({
             surface="bookings"
             selectedBookingId={selectedBookingId}
             onSelectBooking={(bookingId) => {
-              router.replace(`/crm/bookings?bookingId=${encodeURIComponent(bookingId)}`);
+              const sp = new URLSearchParams();
+              if (date) sp.set("date", date);
+              sp.set("bookingId", bookingId);
+              router.replace(`/crm/bookings?${sp.toString()}`);
             }}
-            onAfterMutation={onRefresh ?? onBookingsChanged}
-          />
-          <BookingOptimizationNotice
-            bookingId={selectedBookingId}
-            initialSummary={initialOptimizationSummary}
-            branchId={branchId}
-            date={date}
             onAfterMutation={onRefresh ?? onBookingsChanged}
           />
         </div>
