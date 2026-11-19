@@ -173,7 +173,7 @@ export async function applyRecommendedFixAction(rawInput: unknown): Promise<
     if (parsed.data.actionType === "swap_therapist" && !parsed.data.confirmCustomerApproval) {
       const { data: bookingRow } = await createAdminClient()
         .from("bookings")
-        .select("metadata")
+        .select("metadata, therapist_selection_source")
         .eq("id", bookingId)
         .eq("branch_id", actor.branchId)
         .maybeSingle();
@@ -185,7 +185,12 @@ export async function applyRecommendedFixAction(rawInput: unknown): Promise<
         meta._therapist_provenance && typeof meta._therapist_provenance === "object"
           ? (meta._therapist_provenance as Record<string, unknown>)
           : {};
-      if (prov.therapist_selection_source === "customer_selected") {
+      const dbSelectionSource = (bookingRow as { therapist_selection_source?: string | null } | null)
+        ?.therapist_selection_source;
+      if (
+        dbSelectionSource === "customer_selected" ||
+        prov.therapist_selection_source === "customer_selected"
+      ) {
         return {
           success: false,
           error: "Customer requested the original therapist. Confirm guest approval before swapping.",
