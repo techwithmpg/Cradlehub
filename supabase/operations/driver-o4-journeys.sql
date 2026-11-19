@@ -238,7 +238,11 @@ begin
     'sessionDueAt', b.session_due_at,
     'sessionCompletedAt', b.session_completed_at,
     'sessionCompletionSource', b.session_completion_source
-  ));
+  )) || jsonb_build_object(
+    'leg', v_leg,
+    'destination', v_dest,
+    'reason', j.reason
+  );
 end;
 $$;
 

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   LogOut,
   QrCode,
+  Smartphone,
   UserRound,
 } from "lucide-react";
 import {
@@ -22,6 +23,7 @@ const links = [
   { label: "Notifications", href: "/staff/notices", icon: Bell },
   { label: "Driver profile", href: "/staff/driver/profile", icon: UserRound },
   { label: "Scan attendance QR", href: "/staff/scan", icon: QrCode },
+  { label: "Download Driver App", href: "/staff/driver/app", icon: Smartphone },
 ];
 export function DriverMoreContent({
   staff,

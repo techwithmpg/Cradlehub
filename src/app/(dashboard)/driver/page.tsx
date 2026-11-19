@@ -8,6 +8,8 @@ import { DriverMobileHome } from "@/components/features/driver/driver-mobile-hom
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { getPureAttendanceSnapshot } from "@/lib/staff-portal/attendance";
 import { StaffAttendanceSummary } from "@/components/features/staff-portal/staff-attendance-summary";
+import { DriverAppDownloadEntryCard } from "@/components/features/driver/driver-app-download-card";
+import { resolveDriverApkReleaseState } from "@/lib/driver/apk-distribution";
 
 async function requireDriverRecord() {
   const supabase = await createClient();
@@ -62,6 +64,7 @@ export default async function DriverPanelPage() {
   const me = await requireDriverRecord();
   const today = new Date().toISOString().split("T")[0]!;
   const attendance = await getPureAttendanceSnapshot(30).catch(() => null);
+  const apkRelease = resolveDriverApkReleaseState().publicInfo;
 
   let trips: Awaited<ReturnType<typeof getDriverTodayTrips>> = [];
   let fetchError: string | null = null;
@@ -114,6 +117,14 @@ export default async function DriverPanelPage() {
           description={`${getStaffAdminName(me)} · ${formatDate(new Date())}`}
           icon="🚗"
         />
+
+        <div className="mb-4">
+          <DriverAppDownloadEntryCard
+            href="/driver/app"
+            available={apkRelease.available}
+            versionName={apkRelease.versionName}
+          />
+        </div>
 
         {attendance ? <StaffAttendanceSummary data={attendance} /> : null}
 

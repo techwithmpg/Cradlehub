@@ -21,14 +21,15 @@ export const journeySchema = z
     bookingId: z.guid(),
     revision: z.number().int().nonnegative(),
     stage: z.enum(journeyStages),
-    leg: z.enum(["pickup", "delivery", "collection", "return"]).nullable(),
+    leg: z.enum(["pickup", "delivery", "collection", "return"]).nullable().default(null),
     destination: z
       .object({
         lat: z.number().finite().min(-90).max(90),
         lng: z.number().finite().min(-180).max(180),
         label: z.string().max(200),
       })
-      .nullable(),
+      .nullable()
+      .default(null),
     observedAt: z.iso.datetime({ offset: true }),
     reason: z.string().nullable().optional(),
     therapistId: z.guid().nullable().optional(),
