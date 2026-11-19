@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { invalidateCrmWorkspace, invalidateManagerWorkspace } from "@/lib/cache/cache-tags";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { canAdjustStaffSchedule, isOwner } from "@/lib/permissions";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { uiShiftToDatabase } from "@/lib/schedule/schedule-domain";
@@ -221,7 +222,7 @@ export const SCHEDULE_OVERRIDE_RETURNING_COLUMNS =
   "id, override_date, is_day_off, shift_type, start_time, end_time, reason";
 export const BLOCKED_TIME_RETURNING_COLUMNS = "id, block_date, start_time, end_time, reason";
 
-export function revalidateSchedulePaths(branchId: string) {
+export function revalidateSchedulePaths(branchId: string, date?: string | null) {
   revalidatePath("/crm/schedule");
   revalidatePath("/crm/today");
   revalidatePath("/crm/setup");
@@ -232,6 +233,11 @@ export function revalidateSchedulePaths(branchId: string) {
   revalidatePath("/book");
   invalidateCrmWorkspace(branchId);
   invalidateManagerWorkspace(branchId);
+  scheduleBranchOptimizationReevaluation({
+    branchId,
+    date: date ?? undefined,
+    reason: "schedule_updated",
+  });
 }
 
 function normalizeTime(value: string | null | undefined): string | null {
@@ -577,7 +583,7 @@ export async function upsertScheduleOverride(
     );
   }
 
-  revalidateSchedulePaths(branchId);
+  revalidateSchedulePaths(branchId, overrideDate);
   return { ok: true, message: "Day override saved.", override: saved };
 }
 
@@ -610,7 +616,7 @@ export async function deleteScheduleOverride(
     .delete()
     .eq("id", overrideId)
     .eq("staff_id", staffId)
-    .select("id")
+    .select("id, override_date")
     .maybeSingle();
 
   if (error) {
@@ -627,7 +633,7 @@ export async function deleteScheduleOverride(
     return scheduleFailure("NOT_FOUND", "Day override was not found or could not be removed.");
   }
 
-  revalidateSchedulePaths(branchId);
+  revalidateSchedulePaths(branchId, (data as { override_date?: string | null }).override_date);
   return { ok: true, message: "Day override removed.", deletedId: data.id as string };
 }
 
@@ -701,7 +707,7 @@ export async function createBlockedTime(
     );
   }
 
-  revalidateSchedulePaths(branchId);
+  revalidateSchedulePaths(branchId, blockDate);
   return { ok: true, message: "Block time saved.", block: saved };
 }
 
@@ -734,7 +740,7 @@ export async function deleteBlockedTime(
     .delete()
     .eq("id", blockId)
     .eq("staff_id", staffId)
-    .select("id")
+    .select("id, block_date")
     .maybeSingle();
 
   if (error) {
@@ -751,6 +757,6 @@ export async function deleteBlockedTime(
     return scheduleFailure("NOT_FOUND", "Blocked time was not found or could not be removed.");
   }
 
-  revalidateSchedulePaths(branchId);
+  revalidateSchedulePaths(branchId, (data as { block_date?: string | null }).block_date);
   return { ok: true, message: "Block time removed.", deletedId: data.id as string };
 }

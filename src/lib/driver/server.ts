@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logError } from "@/lib/logger";
 import { publishCrmDriverArrivalNotification } from "@/lib/notifications/driver-arrival-notifications";
 import { processDriverNativePush } from "@/lib/driver/native-push";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { journeySchema, driverEventSchema, type DriverJourney } from "./journey";
 import { buildDriverTripPlans } from "./trip-plans";
 export class DriverApiError extends Error {
@@ -225,6 +226,17 @@ export async function applyDriverEvent(raw: unknown) {
     );
   if (event.data.action === "gps_arrival" && staff.branch_id) {
     await emitArrivalNotificationFromJourney(staff.id, staff.branch_id, parsed.data, event.data);
+  }
+  if (
+    staff.branch_id &&
+    !["location", "resume"].includes(event.data.action)
+  ) {
+    scheduleBranchOptimizationReevaluation({
+      branchId: staff.branch_id,
+      date: parsed.data.bookingDate ?? undefined,
+      reason: `driver_${event.data.action}`,
+      actorStaffId: staff.id,
+    });
   }
   if (
     process.env.CRADLEHUB_DRIVER_NATIVE_PUSH_ENABLED === "true" &&

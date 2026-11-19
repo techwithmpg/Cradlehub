@@ -4,11 +4,10 @@ import { canonicalizeSystemRole } from "@/constants/staff";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { isDevAuthBypassEnabled, getDevBypassLayoutStaff } from "@/lib/dev-bypass";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
-import { evaluateBranchOperationsCached } from "@/lib/optimization/client";
 import {
-  summarizeOptimizationEvaluation,
-  syncCrmOptimizationAlerts,
-} from "@/lib/optimization/crm-operations-assistant";
+  evaluateBranchSummarySafe,
+  scheduleBranchOptimizationReevaluation,
+} from "@/lib/optimization/auto-reevaluate";
 import { resolveOwnerFrontDeskBranch } from "@/lib/queries/front-desk-branch";
 import { createClient } from "@/lib/supabase/server";
 
@@ -96,25 +95,32 @@ async function handleEvaluate(
   }
 
   const date = params.date ?? getBranchBusinessDate();
-  const evaluation = await evaluateBranchOperationsCached({
+  const safe = await evaluateBranchSummarySafe({
     branchId: branchRes.branchId,
     date,
-    bypassCache: allowWrites && Boolean(params.syncAlerts),
+    bypassCache: Boolean(params.syncAlerts),
+    syncAlerts: allowWrites && Boolean(params.syncAlerts),
+    actorStaffId: caller.staffId,
   });
-  const summary =
-    allowWrites && params.syncAlerts
-      ? await syncCrmOptimizationAlerts({
-          evaluation,
-          actorStaffId: caller.staffId,
-          forceSync: true,
-        })
-      : summarizeOptimizationEvaluation(evaluation);
 
-  return NextResponse.json({
-    ok: true,
-    evaluation,
-    summary,
-  });
+  if (allowWrites && params.syncAlerts && !safe.ok) {
+    scheduleBranchOptimizationReevaluation({
+      branchId: branchRes.branchId,
+      date,
+      reason: "api_retry",
+      actorStaffId: caller.staffId,
+    });
+  }
+
+  return NextResponse.json(
+    {
+      ok: safe.ok,
+      unavailable: !safe.ok,
+      evaluation: safe.evaluation,
+      summary: safe.summary,
+    },
+    { status: 200, headers: { "Cache-Control": "no-store" } }
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -127,6 +133,7 @@ export async function GET(request: NextRequest) {
     const parsed = querySchema.safeParse({
       date: sp.get("date") ?? undefined,
       branchId: sp.get("branchId") ?? undefined,
+      syncAlerts: sp.get("syncAlerts") === "1" || sp.get("syncAlerts") === "true" ? true : undefined,
     });
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid optimization query parameters." }, { status: 400 });

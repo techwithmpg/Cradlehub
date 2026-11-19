@@ -9,6 +9,7 @@ import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
 import { CrmOptimizationAssistantPanel } from "@/components/features/optimization/crm-optimization-assistant-panel";
+import { evaluateBranchSummarySafe } from "@/lib/optimization/auto-reevaluate";
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -35,7 +36,15 @@ export default async function CrmSchedulePage({
   const selectedDate = params.date ?? today;
   const supabase = await createClient();
 
-  const [dailyScheduleResult, availabilityItems, stats, resourcesResult, readiness, schedulingRules] = await Promise.all([
+  const [
+    dailyScheduleResult,
+    availabilityItems,
+    stats,
+    resourcesResult,
+    readiness,
+    schedulingRules,
+    optResult,
+  ] = await Promise.all([
     getDailySchedule({ branchId, date: selectedDate })
       .then((data) => ({ data, error: null }))
       .catch((error: unknown) => {
@@ -61,13 +70,25 @@ export default async function CrmSchedulePage({
       .order("sort_order"),
     getCrmReadinessCached(branchId).catch(() => null),
     getSchedulingRules(branchId).catch(() => null),
+    evaluateBranchSummarySafe({
+      branchId,
+      branchName,
+      date: selectedDate,
+      syncAlerts: false,
+      timeoutMs: 2200,
+    }),
   ]);
   const staffRows = dailyScheduleResult.data;
 
   return (
     <RetainedWorkspaceModule moduleId="crm-schedule">
       <div className="space-y-4">
-        <CrmOptimizationAssistantPanel date={selectedDate} compact />
+        <CrmOptimizationAssistantPanel
+          initialSummary={optResult.summary}
+          branchId={branchId}
+          date={selectedDate}
+          compact
+        />
         <ScheduleWorkspaceShell
           branchId={branchId}
           branchName={branchName}

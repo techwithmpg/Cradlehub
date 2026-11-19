@@ -399,6 +399,10 @@ export type EngineSource = "python_ortools" | "ts_deterministic_fallback";
 export type UnifiedEvaluationResult = UnifiedEvaluateResponse & {
   engineSource: EngineSource;
   branchName: string;
+  pythonConfigured?: boolean;
+  degraded?: boolean;
+  degradedReason?: string | null;
+  evaluatedAt?: string;
 };
 
 export type OnsiteSolveResult = OnsiteSolveResponse & {

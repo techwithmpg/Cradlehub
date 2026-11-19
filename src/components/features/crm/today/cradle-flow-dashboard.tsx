@@ -47,6 +47,11 @@ import {
   CradleFlowReadinessDialog,
 } from "./cradle-flow-support-dialogs";
 import { CradleFlowWorkflow } from "./cradle-flow-workflow";
+import {
+  collectBookingConflictsMap,
+  CrmOperationsAssistantBar,
+} from "@/components/features/optimization/crm-operations-assistant-bar";
+import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 type MutationAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 type ActiveDialog = "details" | "complete" | "checkout" | null;
@@ -66,6 +71,7 @@ type CradleFlowDashboardProps = {
   paymentAction?: MutationAction;
   statusAction?: MutationAction;
   assistanceEnabled?: boolean;
+  initialOptimizationSummary?: TieredCrmOperationsSummary | null;
   onRefresh?: () => Promise<unknown> | unknown;
   isRefreshing?: boolean;
   refreshError?: unknown;
@@ -74,6 +80,13 @@ type CradleFlowDashboardProps = {
 export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
   const router = useRouter();
   const bookings = props.queueData;
+  const [liveOptSummary, setLiveOptSummary] = useState<TieredCrmOperationsSummary | null>(
+    props.initialOptimizationSummary ?? null
+  );
+  const bookingConflictsById = useMemo(
+    () => collectBookingConflictsMap(liveOptSummary),
+    [liveOptSummary]
+  );
   const [selected, setSelected] = useState<CradleFlowBooking | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<CradleFlowGroup | null>(null);
 
@@ -256,6 +269,22 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         onResumePending={openBooking}
         onOpenFinancialEntry={openFinancialEntry}
       />
+      <CrmOperationsAssistantBar
+        initialSummary={props.initialOptimizationSummary ?? null}
+        branchId={props.attendanceScanFeed.branchId ?? bookings[0]?.branch_id ?? undefined}
+        date={props.attendanceScanDate}
+        surface="intake"
+        onSummaryChange={setLiveOptSummary}
+        onSelectBooking={(bookingId) => {
+          const found = bookings.find((b) => b.id === bookingId);
+          if (found) {
+            openBooking(found);
+          } else {
+            router.push(`/crm/bookings?bookingId=${encodeURIComponent(bookingId)}`);
+          }
+        }}
+        onAfterMutation={handleHeaderRefresh}
+      />
       <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-start">
         <main
           className={
@@ -276,6 +305,7 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
             onAssignRoom={openRoomAssignment}
             onAssignTherapist={openTherapistAssignment}
             activeBookingId={activeBookingId}
+            bookingConflictsById={bookingConflictsById}
             filter={filter}
             onFilterChange={setFilter}
           />

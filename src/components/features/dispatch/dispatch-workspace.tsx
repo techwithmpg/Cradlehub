@@ -26,6 +26,7 @@ import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
 import { DispatchFlowTab } from "./dispatch-flow-tab";
 import { DispatchLiveMapTab } from "./dispatch-live-map-tab";
 import { CrmOptimizationAssistantPanel } from "@/components/features/optimization/crm-optimization-assistant-panel";
+import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 import { useWorkspaceSWRKey } from "@/components/features/dashboard/workspace-swr-cache";
 import { useLiveCrmDispatchData } from "./use-live-crm-dispatch-data";
 
@@ -39,6 +40,8 @@ const TABS: CrmModuleTabItem<TabId>[] = [
 export interface HomeServiceDispatchWorkspaceProps {
   role: string;
   data: DispatchData;
+  branchId?: string;
+  initialOptimizationSummary?: TieredCrmOperationsSummary | null;
   showHeader?: boolean;
   upcoming?: boolean;
   selectedBookingId?: string;
@@ -76,6 +79,8 @@ function DispatchMetric({
 export function HomeServiceDispatchWorkspace({
   role,
   data: initialData,
+  branchId,
+  initialOptimizationSummary = null,
   showHeader = true,
   upcoming = false,
   selectedBookingId,
@@ -330,7 +335,12 @@ export function HomeServiceDispatchWorkspace({
         ) : null}
       </CrmTabPanel>
       {role === "crm" && !upcoming ? (
-        <CrmOptimizationAssistantPanel date={data.today} compact />
+        <CrmOptimizationAssistantPanel
+          initialSummary={initialOptimizationSummary}
+          branchId={branchId}
+          date={data.today}
+          compact
+        />
       ) : null}
     </section>
   );

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { canonicalizeSystemRole } from "@/constants/staff";
 import { createNotification } from "@/lib/notifications/create";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import {
   assistanceSubmitSchema,
@@ -279,6 +280,18 @@ export async function submitStaffAssistanceAction(
     dedupeKey: `assistance:${data.id}:requested`,
   });
   revalidatePath("/crm/schedule");
+  scheduleBranchOptimizationReevaluation({
+    branchId: value.requestingBranchId,
+    date: value.startAt.slice(0, 10),
+    reason: "assistance_requested",
+    actorStaffId: actor.userId,
+  });
+  scheduleBranchOptimizationReevaluation({
+    branchId: value.lendingBranchId,
+    date: value.startAt.slice(0, 10),
+    reason: "assistance_requested_lending",
+    actorStaffId: actor.userId,
+  });
   return { success: true, data: { id: String(data.id) } };
 }
 
@@ -347,5 +360,17 @@ export async function decideStaffAssistanceAction(
     dedupeKey: `assistance:${request.id}:${next}`,
   });
   revalidatePath("/crm/schedule");
+  scheduleBranchOptimizationReevaluation({
+    branchId: request.requesting_branch_id,
+    date: request.start_at.slice(0, 10),
+    reason: `assistance_${next}`,
+    actorStaffId: actor.userId,
+  });
+  scheduleBranchOptimizationReevaluation({
+    branchId: request.lending_branch_id,
+    date: request.start_at.slice(0, 10),
+    reason: `assistance_${next}_lending`,
+    actorStaffId: actor.userId,
+  });
   return { success: true, data: { status: next } };
 }

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getAttendanceActionContext } from "@/lib/attendance/queries";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { createClient } from "@/lib/supabase/server";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import {
   commitOptimizedDispatchPlan,
   requestDispatchOptimizationPlan,
@@ -114,6 +115,12 @@ export async function optimizeBranchDispatchAction(
 
   revalidatePath("/crm/dispatch");
   revalidatePath("/crm/bookings");
+  scheduleBranchOptimizationReevaluation({
+    branchId: context.branchId,
+    date: parsed.data.planningDate,
+    reason: "dispatch_plan_committed",
+    actorStaffId: context.actorStaffId,
+  });
   return {
     success: true,
     plan,
@@ -218,6 +225,11 @@ export async function commitOptimizedDispatchPlanAction(
 
   revalidatePath("/crm/dispatch");
   revalidatePath("/crm/bookings");
+  scheduleBranchOptimizationReevaluation({
+    branchId: context.branchId,
+    reason: "dispatch_plan_committed_manual",
+    actorStaffId: context.actorStaffId,
+  });
   return {
     success: true,
     committedCount: res.committedCount,
@@ -255,5 +267,10 @@ export async function updateBookingCollectionDispositionAction(
   }
 
   revalidatePath("/crm/dispatch");
+  scheduleBranchOptimizationReevaluation({
+    branchId: context.branchId,
+    reason: `collection_${parsed.data.decision}`,
+    actorStaffId: context.actorStaffId,
+  });
   return { success: true };
 }

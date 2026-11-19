@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { resolveStaffPwaOperationalGroup } from "@/lib/auth/workspace-access";
 import { logBusinessEvent, logError } from "@/lib/logger";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import type { Json } from "@/types/supabase";
 
 export type TriggerTurnoverResult = {
@@ -542,6 +543,11 @@ export async function startRoomCleaning(params: {
       branchId: task.branch_id,
       staffId: staff.id,
     });
+    scheduleBranchOptimizationReevaluation({
+      branchId: task.branch_id,
+      reason: "room_turnover_started",
+      actorStaffId: staff.id,
+    });
     return { ok: true, status: "in_progress" };
   }
 
@@ -774,6 +780,11 @@ export async function markRoomReady(params: {
       resourceId: task.entity_id,
       branchId: task.branch_id,
       staffId: staff.id,
+    });
+    scheduleBranchOptimizationReevaluation({
+      branchId: task.branch_id,
+      reason: "room_turnover_completed",
+      actorStaffId: staff.id,
     });
 
     return { ok: true, status: "completed" };

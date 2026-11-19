@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -297,6 +298,11 @@ export async function saveStaffWeeklyScheduleAction(
   revalidatePath("/crm/setup");
   revalidatePath("/book");
   invalidateCrmWorkspace(branchId);
+  scheduleBranchOptimizationReevaluation({
+    branchId,
+    reason: "staff_weekly_schedule_saved",
+    actorStaffId: ctx.userId,
+  });
 
   return { ok: true, rowsWritten: normalizedSavedRows.length, savedRows: normalizedSavedRows };
 }

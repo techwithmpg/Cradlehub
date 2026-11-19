@@ -15,6 +15,7 @@ import {
 } from "./cradle-flow-display";
 import { useAdministrativeBookingModal } from "@/components/features/bookings/administrative-booking-modal-provider";
 import { type CradleFlowBooking } from "@/lib/crm/cradle-flow";
+import type { PredictiveConflictItem } from "@/lib/optimization/types";
 import { cn } from "@/lib/utils";
 
 function EmptyContextCard({
@@ -52,6 +53,7 @@ export function CradleFlowWorkflow({
   onAssignRoom,
   onAssignTherapist,
   activeBookingId,
+  bookingConflictsById,
   filter,
   onFilterChange,
 }: {
@@ -66,6 +68,7 @@ export function CradleFlowWorkflow({
   onAssignRoom: (booking: CradleFlowBooking) => void;
   onAssignTherapist: (booking: CradleFlowBooking) => void;
   activeBookingId: string | null;
+  bookingConflictsById?: Map<string, PredictiveConflictItem[]>;
   filter: CradleFlowFilter;
   onFilterChange: (filter: CradleFlowFilter) => void;
 }) {
@@ -155,20 +158,33 @@ export function CradleFlowWorkflow({
       <div className="min-h-60 p-3 sm:p-4">
         {visible.length > 0 ? (
           <div className="grid gap-2.5">
-            {visible.map((group) => (
-              <CradleFlowTicket
-                key={group.displayId}
-                booking={group.lines[0]!}
-                group={group}
-                businessDate={businessDate}
-                onOpen={onOpen}
-                onOpenGroup={onOpenGroup}
-                onPrimary={onPrimary}
-                onAssignRoom={onAssignRoom}
-                onAssignTherapist={onAssignTherapist}
-                primaryPending={activeBookingId === group.primaryBookingId}
-              />
-            ))}
+            {visible.map((group) => {
+              const seenKeys = new Set<string>();
+              const groupConflicts: PredictiveConflictItem[] = [];
+              for (const line of group.lines) {
+                for (const item of bookingConflictsById?.get(line.id) ?? []) {
+                  if (!seenKeys.has(item.dedupe_key)) {
+                    seenKeys.add(item.dedupe_key);
+                    groupConflicts.push(item);
+                  }
+                }
+              }
+              return (
+                <CradleFlowTicket
+                  key={group.displayId}
+                  booking={group.lines[0]!}
+                  group={group}
+                  businessDate={businessDate}
+                  onOpen={onOpen}
+                  onOpenGroup={onOpenGroup}
+                  onPrimary={onPrimary}
+                  onAssignRoom={onAssignRoom}
+                  onAssignTherapist={onAssignTherapist}
+                  primaryPending={activeBookingId === group.primaryBookingId}
+                  optimizationConflicts={groupConflicts}
+                />
+              );
+            })}
           </div>
         ) : (
           <div className="grid min-h-56 place-items-center">

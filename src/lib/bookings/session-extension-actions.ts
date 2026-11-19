@@ -11,6 +11,7 @@ import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import { rangesOverlap, timeToMinutes } from "@/lib/engine/slot-time";
 import { createOrUpdateNotification } from "@/lib/notifications/workflow-notifications-store";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import type { Json } from "@/types/supabase";
 
 export type SessionExtensionConflictResolution =
@@ -504,7 +505,7 @@ export async function commitSessionExtensionAction(input: {
   const { data: booking } = await admin
     .from("bookings")
     .select(
-      "id, order_id, branch_id, staff_id, end_time, session_due_at, payment_status, amount_paid, metadata, customers(full_name)"
+      "id, order_id, branch_id, booking_date, staff_id, end_time, session_due_at, payment_status, amount_paid, metadata, customers(full_name)"
     )
     .eq("id", input.bookingId)
     .maybeSingle();
@@ -730,7 +731,13 @@ export async function commitSessionExtensionAction(input: {
     });
   }
 
-  revalidateOperationalBookingSurfaces();
+  revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "session_extended",
+    actorStaffId: operator.id,
+  });
   revalidatePath("/crm/today");
   revalidatePath("/crm/bookings");
   revalidatePath("/crm/cash-flow");
