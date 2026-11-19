@@ -78,3 +78,21 @@ This document defines the release signing, verification, private storage upload,
     CRADLEHUB_DRIVER_APK_DISTRIBUTION_ENABLED=false
     ```
   - Note: Android prevents downgrading an installed package to a lower `versionCode` without uninstalling; if a defective release must be superseded on already-updated devices, publish a hotfix build with an incremented `versionCode`.
+
+---
+
+## 5. Prepared Release Candidate Manifest — `v1.0.0` (`versionCode = 2`)
+
+- **Package ID**: `com.mpgtechnologies.cradlehub.driver`
+- **Version Name**: `1.0.0`
+- **Version Code**: `2` (`minSdk = 24`, `targetSdk = 36`, `compileSdk = 36`)
+- **APK File Size**: `91,131,319` bytes
+- **APK SHA-256**: `410ad0616e2413ed9333423a4ef8f09c953167bb5e3c285a9f59ca589220a896`
+- **Signing Scheme**: APK Signature Scheme v2 (`RSA 4096-bit`, `SHA384withRSA`)
+- **Signer Certificate DN**: `CN=CradleHub Driver Release, OU=Mobile Engineering, O=Cradle Wellness Living Inc., L=Bacolod, ST=Negros Occidental, C=PH`
+- **Signer Certificate SHA-256**: `b1a13afa4154ef930bd44c93536e1b6f6568e8487cb268b540495461603354b1`
+- **Signer Certificate SHA-1**: `e9442de6da9889ce4be0810d37b42c5b43d08072` (`E9:44:2D:E6:DA:98:89:CE:4B:E0:81:0D:37:B4:2C:5B:43:D0:80:72`)
+- **Target Storage Bucket / Object**: `driver-apk-releases` -> `releases/1.0.0/cradlehub-driver-v1.0.0.apk`
+- **Mandatory Pre-Publication Gate**:
+  1. Register `(E9:44:2D:E6:DA:98:89:CE:4B:E0:81:0D:37:B4:2C:5B:43:D0:80:72; com.mpgtechnologies.cradlehub.driver)` in the Google Cloud Console Android API key restrictions for `CRADLE_NAVIGATION_API_KEY`.
+  2. Upload `cradlehub-driver-v1.0.0.apk` (`410ad0616e2413ed9333423a4ef8f09c953167bb5e3c285a9f59ca589220a896`) to the private `driver-apk-releases` bucket and obtain explicit owner approval before setting `CRADLEHUB_DRIVER_APK_DISTRIBUTION_ENABLED=true`.

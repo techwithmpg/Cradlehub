@@ -117,6 +117,39 @@ export async function syncCrmOptimizationAlerts(params: {
   }
 
   const db = params.supabase ?? createAdminClient();
+
+  // Cross-instance monotonic watermark check: query existing optimization_conflict tasks
+  // (including open, in_progress, and completed) so a slower serverless instance with an
+  // empty local lastSyncByScope cache never overwrites or revives conflicts after a newer
+  // evaluation has already committed to the database.
+  const { data: existingBranchTasks } = await db
+    .from("workflow_tasks")
+    .select("id, status, dedupe_key, metadata")
+    .eq("branch_id", evaluation.branch_id)
+    .eq("workspace_scope", "crm")
+    .eq("task_type", "optimization_conflict")
+    .in("status", ["open", "in_progress", "completed"]);
+
+  const dateScopedTasks = (existingBranchTasks ?? []).filter((t) =>
+    metadataMatchesEvaluationDate(t.metadata, evaluation.date)
+  );
+  let maxDbStartedAtMs = 0;
+  for (const t of dateScopedTasks) {
+    const meta = asMetadataRecord(t.metadata);
+    const rowStarted = Number(meta.evaluation_started_at_ms ?? 0);
+    if (Number.isFinite(rowStarted) && rowStarted > maxDbStartedAtMs) {
+      maxDbStartedAtMs = rowStarted;
+    }
+  }
+  if (maxDbStartedAtMs > startedAtMs) {
+    lastSyncByScope.set(key, {
+      snapshotVersion: prev?.snapshotVersion ?? evaluation.source_snapshot_version,
+      syncedAt: nowMs,
+      startedAtMs: maxDbStartedAtMs,
+    });
+    return baseSummary;
+  }
+
   const activeKeys = new Set(persistentActions.map((c) => c.dedupe_key));
   let syncedTaskCount = 0;
 
@@ -142,6 +175,7 @@ export async function syncCrmOptimizationAlerts(params: {
       metadata: {
         issue_type: conflict.issue_type,
         evaluation_date: evaluation.date,
+        evaluation_started_at_ms: startedAtMs,
         evaluated_at_ms: nowMs,
         source_snapshot_version: conflict.source_snapshot_version,
         affected_booking_ids: conflict.affected_booking_ids,
@@ -170,6 +204,7 @@ export async function syncCrmOptimizationAlerts(params: {
       metadata: {
         issue_type: conflict.issue_type,
         evaluation_date: evaluation.date,
+        evaluation_started_at_ms: startedAtMs,
         evaluated_at_ms: nowMs,
         source_snapshot_version: conflict.source_snapshot_version,
         affected_booking_ids: conflict.affected_booking_ids,
@@ -189,25 +224,32 @@ export async function syncCrmOptimizationAlerts(params: {
     .eq("task_type", "optimization_conflict")
     .in("status", ["open", "in_progress"]);
 
-  const toResolveIds = (openTasks ?? [])
-    .filter(
-      (t) =>
-        metadataMatchesEvaluationDate(t.metadata, evaluation.date) &&
-        (!t.dedupe_key || !activeKeys.has(t.dedupe_key))
-    )
-    .map((t) => t.id);
+  const toResolveTasks = (openTasks ?? []).filter(
+    (t) =>
+      metadataMatchesEvaluationDate(t.metadata, evaluation.date) &&
+      (!t.dedupe_key || !activeKeys.has(t.dedupe_key))
+  );
 
-  if (toResolveIds.length > 0) {
+  if (toResolveTasks.length > 0) {
     const completedAt = new Date().toISOString();
-    await db
-      .from("workflow_tasks")
-      .update({
-        status: "completed",
-        completed_at: completedAt,
-        updated_at: completedAt,
-      })
-      .in("id", toResolveIds);
-    resolvedTaskCount = toResolveIds.length;
+    for (const task of toResolveTasks) {
+      const mergedMeta = {
+        ...asMetadataRecord(task.metadata),
+        evaluation_date: evaluation.date,
+        evaluation_started_at_ms: startedAtMs,
+        evaluated_at_ms: nowMs,
+      };
+      await db
+        .from("workflow_tasks")
+        .update({
+          status: "completed",
+          completed_at: completedAt,
+          updated_at: completedAt,
+          metadata: mergedMeta,
+        })
+        .eq("id", task.id);
+    }
+    resolvedTaskCount = toResolveTasks.length;
   }
 
   // Also resolve cleared workspace_notifications scoped to uoe:<branchId>:% for this evaluation date.

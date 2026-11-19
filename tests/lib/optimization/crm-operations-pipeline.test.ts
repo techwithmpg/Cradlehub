@@ -637,4 +637,84 @@ describe("CRM Operations Assistant Pipeline & Synchronization", () => {
     expect(colRes.success).toBe(true);
     expect(state.collectionDispMock).toHaveBeenCalledTimes(1);
   });
+
+  it("enforces cross-instance database monotonic watermark and cross-instance duplicate fix protection", async () => {
+    const db = state.makeAdminClient() as unknown as SupabaseClient<Database>;
+    const conflict = makeConflict();
+
+    // Instance 2 commits a newer evaluation (startedAtMs = 2000) that creates then resolves the task
+    await syncCrmOptimizationAlerts({
+      evaluation: makeEval({
+        date: "2026-11-19",
+        source_snapshot_version: "2026-11-19:v2",
+        conflicts_and_opportunities: [conflict],
+      }),
+      forceSync: true,
+      evaluationStartedAtMs: 1800,
+      supabase: db,
+    });
+    await syncCrmOptimizationAlerts({
+      evaluation: makeEval({
+        date: "2026-11-19",
+        source_snapshot_version: "2026-11-19:v3-resolved",
+        conflicts_and_opportunities: [],
+      }),
+      forceSync: true,
+      evaluationStartedAtMs: 2000,
+      supabase: db,
+    });
+    expect(state.tables.workflow_tasks[0]?.status).toBe("completed");
+
+    // Simulate a separate serverless instance (Instance 1) with an empty in-memory lastSyncByScope cache
+    // finishing a stale evaluation that started at 1500 (< 2000).
+    clearOptimizationAssistantSyncCache();
+    await syncCrmOptimizationAlerts({
+      evaluation: makeEval({
+        date: "2026-11-19",
+        source_snapshot_version: "2026-11-19:v1-stale",
+        conflicts_and_opportunities: [conflict],
+      }),
+      forceSync: true,
+      evaluationStartedAtMs: 1500,
+      supabase: db,
+    });
+
+    // The DB-backed watermark (2000 > 1500) must prevent Instance 1 from re-opening the completed task
+    expect(state.tables.workflow_tasks[0]?.status).toBe("completed");
+
+    // Cross-instance duplicate fix protection: if Instance B already updated bookingRow.staff_id to STAFF_SWAP,
+    // Instance A must return CONFLICT_ALREADY_RESOLVED without calling assignBookingTherapistAction again.
+    state.tables.bookings = [
+      {
+        id: BOOKING_A,
+        branch_id: BRANCH_MAIN,
+        staff_id: STAFF_SWAP,
+        resource_id: null,
+        status: "confirmed",
+        therapist_selection_source: "system_assigned",
+        metadata: {},
+      },
+    ];
+    vi.spyOn(optClient, "evaluateBranchOperationsCached").mockResolvedValue(
+      makeEval({
+        branch_id: BRANCH_MAIN,
+        source_snapshot_version: "2026-11-19:race-v1",
+        conflicts_and_opportunities: [conflict],
+      })
+    );
+    state.assignTherapistMock.mockClear();
+
+    const duplicateInstanceRes = await applyRecommendedFixAction({
+      sourceSnapshotVersion: "2026-11-19:race-v1",
+      date: "2026-11-19",
+      actionType: "swap_therapist",
+      targetBookingId: BOOKING_A,
+      proposedStaffId: STAFF_SWAP,
+    });
+    expect(duplicateInstanceRes.success).toBe(false);
+    if (!duplicateInstanceRes.success) {
+      expect(duplicateInstanceRes.code).toBe("CONFLICT_ALREADY_RESOLVED");
+    }
+    expect(state.assignTherapistMock).not.toHaveBeenCalled();
+  });
 });

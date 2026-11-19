@@ -275,6 +275,24 @@ export async function applyRecommendedFixAction(
 
         const previousStaffId =
           (bookingRow as { staff_id?: string | null } | null)?.staff_id ?? null;
+        const previousResourceId =
+          (bookingRow as { resource_id?: string | null } | null)?.resource_id ?? null;
+
+        // Cross-instance concurrency protection: if another serverless instance already
+        // applied the exact proposed therapist (+ room), return CONFLICT_ALREADY_RESOLVED.
+        if (
+          previousStaffId === parsed.data.proposedStaffId &&
+          (!parsed.data.proposedResourceId ||
+            previousResourceId === parsed.data.proposedResourceId)
+        ) {
+          return {
+            success: false,
+            code: "CONFLICT_ALREADY_RESOLVED",
+            error:
+              "Already updated by another desk or booking change. Showing the latest schedule.",
+            summary: summarizeOptimizationEvaluation(freshEval),
+          };
+        }
 
         if (parsed.data.actionType === "swap_therapist" && !parsed.data.confirmCustomerApproval) {
           const meta =
@@ -453,6 +471,25 @@ export async function applyRecommendedFixAction(
         bookingId &&
         parsed.data.proposedResourceId
       ) {
+        const admin = createAdminClient();
+        const { data: bookingRow } = await admin
+          .from("bookings")
+          .select("id, resource_id")
+          .eq("id", bookingId)
+          .eq("branch_id", actor.branchId)
+          .maybeSingle();
+        if (
+          (bookingRow as { resource_id?: string | null } | null)?.resource_id ===
+          parsed.data.proposedResourceId
+        ) {
+          return {
+            success: false,
+            code: "CONFLICT_ALREADY_RESOLVED",
+            error:
+              "Already updated by another desk or booking change. Showing the latest schedule.",
+            summary: summarizeOptimizationEvaluation(freshEval),
+          };
+        }
         const res = await assignBookingRoomAction({
           bookingId,
           resourceId: parsed.data.proposedResourceId,

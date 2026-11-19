@@ -193,9 +193,12 @@ export function scheduleBranchOptimizationReevaluation(params: {
       });
     state.inFlight = runPromise;
     activeDrainSet.add(runPromise);
+  }
 
+  const activePromise = state.inFlight;
+  if (activePromise) {
     try {
-      after(() => runPromise);
+      after(() => activePromise);
     } catch {
       // Called outside Next.js request lifecycle (tests, CLI scripts, direct calls); promise runs standalone.
     }
