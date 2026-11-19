@@ -81,12 +81,12 @@ describe("Cradle Live driver map reconciliation", () => {
     expect(markerCreated).toHaveBeenCalledTimes(4);
     expect(mounted).toHaveBeenCalledTimes(1);
     expect(fit).toHaveBeenCalledTimes(2);
-    act(() => (window as Window & { gm_authFailure: () => void }).gm_authFailure());
+    act(() => (window as Window & { gm_authFailure?: () => void }).gm_authFailure?.());
     expect(priorAuthFailure).toHaveBeenCalledOnce();
     expect(screen.getByText("Google Maps unavailable for this site")).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Select B:/ })).toBeTruthy();
     view.unmount();
-    expect((window as Window & { gm_authFailure: () => void }).gm_authFailure).toBe(
+    expect((window as Window & { gm_authFailure?: () => void }).gm_authFailure).toBe(
       priorAuthFailure
     );
   });
