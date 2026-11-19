@@ -1,18 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
   CheckCircle2,
   ChevronRight,
   Download,
+  ExternalLink,
   HelpCircle,
+  Info,
   Loader2,
   ShieldCheck,
   Smartphone,
 } from "lucide-react";
 import type { DriverApkPublicReleaseInfo } from "@/lib/driver/apk-distribution";
+import { isIosBrowserClient } from "@/lib/driver/platform";
 
 export function DriverAppDownloadEntryCard({
   href = "/staff/driver/app",
@@ -40,8 +43,8 @@ export function DriverAppDownloadEntryCard({
               data-testid="driver-app-entry-status"
               className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                 available
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                  : "bg-amber-50 text-amber-800 border border-amber-200"
+                  ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border border-amber-200 bg-amber-50 text-amber-800"
               }`}
             >
               {available ? `v${versionName ?? "Ready"}` : "Not yet available"}
@@ -49,8 +52,8 @@ export function DriverAppDownloadEntryCard({
           </div>
           <p className="mt-0.5 truncate text-xs text-[#65746b]">
             {available
-              ? "Official signed Android application for CradleHub drivers"
-              : "Signed Android APK release pending certification"}
+              ? "Official Android app for assigned trips, navigation, and QR scanning"
+              : "Android installer release pending activation"}
           </p>
         </div>
       </div>
@@ -59,22 +62,34 @@ export function DriverAppDownloadEntryCard({
   );
 }
 
+const subscribePlatformNoop = () => () => {};
+
 export function DriverAppDownloadDestination({
   release,
   backHref = "/staff/driver/more",
+  initialIsIos = false,
+  onNavigate,
 }: {
   release: DriverApkPublicReleaseInfo;
   backHref?: string;
+  initialIsIos?: boolean;
+  onNavigate?: (url: string) => void;
 }) {
+  const clientIsIos = useSyncExternalStore(
+    subscribePlatformNoop,
+    isIosBrowserClient,
+    () => initialIsIos
+  );
+  const isIos = initialIsIos || clientIsIos;
   const [isRequesting, setIsRequesting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [issuedInfo, setIssuedInfo] = useState<{
     fileName: string;
-    expiresInSeconds: number;
+    downloadUrl: string;
   } | null>(null);
 
   async function handleDownload() {
-    if (!release.available || isRequesting) return;
+    if (isIos || !release.available || isRequesting) return;
     setIsRequesting(true);
     setErrorMessage(null);
     try {
@@ -88,26 +103,35 @@ export function DriverAppDownloadDestination({
             ok?: boolean;
             downloadUrl?: string;
             fileName?: string;
-            expiresInSeconds?: number;
             error?: string;
           }
         | null;
 
-      if (!response.ok || !payload?.ok || !payload.downloadUrl) {
+      if (
+        !response.ok ||
+        !payload?.ok ||
+        !payload.downloadUrl ||
+        !payload.downloadUrl.startsWith("https://drive.google.com/file/d/")
+      ) {
         setErrorMessage(
           payload?.error ??
-            "Could not generate a secure download link. Verify your session and try again."
+            "Could not authorize the Android download link. Verify your session and try again."
         );
         return;
       }
 
       setIssuedInfo({
-        fileName: payload.fileName ?? "cradlehub-driver.apk",
-        expiresInSeconds: payload.expiresInSeconds ?? 300,
+        fileName: payload.fileName ?? "CradleHub-Driver.apk",
+        downloadUrl: payload.downloadUrl,
       });
-      window.location.assign(payload.downloadUrl);
+
+      if (onNavigate) {
+        onNavigate(payload.downloadUrl);
+      } else {
+        window.location.assign(payload.downloadUrl);
+      }
     } catch {
-      setErrorMessage("Network error while requesting download link. Reconnect and retry.");
+      setErrorMessage("Network error while authorizing the download. Reconnect and retry.");
     } finally {
       setIsRequesting(false);
     }
@@ -118,7 +142,7 @@ export function DriverAppDownloadDestination({
       data-testid="driver-app-download-destination"
       className="mx-auto max-w-[560px] space-y-4 px-4 py-5"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <Link
           href={backHref}
           className="text-xs font-semibold text-[#19563c] hover:underline"
@@ -128,15 +152,22 @@ export function DriverAppDownloadDestination({
         <span
           data-testid="driver-app-release-badge"
           className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${
-            release.available
-              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-              : "border-amber-300 bg-amber-50 text-amber-900"
+            isIos
+              ? "border-slate-200 bg-slate-50 text-slate-700"
+              : release.available
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-amber-300 bg-amber-50 text-amber-900"
           }`}
         >
-          {release.available ? (
+          {isIos ? (
+            <>
+              <Info className="size-3.5" aria-hidden="true" />
+              Android Only
+            </>
+          ) : release.available ? (
             <>
               <CheckCircle2 className="size-3.5" aria-hidden="true" />
-              Approved Release Available
+              Available
             </>
           ) : (
             <>
@@ -147,7 +178,7 @@ export function DriverAppDownloadDestination({
         </span>
       </div>
 
-      {/* App Identity Header */}
+      {/* Main Driver App Card */}
       <section className="rounded-2xl border border-[#e1e6da] bg-white p-5 shadow-2xs">
         <div className="flex items-center gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -160,13 +191,22 @@ export function DriverAppDownloadDestination({
           />
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold text-[#163a2b]">{release.appName}</h1>
-            <p className="mt-0.5 text-xs text-[#65746b]">
-              Official Android Native Navigation, Trips &amp; Attendance Companion
+            {release.available && release.versionName ? (
+              <p
+                data-testid="driver-app-version-line"
+                className="mt-0.5 text-xs font-semibold text-[#19563c]"
+              >
+                Version {release.versionName}
+                {release.fileSizeLabel ? ` · ${release.fileSizeLabel}` : ""}
+              </p>
+            ) : null}
+            <p className="mt-1 text-xs leading-4 text-[#65746b]">
+              Native Android app for assigned trips, navigation, QR scanning and driver operations.
             </p>
           </div>
         </div>
 
-        {/* Metadata Grid */}
+        {/* Compact Release Metadata */}
         <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-[#eee8dd] pt-4 text-xs">
           <div>
             <dt className="font-medium text-[#65746b]">Approved Version</dt>
@@ -175,17 +215,28 @@ export function DriverAppDownloadDestination({
               className="mt-0.5 font-semibold text-[#163a2b]"
             >
               {release.available && release.versionName
-                ? `${release.versionName} (Build ${release.versionCode})`
+                ? `Version ${release.versionName} (Build ${release.versionCode})`
                 : "Not yet available"}
             </dd>
           </div>
           <div>
-            <dt className="font-medium text-[#65746b]">Minimum Android</dt>
+            <dt className="font-medium text-[#65746b]">Android Compatibility</dt>
             <dd
               data-testid="driver-app-min-android"
               className="mt-0.5 font-semibold text-[#163a2b]"
             >
               {release.minAndroidVersion}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-medium text-[#65746b]">Installer Size</dt>
+            <dd
+              data-testid="driver-app-file-size"
+              className="mt-0.5 font-semibold text-[#163a2b]"
+            >
+              {release.available && release.fileSizeLabel
+                ? release.fileSizeLabel
+                : "Pending release"}
             </dd>
           </div>
           <div>
@@ -196,27 +247,46 @@ export function DriverAppDownloadDestination({
             >
               {release.available && release.releaseDate
                 ? release.releaseDate
-                : "Pending release certification"}
-            </dd>
-          </div>
-          <div>
-            <dt className="font-medium text-[#65746b]">Package Identity</dt>
-            <dd className="mt-0.5 truncate font-mono text-[11px] text-[#163a2b]">
-              {release.packageId ?? "com.mpgtechnologies.cradlehub.driver"}
+                : "Pending activation"}
             </dd>
           </div>
         </dl>
 
         {release.available && release.sha256 ? (
           <div className="mt-3 rounded-lg bg-[#faf8f5] px-3 py-2 text-[11px] text-[#526358]">
-            <span className="font-semibold text-[#163a2b]">SHA-256 Checksum: </span>
+            <span className="font-semibold text-[#163a2b]">SHA-256: </span>
             <code className="break-all font-mono">{release.sha256}</code>
           </div>
         ) : null}
 
-        {/* Action or Fail-Closed Not Yet Available Notice */}
+        {/* Platform-Aware Action Area */}
         <div className="mt-5">
-          {release.available ? (
+          {isIos ? (
+            <div
+              role="status"
+              data-testid="driver-app-ios-notice"
+              className="space-y-3 rounded-xl border border-[#d6e4dc] bg-[#f4f8f5] p-4 text-xs leading-5 text-[#163a2b]"
+            >
+              <div className="flex items-start gap-2.5">
+                <Info className="mt-0.5 size-4 shrink-0 text-[#19563c]" aria-hidden="true" />
+                <div>
+                  <p className="font-bold">Android app is not compatible with iPhone / iOS</p>
+                  <p className="mt-1 text-[#455a4f]">
+                    The native CradleHub Driver installer (.apk) works on Android devices only and
+                    cannot be installed on iPhone or iPad. Please continue using the CradleHub
+                    Driver Web Portal in your browser.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={backHref}
+                data-testid="driver-app-ios-web-fallback"
+                className="flex min-h-11 w-full items-center justify-center rounded-xl bg-[#19563c] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#144530]"
+              >
+                Continue to Web Driver Portal
+              </Link>
+            </div>
+          ) : release.available ? (
             <button
               type="button"
               data-testid="driver-app-download-button"
@@ -227,12 +297,12 @@ export function DriverAppDownloadDestination({
               {isRequesting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Authorizing expiring download link…
+                  Verifying session &amp; opening Google Drive…
                 </>
               ) : (
                 <>
                   <Download className="size-4" aria-hidden="true" />
-                  Download Signed Driver APK (v{release.versionName})
+                  Download for Android
                 </>
               )}
             </button>
@@ -245,7 +315,7 @@ export function DriverAppDownloadDestination({
               <p className="font-bold">Driver APK download is not yet available</p>
               <p className="mt-1 text-amber-900">
                 {release.unavailableReason ??
-                  "No approved release-signed APK has been published yet. Debug or uncertified builds are never distributed here."}
+                  "The approved Android installer has not been published yet. Continue using the Driver Web Portal."}
               </p>
             </div>
           )}
@@ -253,52 +323,67 @@ export function DriverAppDownloadDestination({
           {errorMessage ? (
             <p
               role="alert"
+              data-testid="driver-app-error-alert"
               className="mt-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800"
             >
               {errorMessage}
             </p>
           ) : null}
 
-          {issuedInfo ? (
-            <p className="mt-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-              Secure download started for <strong>{issuedInfo.fileName}</strong> (link expires in{" "}
-              {Math.round(issuedInfo.expiresInSeconds / 60)} minutes).
-            </p>
+          {issuedInfo && !isIos ? (
+            <div
+              data-testid="driver-app-issued-notice"
+              className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900"
+            >
+              <span>
+                Opening <strong>{issuedInfo.fileName}</strong> on Google Drive.
+              </span>
+              <a
+                href={issuedInfo.downloadUrl}
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-[#19563c] underline hover:no-underline"
+              >
+                Open link again
+                <ExternalLink className="size-3" aria-hidden="true" />
+              </a>
+            </div>
           ) : null}
         </div>
       </section>
 
-      {/* Installation & Update Instructions */}
-      <section className="rounded-2xl border border-[#e1e6da] bg-white p-5 shadow-2xs">
-        <div className="flex items-center gap-2 text-sm font-semibold text-[#163a2b]">
-          <ShieldCheck className="size-4 text-[#19563c]" aria-hidden="true" />
-          <h2>Installation &amp; Update Instructions</h2>
-        </div>
-        <ol className="mt-3 list-decimal space-y-2 pl-4 text-xs leading-5 text-[#526358]">
-          <li>
-            Sign in on your Android phone (Android 7.0 or newer) with your assigned CradleHub
-            Driver account.
-          </li>
-          <li>
-            Tap <strong>Download Signed Driver APK</strong> above when an approved release is
-            available. Each download link is server-authorized and expires after 5 minutes.
-          </li>
-          <li>
-            Open the downloaded <code>.apk</code> file from your browser downloads notification. If
-            prompted by Android, allow installation from your browser for this update.
-          </li>
-          <li>
-            <strong>Updating an existing installation:</strong> Install directly over your existing
-            CradleHub Driver app to preserve your encrypted session and local preferences. Do not
-            install unverified or debug builds over an official release package.
-          </li>
-          <li>
-            After opening the app, grant <strong>Location</strong> (While using the app) and{" "}
-            <strong>Camera</strong> permissions so turn-by-turn navigation and attendance QR
-            scanning function properly.
-          </li>
-        </ol>
-      </section>
+      {/* Android Installation Instructions (hidden on iOS) */}
+      {!isIos ? (
+        <section
+          data-testid="driver-app-install-instructions"
+          className="rounded-2xl border border-[#e1e6da] bg-white p-5 shadow-2xs"
+        >
+          <div className="flex items-center gap-2 text-sm font-semibold text-[#163a2b]">
+            <ShieldCheck className="size-4 text-[#19563c]" aria-hidden="true" />
+            <h2>How to Install on Android</h2>
+          </div>
+          <ol className="mt-3 list-decimal space-y-2 pl-4 text-xs leading-5 text-[#526358]">
+            <li>
+              Tap <strong>Download for Android</strong> above, then tap <strong>Download</strong>{" "}
+              on Google Drive (tap <strong>Download anyway</strong> if Drive skips virus scan on
+              large APK files).
+            </li>
+            <li>
+              Once finished, tap the download notification or open Chrome menu (<strong>⋮</strong>)
+              → <strong>Downloads</strong> and select the <code>.apk</code> file.
+            </li>
+            <li>
+              If Android asks for permission, tap <strong>Settings</strong>, turn on{" "}
+              <strong>Allow from this source</strong> for Chrome, then go back and tap{" "}
+              <strong>Install</strong>.
+            </li>
+            <li>
+              Open <strong>CradleHub Driver</strong>, sign in with your Driver account, and allow{" "}
+              <strong>Location</strong> and <strong>Camera</strong> when prompted. Updating an
+              existing official release keeps your signed-in session.
+            </li>
+          </ol>
+        </section>
+      ) : null}
 
       {/* Support Contact */}
       <section className="rounded-2xl border border-[#e1e6da] bg-white p-5 shadow-2xs">
@@ -307,7 +392,7 @@ export function DriverAppDownloadDestination({
           <h2>Support &amp; Assistance</h2>
         </div>
         <p className="mt-2 text-xs leading-5 text-[#526358]">
-          For installation help, signing verification, or device enrollment issues, contact your{" "}
+          For installation help or account access issues, contact your{" "}
           <strong>{release.supportDestinationLabel}</strong> or email{" "}
           <a
             href={`mailto:${release.supportEmail}`}
@@ -315,8 +400,8 @@ export function DriverAppDownloadDestination({
           >
             {release.supportEmail}
           </a>
-          . While the native Android release is unavailable or being updated, continue using this
-          authenticated Driver web workspace.
+          . You can always continue using the authenticated Driver Web Portal while installing or
+          updating the Android app.
         </p>
       </section>
     </div>
