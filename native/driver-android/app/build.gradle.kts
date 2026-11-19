@@ -23,6 +23,15 @@ val pilotVersion = providers.gradleProperty("CRADLE_PILOT_VERSION_CODE").orNull?
 val pilotSigningReady = listOf(pilotKeyFile, pilotStorePassword, pilotKeyAlias, pilotKeyPassword)
   .all { it.isNotBlank() }
 
+val releaseKeyFile = providers.gradleProperty("CRADLE_RELEASE_KEYSTORE_PATH").orNull?.trim().orEmpty()
+val releaseStorePassword = providers.gradleProperty("CRADLE_RELEASE_STORE_PASSWORD").orNull.orEmpty()
+val releaseKeyAlias = providers.gradleProperty("CRADLE_RELEASE_KEY_ALIAS").orNull.orEmpty()
+val releaseKeyPassword = providers.gradleProperty("CRADLE_RELEASE_KEY_PASSWORD").orNull.orEmpty()
+val releaseVersion = providers.gradleProperty("CRADLE_RELEASE_VERSION_CODE").orNull?.toIntOrNull()
+val releaseVersionName = providers.gradleProperty("CRADLE_RELEASE_VERSION_NAME").orNull?.trim()
+val releaseSigningReady = listOf(releaseKeyFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+  .all { it.isNotBlank() }
+
 fun isApprovedTestOrigin(raw: String): Boolean = try {
   val uri = URI(raw)
   val host = uri.host?.lowercase().orEmpty()
@@ -50,8 +59,8 @@ val nativeOwnerPhone = providers.gradleProperty("CRADLE_NATIVE_PRODUCTION_OWNER_
 require(nativeTarget in setOf("TEST", "UNCONFIGURED", "PRODUCTION")) { "Native target must be explicitly classified." }
 require(!nativeOwnerPhone || nativeTarget == "PRODUCTION") { "Owner-phone configuration requires the PRODUCTION classification." }
 if (nativeTarget == "PRODUCTION") {
- require(nativePublicKey.isNotBlank()) { "Owner phone requires the existing public client key." }
- require(nativeOwnerPhone && nativeApi == "https://www.cradlewellnessliving.com" && nativeSupabase == "https://lsrbwqhvzjfpiabeolkv.supabase.co") { "Production requires the explicitly owner-authorized phone build and exact accepted host/project pair." }
+ require(nativePublicKey.isNotBlank()) { "Production build requires the existing public client key." }
+ require((nativeOwnerPhone || releaseSigningReady) && nativeApi == "https://www.cradlewellnessliving.com" && nativeSupabase == "https://lsrbwqhvzjfpiabeolkv.supabase.co") { "Production requires the explicitly owner-authorized phone build or release-signed configuration and exact accepted host/project pair." }
  require(providers.gradleProperty("CRADLE_NATIVE_UI_FIXTURE").orNull != "true") { "Production cannot contain UI fixtures." }
 }
 for (origin in listOf(nativeApi,nativeSupabase)) {
@@ -71,11 +80,12 @@ android {
     applicationId = "com.mpgtechnologies.cradlehub.driver"
     minSdk = 24
     targetSdk = 36
-    versionCode = pilotVersion ?: 1
-    versionName = "0.3.0-native-compose-review"
+    versionCode = releaseVersion ?: pilotVersion ?: 1
+    versionName = releaseVersionName?.takeIf { it.isNotBlank() } ?: "0.3.0-native-compose-review"
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("boolean", "NATIVE_UI_FIXTURE", "false")
     buildConfigField("boolean", "NATIVE_OWNER_PHONE", nativeOwnerPhone.toString())
+    buildConfigField("boolean", "NATIVE_RELEASE_SIGNED", "false")
     buildConfigField("String", "NATIVE_TARGET", "\"${nativeTarget}\"")
     buildConfigField("String", "NATIVE_API_ORIGIN", "\"${nativeApi}\"")
     buildConfigField("String", "NATIVE_SUPABASE_URL", "\"${nativeSupabase}\"")
@@ -102,6 +112,14 @@ android {
         keyPassword = pilotKeyPassword
       }
     }
+    create("release") {
+      if (releaseSigningReady) {
+        storeFile = file(releaseKeyFile)
+        storePassword = releaseStorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
+    }
   }
 
   buildTypes {
@@ -122,6 +140,10 @@ android {
     }
     getByName("release") {
       isMinifyEnabled = false // preserve accepted native baseline
+      if (releaseSigningReady) {
+        signingConfig = signingConfigs.getByName("release")
+        buildConfigField("boolean", "NATIVE_RELEASE_SIGNED", "true")
+      }
     }
     create("pilot") {
       initWith(getByName("release"))
@@ -158,6 +180,29 @@ val validateDriverPilot = tasks.register("validateDriverPilot") {
 }
 tasks.matching { it.name == "packagePilot" || it.name == "assemblePilot" }
   .configureEach { dependsOn(validateDriverPilot) }
+
+val validateDriverRelease = tasks.register("validateDriverRelease") {
+  doLast {
+    check(!nativeOwnerPhone) { "Release APK cannot use the owner-phone debug exception." }
+    check(nativeTarget == "PRODUCTION" && nativeApi == "https://www.cradlewellnessliving.com" && nativeSupabase == "https://lsrbwqhvzjfpiabeolkv.supabase.co" && nativePublicKey.isNotBlank()) {
+      "Release APK requires PRODUCTION target and accepted host/project pair with public Supabase key."
+    }
+    check(releaseSigningReady && file(releaseKeyFile).isFile && !file(releaseKeyFile).name.contains("debug", ignoreCase = true)) {
+      "Release APK requires a durable non-debug private release keystore and all four signing properties."
+    }
+    check(!providers.gradleProperty("CRADLE_NAVIGATION_API_KEY").orNull.isNullOrBlank()) {
+      "Release APK requires an Android-restricted Navigation SDK API key."
+    }
+    check(releaseVersion != null && releaseVersion >= 2) {
+      "Release APK requires an incremented version code (>= 2)."
+    }
+    check(!releaseVersionName.isNullOrBlank() && !Regex("localtest|local-test|owner-phone|fixture|debug", RegexOption.IGNORE_CASE).containsMatchIn(releaseVersionName)) {
+      "Release APK requires a clean production versionName without debug/localtest/fixture markers."
+    }
+  }
+}
+tasks.matching { it.name == "packageRelease" || it.name == "assembleRelease" }
+  .configureEach { dependsOn(validateDriverRelease) }
 
 dependencies {
   implementation(platform("androidx.compose:compose-bom:2026.02.01"))

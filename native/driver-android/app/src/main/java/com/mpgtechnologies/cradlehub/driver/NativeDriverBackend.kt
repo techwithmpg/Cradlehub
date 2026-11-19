@@ -21,9 +21,10 @@ internal object NativeTargetPolicy {
         supabase: String,
         key: String,
         ownerPhone: Boolean = false,
+        releaseSigned: Boolean = false,
     ): Boolean = runCatching {
         val urls = listOf(URI(api), URI(supabase))
-        (target == "TEST" || (target == "PRODUCTION" && ownerPhone)) &&
+        (target == "TEST" || (target == "PRODUCTION" && (ownerPhone || releaseSigned))) &&
             urls.all {
                 it.scheme == "https" &&
                     it.host != null &&
@@ -88,6 +89,7 @@ internal class NativeDriverBackend(context: Context) {
                 supabase,
                 publicKey,
                 BuildConfig.NATIVE_OWNER_PHONE,
+                BuildConfig.NATIVE_RELEASE_SIGNED,
             )
 
     val hasSession
