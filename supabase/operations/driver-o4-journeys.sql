@@ -115,11 +115,22 @@ begin
     'Customer location'
   ), 200), '');
 
+  v_collection_decision := coalesce(
+    nullif(j.collection_decision, ''),
+    nullif(v_dc->>'decision', ''),
+    'required'
+  );
+
   v_stage := coalesce(
     j.stage,
     case
       when b.status in ('cancelled', 'no_show') or b.booking_progress_status = 'no_show' then 'review'
-      when b.booking_progress_status = 'completed' or b.status = 'completed' then 'collection_pending'
+      when b.booking_progress_status = 'completed' or b.status = 'completed' then
+        case
+          when coalesce(b.session_completion_source, '') = 'auto_due' then 'service_active'
+          when v_collection_decision = 'not_required' then 'complete'
+          else 'collection_pending'
+        end
       when b.booking_progress_status = 'session_started' or b.status = 'in_progress' then 'service_active'
       when b.home_service_tracking_status = 'arrived_at_customer' then 'customer_arrived'
       when b.home_service_tracking_status = 'in_route' then 'delivery_enroute'
@@ -169,11 +180,6 @@ begin
     end if;
   end if;
 
-  v_collection_decision := coalesce(
-    nullif(j.collection_decision, ''),
-    nullif(v_dc->>'decision', ''),
-    'required'
-  );
   v_delivery_driver_id := coalesce(j.delivery_driver_id, j.driver_id, b.driver_id);
   v_collection_driver_id := coalesce(
     j.collection_driver_id,
@@ -270,8 +276,21 @@ begin
         or j.collection_driver_id = s.id
       )
       and (
-        p_booking_id is not null
-        or coalesce(j.stage, '') <> 'complete'
+        (
+          j.booking_id is not null
+          and (
+            p_booking_id is not null
+            or coalesce(j.stage, '') <> 'complete'
+          )
+        )
+        or (
+          j.booking_id is null
+          and b.driver_id = s.id
+          and b.status in ('confirmed', 'in_progress')
+          and b.booking_progress_status = 'not_started'
+          and b.booking_date between (now() at time zone 'Asia/Manila')::date
+                                 and (now() at time zone 'Asia/Manila')::date + 7
+        )
       )
   ) sub;
   return v_rows;
@@ -330,6 +349,9 @@ begin
   if not found then
     if b.driver_id is distinct from s.id then
       raise exception 'booking_not_assigned_to_driver';
+    end if;
+    if b.status not in ('confirmed', 'in_progress') or b.booking_progress_status <> 'not_started' then
+      raise exception 'legacy_trip_requires_review';
     end if;
     insert into driver_unified_private.journeys(
       booking_id, branch_id, driver_id, delivery_driver_id, collection_driver_id, therapist_id
@@ -792,6 +814,9 @@ begin
   select * into j from driver_unified_private.journeys where booking_id = b.id for update;
   if not found then
     return true;
+  end if;
+  if j.stage = 'review' or (j.therapist_id is not null and j.therapist_id is distinct from b.staff_id) then
+    raise exception 'journey_assignment_changed';
   end if;
   if j.stage in ('collection_pending', 'collection_enroute', 'collection_arrived', 'return_pending', 'return_enroute', 'return_arrived', 'complete') then
     return true;

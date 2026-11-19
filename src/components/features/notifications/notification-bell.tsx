@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
+import { notifyOptimizationChanged } from "@/lib/optimization/client-events";
 import { getNotificationBellSnapshot } from "@/lib/notifications/queries";
 import { shouldPresentActionPopup } from "@/lib/notifications/presentation-policy";
 import { PENDING_CRM_QUEUE_EVENT, type PendingCrmQueueEvent } from "@/lib/notifications/pending-booking-client-events";
@@ -54,6 +55,20 @@ const BOOKING_NOTIFICATION_TYPES = new Set([
   "home_service_location_review",
   "staff_schedule_exception",
 ]);
+
+const OPTIMIZATION_NOTIFICATION_TYPES = new Set([
+  "home_service_dispatch_conflict",
+  "resource_conflict_warning",
+  "staff_availability_conflict",
+  "system_warning",
+]);
+
+function isOptimizationNotification(notification: WorkspaceNotification) {
+  return (
+    OPTIMIZATION_NOTIFICATION_TYPES.has(notification.type) ||
+    (typeof notification.dedupe_key === "string" && notification.dedupe_key.startsWith("uoe:"))
+  );
+}
 
 function isBookingNotification(notification: WorkspaceNotification) {
   if (serviceTransitionEventId(notification)) return false;
@@ -235,15 +250,21 @@ export function NotificationBell({ role, userId, toastOnly = false, smartPending
         if (!alreadyKnown && notification.status === "unread") {
           setCount((current) => current + 1);
         }
-        // All authorized tabs need the booking refresh, even when another
-        // tab owns the single visible popup presentation.
+        // All authorized tabs need the booking and optimization refresh, even when
+        // another tab owns the single visible popup presentation.
         if (serviceTransitionEventId(notification)) notifyBookingsChanged();
+        if (isOptimizationNotification(notification)) {
+          notifyOptimizationChanged({ reason: "notification_insert" });
+        }
         return;
       }
 
       // Service transition presentation belongs to the existing service
       // lifecycle provider; keep booking refresh but avoid a duplicate toast.
       if (serviceTransitionEventId(notification)) return;
+      if (isOptimizationNotification(notification)) {
+        notifyOptimizationChanged({ reason: "notification_insert_present" });
+      }
       // Smart CRM booking confirmation owns single-vs-grouped presentation.
       // Existing bell storage/realtime still owns the underlying shared notice.
       if (smartPendingBookings && canonicalRole === "crm" && notification.type === "booking_created") return;
@@ -272,6 +293,9 @@ export function NotificationBell({ role, userId, toastOnly = false, smartPending
       deferredRef.current.delete(notification.id);
       displayedToastIdsRef.current.delete(notification.id);
       toast.dismiss(notification.id);
+    }
+    if (isOptimizationNotification(notification)) {
+      notifyOptimizationChanged({ reason: `notification_update_${notification.status}` });
     }
     setItems((current) =>
       notification.status === "resolved" || notification.status === "dismissed"

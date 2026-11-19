@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -60,7 +61,7 @@ async function requireScheduleAccess(branchId: string) {
   if (isDevAuthBypassEnabled()) {
     // Dev bypass has no real auth session, so it uses the admin client.
     const admin = createAdminClient();
-    return { admin, scheduleClient: admin, userId: "dev-bypass" };
+    return { admin, scheduleClient: admin, userId: "dev-bypass", staffId: null as string | null };
   }
 
   const { data: me } = await supabase
@@ -78,7 +79,12 @@ async function requireScheduleAccess(branchId: string) {
     return null;
   }
 
-  return { admin: createAdminClient(), scheduleClient: supabase, userId: me.id as string };
+  return {
+    admin: createAdminClient(),
+    scheduleClient: supabase,
+    userId: me.id as string,
+    staffId: me.id as string,
+  };
 }
 
 // ── Input schema ──────────────────────────────────────────────────────────────
@@ -297,6 +303,11 @@ export async function saveStaffWeeklyScheduleAction(
   revalidatePath("/crm/setup");
   revalidatePath("/book");
   invalidateCrmWorkspace(branchId);
+  scheduleBranchOptimizationReevaluation({
+    branchId,
+    reason: "staff_weekly_schedule_saved",
+    actorStaffId: ctx.staffId,
+  });
 
   return { ok: true, rowsWritten: normalizedSavedRows.length, savedRows: normalizedSavedRows };
 }

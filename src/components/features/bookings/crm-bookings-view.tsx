@@ -21,6 +21,7 @@ import { refreshCrmBookingsOperationalDataAction } from "@/app/(dashboard)/crm/b
 import { notifyBookingsChanged } from "@/lib/bookings/bookings-client-events";
 import { useWorkspaceEntityDelta } from "@/lib/workspace/entity-delta-bus";
 import type { CrmBookingsOperationalData } from "@/lib/queries/crm-bookings-operational";
+import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 type ActionFn = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
@@ -28,6 +29,7 @@ type BookingsApiPayload = CrmBookingsOperationalData;
 
 type CrmBookingsViewProps = {
   initialData: BookingsApiPayload;
+  initialOptimizationSummary?: TieredCrmOperationsSummary | null;
   paymentAction?: ActionFn;
   confirmPaymentAction?: ActionFn;
   refreshAction?: (params?: {
@@ -68,6 +70,7 @@ function tabFromStatus(status: string | undefined): BookingWorkspaceTab | undefi
 
 export function CrmBookingsView({
   initialData,
+  initialOptimizationSummary = null,
   paymentAction,
   confirmPaymentAction,
   refreshAction = refreshCrmBookingsOperationalDataAction,
@@ -249,7 +252,9 @@ export function CrmBookingsView({
         key={`${referenceSource}:${isUpcoming ? "upcoming" : "daily"}`}
         workspaceContext="crm"
         viewerRole={payload.role}
+        branchId={payload.branchId}
         branchName={payload.branchName}
+        initialOptimizationSummary={initialOptimizationSummary}
         date={payload.date}
         businessDate={payload.businessDate}
         statusFilter={statusFilter}

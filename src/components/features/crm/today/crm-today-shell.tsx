@@ -11,6 +11,7 @@ import type { CrmTodayOperationalData } from "@/lib/queries/crm-today-operationa
 import { refreshCrmTodayOperationalDataAction } from "@/app/(dashboard)/crm/today/actions";
 import { useGenerationAwareWorkspaceSWR } from "@/components/features/dashboard/use-workspace-generation";
 import { useWorkspaceEntityDelta } from "@/lib/workspace/entity-delta-bus";
+import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 type CrmTodayMutationAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
 
@@ -31,6 +32,7 @@ export type CrmTodayShellProps = {
   paymentAction?: CrmTodayMutationAction;
   statusAction?: CrmTodayMutationAction;
   assistanceEnabled?: boolean;
+  initialOptimizationSummary?: TieredCrmOperationsSummary | null;
   refreshAction?: () => Promise<CrmTodayOperationalData>;
 };
 
@@ -50,6 +52,7 @@ export function CrmTodayShell({
   paymentAction,
   statusAction,
   assistanceEnabled = false,
+  initialOptimizationSummary = null,
   refreshAction = refreshCrmTodayOperationalDataAction,
 }: CrmTodayShellProps) {
   const fallbackOperationalData: CrmTodayOperationalData = useMemo(
@@ -144,6 +147,7 @@ export function CrmTodayShell({
         paymentAction={paymentAction}
         statusAction={statusAction}
         assistanceEnabled={assistanceEnabled}
+        initialOptimizationSummary={initialOptimizationSummary}
         onRefresh={revalidate}
         isRefreshing={generation.isRefreshing}
         refreshError={error}

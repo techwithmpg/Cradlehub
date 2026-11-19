@@ -9,6 +9,7 @@ import { publishServiceTransition } from "@/lib/bookings/service-transition-noti
 import { getNotificationTargetPath } from "@/lib/notifications/notification-targets";
 import { isResourceAvailable } from "@/lib/engine/resource-availability";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { onlineConfirmationErrorMessage } from "@/lib/bookings/online-confirmation-error";
 import { revalidatePath } from "next/cache";
 import { triggerUtilityRoomTurnoverOnServiceCompletion } from "@/lib/staff-pwa/utility-turnover";
@@ -699,6 +700,12 @@ export async function recordBookingFollowup(
   }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: `booking_followup_${parsed.data.result}`,
+    actorStaffId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+  });
   return { success: true };
 }
 
@@ -1193,6 +1200,20 @@ export async function rescheduleBooking(
   }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "booking_rescheduled",
+    actorStaffId: actorId,
+  });
+  if (nextDate !== booking.booking_date) {
+    scheduleBranchOptimizationReevaluation({
+      branchId: booking.branch_id,
+      date: nextDate,
+      reason: "booking_rescheduled_target_date",
+      actorStaffId: actorId,
+    });
+  }
   return { success: true };
 }
 
@@ -1401,6 +1422,12 @@ export async function assignBookingTherapist(
   }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "therapist_assigned",
+    actorStaffId: actorId,
+  });
   return { success: true };
 }
 
@@ -1599,6 +1626,12 @@ export async function confirmHomeServiceHandoff(
   await notifyConfirmedHomeServiceDriver(booking.id, booking.branch_id);
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "home_service_handoff",
+    actorStaffId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+  });
   revalidatePath("/crm/dispatch");
   revalidatePath("/manager/dispatch");
   revalidatePath("/driver");
@@ -1731,6 +1764,12 @@ export async function prepareHomeServiceDispatch(
   }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "home_service_dispatch_prepared",
+    actorStaffId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+  });
   revalidatePath("/crm/dispatch");
   revalidatePath("/manager/dispatch");
   revalidatePath("/driver");
@@ -1863,6 +1902,12 @@ export async function confirmCrmBooking(
       bookingIds: [booking.id, ...data.changed_ids],
     });
     revalidateOperationalBookingSurfaces(booking.branch_id);
+    scheduleBranchOptimizationReevaluation({
+      branchId: booking.branch_id,
+      date: booking.booking_date,
+      reason: "booking_confirmed_multi",
+      actorStaffId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+    });
     if (isHomeServiceBooking(booking)) revalidatePath("/crm/dispatch");
     return {
       success: true,
@@ -1953,6 +1998,12 @@ export async function confirmCrmBooking(
     bookingIds: [booking.id],
   });
   revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "booking_confirmed",
+    actorStaffId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+  });
   return {
     success: true,
     bookingId: booking.id,
@@ -2015,6 +2066,12 @@ export async function markCrmBookingArrived(
   }
 
   revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "booking_arrived",
+    actorStaffId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+  });
   return { success: true };
 }
 
@@ -2075,6 +2132,12 @@ export async function startCrmBookingService(
   const payload = data && typeof data === "object" && !Array.isArray(data)
     ? data as Record<string, unknown> : null;
   if (payload?.already_started !== true) {
+    scheduleBranchOptimizationReevaluation({
+      branchId: booking.branch_id,
+      date: booking.booking_date,
+      reason: "service_started",
+      actorStaffId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+    });
     await publishServiceTransition({
       bookingId: booking.id, branchId: booking.branch_id,
       actorStaffId: ctx.me.id, transition: "started",
@@ -2203,6 +2266,14 @@ export async function completeCrmBookingService(
   }
 
   revalidateServiceSurfaces(booking.branch_id);
+  if (payload?.already_completed !== true) {
+    scheduleBranchOptimizationReevaluation({
+      branchId: booking.branch_id,
+      date: booking.booking_date,
+      reason: "service_completed",
+      actorStaffId: ctx.me.id === DEV_BYPASS_STAFF_ID ? null : ctx.me.id,
+    });
+  }
   return {
     success: true,
     ...(typeof payload?.completed_at === "string" ? { completedAt: payload.completed_at } : {}),

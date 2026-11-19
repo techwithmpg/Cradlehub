@@ -11,6 +11,7 @@ import { bookingBlocksAvailability } from "@/lib/bookings/hold-status";
 import { rangesOverlap, timeToMinutes } from "@/lib/engine/slot-time";
 import { createOrUpdateNotification } from "@/lib/notifications/workflow-notifications-store";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import type { Json } from "@/types/supabase";
 
 export type SessionExtensionConflictResolution =
@@ -241,7 +242,7 @@ export async function previewSessionExtensionAction(input: {
     admin
       .from("bookings")
       .select(
-        "id, service_id, staff_id, resource_id, start_time, end_time, status, hold_expires_at, delivery_type, metadata, customers(full_name)"
+        "id, service_id, staff_id, therapist_selection_source, resource_id, start_time, end_time, status, hold_expires_at, delivery_type, metadata, customers(full_name)"
       )
       .eq("branch_id", booking.branch_id)
       .eq("booking_date", booking.booking_date)
@@ -382,7 +383,11 @@ export async function previewSessionExtensionAction(input: {
     typeof nextMeta._therapist_provenance === "object"
       ? (nextMeta._therapist_provenance as Record<string, unknown>)
       : {};
-  const wasCustomerRequested = provenance.therapist_selection_source === "customer_selected";
+  const dbSelectionSource = (nextBooking as { therapist_selection_source?: unknown })
+    .therapist_selection_source;
+  const wasCustomerRequested =
+    dbSelectionSource === "customer_selected" ||
+    provenance.therapist_selection_source === "customer_selected";
   const nextCustRel = Array.isArray(nextBooking.customers)
     ? nextBooking.customers[0]
     : nextBooking.customers;
@@ -500,7 +505,7 @@ export async function commitSessionExtensionAction(input: {
   const { data: booking } = await admin
     .from("bookings")
     .select(
-      "id, order_id, branch_id, staff_id, end_time, session_due_at, payment_status, amount_paid, metadata, customers(full_name)"
+      "id, order_id, branch_id, booking_date, staff_id, end_time, session_due_at, payment_status, amount_paid, metadata, customers(full_name)"
     )
     .eq("id", input.bookingId)
     .maybeSingle();
@@ -514,14 +519,18 @@ export async function commitSessionExtensionAction(input: {
 
   let swappedBookingId: string | null = null;
   let swappedToStaffName: string | null = null;
-  let swapRollbackState: { staffId: string | null; metadata: Json } | null = null;
+  let swapRollbackState: {
+    staffId: string | null;
+    therapistSelectionSource: string | null;
+    metadata: Json;
+  } | null = null;
 
   // 1. If Domino Auto-Swap is required, reassign the conflicting next booking within the same branch (with rollback snapshot)
   if (preview.resolution.kind === "domino_auto_swap") {
     const swap = preview.resolution;
     const { data: conflictingRow } = await admin
       .from("bookings")
-      .select("id, staff_id, branch_id, metadata")
+      .select("id, staff_id, therapist_selection_source, branch_id, metadata")
       .eq("id", swap.conflictingBookingId)
       .eq("branch_id", booking.branch_id)
       .maybeSingle();
@@ -539,6 +548,9 @@ export async function commitSessionExtensionAction(input: {
 
     swapRollbackState = {
       staffId: conflictingRow.staff_id ?? null,
+      therapistSelectionSource:
+        (conflictingRow as { therapist_selection_source?: string | null })
+          .therapist_selection_source ?? null,
       metadata: conflictingRow.metadata,
     };
 
@@ -546,6 +558,7 @@ export async function commitSessionExtensionAction(input: {
       .from("bookings")
       .update({
         staff_id: swap.replacementStaffId,
+        therapist_selection_source: "front_desk_selected",
         metadata: {
           ...conflictMeta,
           domino_reassigned_at: new Date().toISOString(),
@@ -573,6 +586,9 @@ export async function commitSessionExtensionAction(input: {
         .from("bookings")
         .update({
           staff_id: swapRollbackState.staffId as never,
+          ...(swapRollbackState.therapistSelectionSource
+            ? { therapist_selection_source: swapRollbackState.therapistSelectionSource }
+            : {}),
           metadata: swapRollbackState.metadata,
         })
         .eq("id", swappedBookingId)
@@ -715,7 +731,13 @@ export async function commitSessionExtensionAction(input: {
     });
   }
 
-  revalidateOperationalBookingSurfaces();
+  revalidateOperationalBookingSurfaces(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "session_extended",
+    actorStaffId: operator.id,
+  });
   revalidatePath("/crm/today");
   revalidatePath("/crm/bookings");
   revalidatePath("/crm/cash-flow");

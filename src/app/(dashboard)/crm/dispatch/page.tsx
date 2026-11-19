@@ -8,6 +8,7 @@ import { logInfo } from "@/lib/logger";
 import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
+import { evaluateBranchSummarySafe } from "@/lib/optimization/auto-reevaluate";
 
 export const metadata: Metadata = { title: "Home Service Operations — CRM" };
 
@@ -36,7 +37,18 @@ export default async function CrmDispatchPage({
     upcoming = booking.booking_date > today;
     selectedBookingId = booking.id;
   }
-  const data = await getDispatchData({ branchId, date: today, upcoming, throwOnError: true });
+  const [data, optResult] = await Promise.all([
+    getDispatchData({ branchId, date: today, upcoming, throwOnError: true }),
+    !upcoming
+      ? evaluateBranchSummarySafe({
+          branchId,
+          branchName,
+          date: today,
+          syncAlerts: false,
+          timeoutMs: 2200,
+        })
+      : Promise.resolve(null),
+  ]);
   if (selectedBookingId && !data.items.some((item) => item.id === selectedBookingId)) {
     const exact = await getDispatchData({
       branchId,
@@ -64,6 +76,8 @@ export default async function CrmDispatchPage({
         <HomeServiceDispatchWorkspace
           role="crm"
           data={data}
+          branchId={branchId}
+          initialOptimizationSummary={optResult?.summary ?? null}
           showHeader={false}
           upcoming={upcoming}
           selectedBookingId={selectedBookingId}

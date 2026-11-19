@@ -30,6 +30,7 @@ import { AppError, GroupTherapistAllocationError, SlotUnavailableError } from "@
 import { createNotification } from "@/lib/notifications/create";
 import { logError, logBusinessEvent } from "@/lib/logger";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { canAccessCrmWorkspace } from "@/lib/auth/crm-permissions";
 import { isConsultationOnlyService } from "@/lib/bookings/consultation-only-service";
 import { bookingCreationProvenance } from "@/lib/bookings/therapist-provenance";
@@ -1319,6 +1320,12 @@ export async function executeInhouseBookingCreation(
 
     try {
       revalidateOperationalBookingSurfaces(resolvedBranchId);
+      scheduleBranchOptimizationReevaluation({
+        branchId: resolvedBranchId,
+        date: d.date,
+        reason: "inhouse_booking_created",
+        actorStaffId: staff?.id ?? null,
+      });
     } catch (revalidateErr) {
       logBookingError(
         logContext,

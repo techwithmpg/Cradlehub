@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotification, createNotificationOnce, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { invalidateCrmWorkspace } from "@/lib/cache/cache-tags";
 import { logError } from "@/lib/logger";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import { revalidatePath } from "next/cache";
 import type { Database } from "@/types/supabase";
 
@@ -232,6 +233,12 @@ export async function assignHomeServiceDriver(
   revalidatePath("/driver");
 
   invalidateCrmWorkspace(booking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: booking.branch_id,
+    date: booking.booking_date,
+    reason: "driver_assigned",
+    actorStaffId: actor.staffId,
+  });
 
   return { ok: true };
 }

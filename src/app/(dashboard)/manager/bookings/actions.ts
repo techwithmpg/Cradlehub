@@ -13,6 +13,7 @@ import { isResourceAvailable, autoAssignBookingResource } from "@/lib/engine/res
 import { computeEndTime } from "@/lib/engine/booking-time";
 import { buildBookingSnapshot } from "@/lib/engine/snapshot";
 import { revalidateOperationalBookingSurfaces } from "@/lib/bookings/revalidate-booking-surfaces";
+import { scheduleBranchOptimizationReevaluation } from "@/lib/optimization/auto-reevaluate";
 import type { Database } from "@/types/supabase";
 import { canCancelBooking, canReassignBooking } from "@/lib/permissions";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
@@ -293,6 +294,12 @@ export async function updateBookingStatusAction(rawInput: unknown) {
   }
 
   revalidateOperationalBookingSurfaces(updatedBooking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: updatedBooking.branch_id,
+    date: bookingBefore.booking_date,
+    reason: `booking_status_${parsed.data.status}`,
+    actorStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
+  });
   return { success: true };
 }
 
@@ -515,6 +522,20 @@ export async function editBookingAction(rawInput: unknown) {
   }
 
   revalidateOperationalBookingSurfaces(updatedBooking.branch_id);
+  scheduleBranchOptimizationReevaluation({
+    branchId: updatedBooking.branch_id,
+    date: current.booking_date,
+    reason: "booking_edited",
+    actorStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
+  });
+  if (changes.date && changes.date !== current.booking_date) {
+    scheduleBranchOptimizationReevaluation({
+      branchId: updatedBooking.branch_id,
+      date: changes.date,
+      reason: "booking_edited_target_date",
+      actorStaffId: me.id === DEV_BYPASS_STAFF_ID ? null : me.id,
+    });
+  }
   return { success: true };
 }
 

@@ -51,6 +51,8 @@ import {
   withPossibleMatch,
 } from "@/lib/integrations/google-sheets/sheet-native-match";
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
+import { CrmOperationsAssistantBar } from "@/components/features/optimization/crm-operations-assistant-bar";
+import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 export type { Branch, WorkspaceBookingRow, WorkspaceContext } from "./booking-workspace-types";
 
@@ -61,8 +63,10 @@ type ActionFn = BookingActionFn;
 type BookingsWorkspaceProps = {
   workspaceContext: WorkspaceContext;
   viewerRole: string;
+  branchId?: string;
   branchName?: string;
   branches?: Branch[];
+  initialOptimizationSummary?: TieredCrmOperationsSummary | null;
   date: string;
   businessDate?: string;
   statusFilter?: string;
@@ -307,8 +311,10 @@ function WorkflowTabBar({
 export function BookingsWorkspace({
   workspaceContext,
   viewerRole,
+  branchId,
   branchName,
   branches,
+  initialOptimizationSummary = null,
   date,
   businessDate,
   statusFilter,
@@ -434,7 +440,9 @@ export function BookingsWorkspace({
         key={initialQuickFilter === "upcoming" ? "upcoming" : "daily"}
         workspaceContext={workspaceContext}
         viewerRole={viewerRole}
+        branchId={branchId}
         branches={branches}
+        initialOptimizationSummary={initialOptimizationSummary}
         date={date}
         businessDate={businessDate}
         statusFilter={statusFilter}
@@ -462,6 +470,9 @@ export function BookingsWorkspace({
       />
     );
   }
+
+  const selectedBookingId =
+    searchParams.get("bookingId") ?? searchParams.get("highlight") ?? initialSelectedId;
 
   return (
     <div className="crm-fade-up grid gap-5">
@@ -562,6 +573,25 @@ export function BookingsWorkspace({
           ) : null}
         </div>
       </header>
+
+      {isCrm && referenceSource !== "master_sheet" && initialQuickFilter !== "upcoming" ? (
+        <div className="space-y-2.5">
+          <CrmOperationsAssistantBar
+            initialSummary={initialOptimizationSummary}
+            branchId={branchId}
+            date={date}
+            surface="bookings"
+            selectedBookingId={selectedBookingId}
+            onSelectBooking={(bookingId) => {
+              const sp = new URLSearchParams();
+              if (date) sp.set("date", date);
+              sp.set("bookingId", bookingId);
+              router.replace(`/crm/bookings?${sp.toString()}`);
+            }}
+            onAfterMutation={onRefresh ?? onBookingsChanged}
+          />
+        </div>
+      ) : null}
 
       <form method="get" className="grid gap-3">
         {referenceSource === "master_sheet" ? (
