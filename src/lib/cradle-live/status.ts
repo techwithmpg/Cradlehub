@@ -72,7 +72,7 @@ export function resolveVerifiedPresence(rows: AttendanceEvidence[]): {
 }
 
 export function isActualTreatment(booking: CradleFlowBooking): boolean {
-  return Boolean(booking.session_started_at && !booking.session_completed_at &&
+  return Boolean(booking.session_started_at && !isServiceCompleted(booking) &&
     !['completed', 'cancelled', 'no_show', 'expired'].includes(booking.status));
 }
 
@@ -187,8 +187,8 @@ export function resolveRoomStatus(params: {
     booking.type !== 'home_service' && booking.delivery_type !== 'home_service');
   const occupiedLines = current.filter((booking) => booking.session_started_at && !booking.session_completed_at &&
     !['cancelled', 'no_show', 'expired', 'completed'].includes(booking.status));
-  const allocatedLines = current.filter((booking) => booking.booking_date === params.date && bookingBlocksAvailability(booking, now) &&
-    isTimeWithinScheduleWindows(params.time, [{ shiftType: 'single', startTime: booking.start_time, endTime: booking.end_time }]));
+  const allocatedLines = current.filter((booking) => bookingBlocksAvailability(booking, now) &&
+    isWithinDatedWindows({ nowTime: `${params.date}T${params.time}`, scheduleDate: booking.booking_date, windows: [{ startTime: booking.start_time, endTime: booking.end_time }] }));
   const occupied = occupiedLines.length;
   const reserved = allocatedLines.length;
   const used = new Set([...occupiedLines, ...allocatedLines].map((booking) => booking.id)).size;

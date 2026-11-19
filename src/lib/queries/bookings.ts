@@ -557,16 +557,20 @@ export async function getMyBookings(staffId: string, date: string) {
 export async function getTodaysSchedule(
   branchId: string,
   date: string,
-  client?: SupabaseJsClient<Database>
+  client?: SupabaseJsClient<Database>,
+  includeOpenTreatments = false
 ) {
   const supabase = client ?? (await createClient());
-  return loadBookingRows(supabase, TODAY_SCHEDULE_SELECT_VARIANTS, async (select) => {
-    const result = await supabase
-      .from("bookings")
-      .select(select)
-      .eq("branch_id", branchId)
-      .eq("booking_date", date)
-      .order("start_time");
+  const variants = includeOpenTreatments
+    ? TODAY_SCHEDULE_SELECT_VARIANTS.filter(v => v.select.includes("session_started_at"))
+    : TODAY_SCHEDULE_SELECT_VARIANTS;
+  return loadBookingRows(supabase, variants, async (select) => {
+    const query = supabase.from("bookings").select(select, includeOpenTreatments ? { count: "exact" } : {}).eq("branch_id", branchId);
+    const scoped = includeOpenTreatments
+      ? query.or(`booking_date.eq.${date},and(booking_date.lt.${date},session_completed_at.gte.${date}T00:00:00+08:00),and(booking_date.lt.${date},session_started_at.not.is.null,session_completed_at.is.null,status.not.in.(completed,cancelled,no_show,expired))`)
+      : query.eq("booking_date", date);
+    const result = await scoped.order("start_time");
+    if (includeOpenTreatments && !result.error && result.count !== result.data?.length) throw new Error("Wallboard schedule incomplete");
     return result as QueryResult<TodayScheduleRow>;
   });
 }

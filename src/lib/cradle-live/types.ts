@@ -14,6 +14,7 @@ export type LiveBooking = {
   dueAt: string | null;
   startedAt: string | null;
   durationMinutes: number | null;
+  group?: boolean;
   source: string | null;
   attention: string[];
   amountDue: number | null;
@@ -29,6 +30,8 @@ export type LiveStaff = {
   detail: string;
   presence: VerifiedPresence;
   schedule: string;
+  queuePosition?: number | null;
+  onDuty?: boolean;
   checkedInAt: string | null;
   checkedOutAt: string | null;
   attention: string | null;
@@ -53,6 +56,12 @@ export type LiveAttendance = {
 };
 export type LiveTrip = {
   id: string;
+  bookingId?: string;
+  routeKey?: string;
+  therapist?: string | null;
+  destination?: string;
+  destinationPoint?: { lat: number; lng: number } | null;
+  accuracyMeters?: number | null;
   driver: string | null;
   status: string;
   lastLocationAt: string | null;
@@ -60,7 +69,7 @@ export type LiveTrip = {
   lng: number | null;
   // Minimal map marker data; intentionally excludes customer name, phone, address, token.
 };
-export type LiveIssue = { id: string; title: string; severity: 'critical' | 'warning' | 'info'; href: string; category: string };
+export type LiveIssue = { id: string; title: string; severity: 'critical' | 'warning' | 'info'; href: string; category: string; at?: string };
 export type LiveEvent = { id: string; at: string; title: string; detail: string };
 export type LiveCashDrawer = { openCount: number; openedAt: string | null; custodian: string | null };
 export type LiveExpenses = { count: number; amount: number };
@@ -68,6 +77,8 @@ export type LiveRosterSummary = { scheduledToday: number; present: number; freeN
 export type LiveBoardData = {
   scenario?: 'fixture';
   branch: string;
+  branchId?: string;
+  outstanding?: number | null;
   businessDate: string;
   refreshedAt: string;
   bookings: LiveBooking[] | null;

@@ -85,6 +85,11 @@ describe('Cradle Live room capacity', () => {
     expect(roomStatus(3, [roomBooking(), roomBooking({ id: 'line-2' })])).toMatchObject({ state: 'partially_available', occupied: 2, available: 1 });
     expect(roomStatus(3, [roomBooking(), roomBooking({ id: 'line-2' }), roomBooking({ id: 'line-3' })])).toMatchObject({ state: 'full', occupied: 3, available: 0 });
   });
+  it('reserves an overnight room through midnight, and keeps an overdue treatment occupied', () => {
+    const line = roomBooking({ booking_date: '2026-10-25', start_time: '23:30:00', end_time: '01:00:00', session_started_at: null });
+    expect(resolveRoomStatus({id: line.resource_id!, capacity: 1, isActive: true, bookings: [line], turnover: null, date: '2026-10-26', time: '00:30:00'}).available).toBe(0);
+    expect(roomStatus(1, [{...line, session_started_at:'2026-10-25T15:30:00Z'}]).occupied).toBe(1);
+  });
   it('keeps future reservations distinct from current occupancy', () => {
     expect(roomStatus(1, [roomBooking({ start_time: '13:00:00', end_time: '14:00:00', session_started_at: null })])).toMatchObject({ state: 'ready', occupied: 0 });
     expect(roomStatus(2, [

@@ -10,6 +10,7 @@ import { isValidGeoPoint, type GeoPoint } from "@/lib/dispatch/route-eta";
 
 const routeRequestSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  expectedBranchId: z.string().uuid().optional(),
   driverId: z.string().trim().min(1).max(120),
   origin: z
     .object({
@@ -52,7 +53,7 @@ export async function getCrmDriverRouteAction(
   }
 
   const context = await getAttendanceActionContext();
-  if (!context || !context.branchId || !canAccessCrmWorkspace(context.role)) {
+  if (!context || !context.branchId || (parsed.data.expectedBranchId && parsed.data.expectedBranchId !== context.branchId) || !canAccessCrmWorkspace(context.role)) {
     return {
       ok: false,
       code: "UNAUTHORIZED",

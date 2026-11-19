@@ -6,12 +6,14 @@ import { isTimingOnlyAttendanceException } from '@/lib/attendance/attendance-exc
 import { getCrmTodayOperationalData } from '@/lib/queries/crm-today-operational';
 import { getCrmAvailabilitySnapshot } from '@/lib/queries/crm-availability';
 import { getDailySchedule } from '@/lib/queries/schedule';
-import { getActiveTripsForOpsMap } from '@/lib/actions/live-ops-actions';
-import { getCradleFlowBalance } from '@/lib/crm/cradle-flow';
+import { getDispatchData } from '@/lib/queries/dispatch-queries';
+import { buildLiveMapDriversViewModel } from '@/lib/dispatch/crm-live-map-model';
+import { getTodayQueuePosition } from '@/lib/assignments/recommendation-engine';
+import { getCradleFlowBalance, getCradleFlowServiceRecipientName } from '@/lib/crm/cradle-flow';
 import { getCradleFlowAttention, isHomeServiceVisit } from '@/components/features/crm/today/cradle-flow-display';
 import { createClient } from '@/lib/supabase/server';
-import type { LiveBoardData, LiveBooking, LiveRoom, LiveEvent, LiveCashDrawer, LiveExpenses, LiveIssue } from './types';
-import { resolveLiveStage, resolveRoomStatus, resolveTherapistStatus, resolveVerifiedPresence, type AttendanceEvidence } from './status';
+import type { LiveBoardData, LiveBooking, LiveStaff, LiveRoom, LiveEvent, LiveCashDrawer, LiveExpenses, LiveIssue } from './types';
+import { isActualTreatment, isWithinDatedWindows, resolveLiveStage, resolveRoomStatus, resolveTherapistStatus, resolveVerifiedPresence, type AttendanceEvidence } from './status';
 import { isTimeWithinScheduleWindows } from '@/lib/schedule/resolve-staff-schedule';
 import { findUnscheduledProviderConflicts, selectScheduledProviders, summarizeScheduledRoster } from './roster';
 import { buildOperationsIssues, type OperationalStaffMember } from '@/lib/operations-center/issue-model';
@@ -19,7 +21,7 @@ import type { AttendanceException } from '@/lib/attendance/types';
 
 type LiveAttendanceRow = AttendanceEvidence & { id: string; shift_date: string | null; attendance_business_date: string | null };
 type LiveCashSessionRow = { id: string; opened_at: string; current_custodian_id: string | null; opened_by: string };
-type LiveExpenseTransaction = { id: string; financial_account_movements: Array<{ amount: number | string }> | null };
+type LiveExpenseTransaction = { id: string; transaction_type: string; financial_account_movements: Array<{ amount: number | string }> | null };
 type LiveIdentityRow = {
   id: string; full_name: string; nickname: string | null; phone: string | null;
   system_role: string; staff_type: string; tier: string | null; is_active: boolean;
@@ -39,11 +41,11 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
   const now = new Date(refreshedAt);
   const nowTime = `${date}T${getBranchClockTime(now, BRANCH_TIMEZONE)}`;
   const errors: string[] = [];
-  const [opsResult, staffResult, previousScheduleResult, tripResult, attendanceResult, exceptionResult, identityResult, cashResult, expenseResult] = await Promise.allSettled([
-    getCrmTodayOperationalData({ branchId, date }),
+  const [opsResult, staffResult, previousScheduleResult, tripResult, attendanceResult, exceptionResult, identityResult, cashResult, expenseResult, optimizerResult] = await Promise.allSettled([
+    getCrmTodayOperationalData({ branchId, date, includeOpenTreatments: true }),
     getCrmAvailabilitySnapshot({ branchId, date }),
     getDailySchedule({ branchId, date: previousDate }),
-    getActiveTripsForOpsMap(),
+    getDispatchData({ branchId, date, scope: "active_map", throwOnError: true }),
     (async () => {
       const db = await createClient();
       const result = await db.from('staff_shift_checkins')
@@ -96,15 +98,22 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
     (async () => {
       const db = await createClient();
       const result = await db.from('financial_transactions')
-        .select('id,financial_account_movements(amount)', { count: 'exact' })
+        .select('id,transaction_type,financial_account_movements(amount)', { count: 'exact' })
         .eq('branch_id', branchId).eq('business_date', date)
-        .eq('status', 'posted').eq('transaction_type', 'operational_expense');
+        .eq('status', 'posted').in('transaction_type', ['operational_expense', 'customer_payment', 'customer_deposit']);
       if (result.error || result.count == null || result.count !== result.data?.length) throw new Error('Expense feed incomplete');
       const rows = (result.data ?? []) as LiveExpenseTransaction[];
-      if (rows.some(tx => (tx.financial_account_movements ?? []).some(movement => !Number.isFinite(Number(movement.amount))))) {
+      if (rows.some(tx => !tx.financial_account_movements?.length || tx.financial_account_movements.some(movement => !Number.isFinite(Number(movement.amount))))) {
         throw new Error('Expense amount unavailable');
       }
       return rows;
+    })(),
+    (async () => {
+      const db = await createClient();
+      const result = await db.from('workflow_tasks').select('id,title,priority,action_href,created_at', { count: 'exact' })
+        .eq('branch_id', branchId).eq('workspace_scope', 'crm').eq('task_type', 'optimization_conflict').in('status', ['open', 'in_progress']);
+      if (result.error || result.count !== result.data?.length) throw new Error('Scheduling alerts unavailable');
+      return result.data ?? [];
     })(),
   ]);
 
@@ -116,7 +125,12 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
   const exceptions = exceptionResult.status === 'fulfilled' ? exceptionResult.value : null;
   const identityStaff = identityResult.status === 'fulfilled' ? identityResult.value : null;
   const cashSessions = cashResult.status === 'fulfilled' ? cashResult.value : null;
-  const expenseTransactions = expenseResult.status === 'fulfilled' ? expenseResult.value : null;
+  const movements = expenseResult.status === 'fulfilled' ? expenseResult.value : null;
+  const expenseTransactions = movements?.filter(tx => tx.transaction_type === 'operational_expense') ?? null;
+  if (optimizerResult.status === 'rejected') errors.push('Scheduling alerts unavailable');
+  if (tripsRaw?.transportError) errors.push('Transport journey status unavailable');
+  if (!ops?.snapshot.payment) errors.push('Outstanding balance unavailable');
+  if (!movements) errors.push('Posted collections unavailable');
   if (!ops) errors.push('Booking and collection data unavailable');
   if (!availability) errors.push('Staff presence data unavailable');
   if (!previousSchedule) errors.push('Overnight schedule data unavailable');
@@ -128,15 +142,23 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
   if (!expenseTransactions) errors.push('Expense summary unavailable');
   if (ops && !ops.readinessAvailable) errors.push('Operational issue feed unavailable');
 
+  const guests = new Map<string, Set<string>>();
+  for (const line of ops?.queueData ?? []) {
+    if (!line.order_id || !line.attendee_id) continue;
+    const attendees = guests.get(line.order_id) ?? new Set<string>();
+    attendees.add(line.attendee_id);
+    guests.set(line.order_id, attendees);
+  }
   const bookings: LiveBooking[] | null = ops
-    ? ops.queueData.filter(b => b.booking_date >= date && resolveLiveStage(b) !== null).map(b => {
+    ? ops.queueData.filter(b => (b.booking_date >= date || isActualTreatment(b) || (b.session_completed_at && getBranchBusinessDate(new Date(b.session_completed_at)) === date)) && resolveLiveStage(b) !== null).map(b => {
         const stage = resolveLiveStage(b)!;
         const isToday = b.booking_date === date;
         return {
           id: b.id,
           date: b.booking_date,
           time: b.start_time,
-          name: b.customer_name ?? 'Guest',
+          name: getCradleFlowServiceRecipientName(b),
+          group: (guests.get(b.order_id ?? '')?.size ?? 0) > 1,
           service: b.service_name ?? 'Service',
           therapist: b.staff_name,
           room: b.resource_name,
@@ -182,21 +204,36 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
   const liveBookings = bookings?.map(booking => unscheduledBookingIds.has(booking.id)
     ? { ...booking, attention: ['Therapist schedule needs review', ...booking.attention].slice(0, 3) }
     : booking) ?? null;
+  const dispatch = tripsRaw && buildLiveMapDriversViewModel({ items: tripsRaw.items.filter(b => b.bookingDate <= date || b.travelStartedAt || b.sessionStartedAt), transportJourneys: tripsRaw.transportJourneys, nowMs: now.getTime() });
+  const committed = new Set((tripsRaw?.transportJourneys ?? [])
+    .filter(({journey}) => journey.stage !== 'complete' && journey.stage !== 'pickup_pending')
+    .map(({journey}) => journey.therapistId));
+  for (const driver of dispatch?.drivers ?? []) {
+    for (const stop of driver.stops) {
+      if (!['Awaiting Travel','Completed'].includes(stop.statusLabel)) committed.add(stop.therapistId);
+    }
+  }
+  const checkins = (attendance ?? []).map(row => ({
+    ...row, shift_date: row.shift_date ?? row.attendance_business_date ?? '', branch_id: branchId, attendance_status: null, shift_type: null,
+  }));
   const staff = scheduledEntries && attendance && exceptions ? scheduledEntries
-    .map(({ person, scheduleDate }) => {
+    .map<LiveStaff>(({ person, scheduleDate }) => {
       const verified = resolveVerifiedPresence(attendanceForDate(person.staff_id, scheduleDate));
       const needsReview = hasAttendanceReview(person.staff_id, scheduleDate);
       const presence = needsReview ? 'needs_review' as const : verified.state;
       const resolved = resolveTherapistStatus({ person, presence, bookings: ops?.queueData ?? [], nowTime, scheduleDate, now });
-      const state = ops || resolved.state !== 'free_now' ? resolved.state : 'status_unavailable';
+      const workUnknown = !ops || !tripsRaw || Boolean(tripsRaw.transportError);
+      const state = resolved.state !== 'free_now' ? resolved.state : workUnknown ? 'status_unavailable' : committed.has(person.staff_id) ? 'on_home_service' : 'free_now';
       return {
         id: person.staff_id,
         name: person.staff_name,
         type: person.staff_type,
         status: state,
         state,
-        detail: !ops && resolved.state === 'free_now' ? 'Work feed unavailable' : resolved.detail,
-        presence: verified.state,
+        detail: state === 'status_unavailable' && workUnknown ? 'Work feed unavailable' : state === 'on_home_service' ? 'Home-service commitment' : resolved.detail,
+        presence,
+        onDuty: presence === 'present' && isWithinDatedWindows({ nowTime, scheduleDate, windows: person.shifts.map(shift => ({startTime: shift.start_time, endTime: shift.end_time})) }),
+        queuePosition: state === 'free_now' ? getTodayQueuePosition(person.staff_id, scheduleDate, checkins) : null,
         schedule: `${person.work_start ?? '?'}–${person.work_end ?? '?'}${scheduleDate !== date ? ' · overnight' : ''}`,
         checkedInAt: verified.checkedInAt,
         checkedOutAt: verified.checkedOutAt,
@@ -236,26 +273,20 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
       (movementTotal: number, movement: { amount: number | string }) => movementTotal + Math.max(0, -Number(movement.amount)), 0), 0),
   } : null;
 
-  // The CRM queue uses the branch business date. The map action uses its own
-  // date and can swallow failures, so it supplies positions but not trip truth.
-  const activeHomeService = ops?.queueData.filter(b => isHomeServiceVisit(b) &&
-    ['travel_started', 'arrived', 'session_started'].includes(b.booking_progress_status ?? '') &&
-    !b.session_completed_at && !['completed', 'cancelled', 'no_show', 'expired'].includes(b.status));
-  if (tripsRaw === null || (activeHomeService?.length && tripsRaw.length < activeHomeService.length)) {
-    errors.push('Some Home Service positions need verification');
-  }
-  const markers = new Map((tripsRaw ?? []).map(t => [t.id, t]));
-  const trips = activeHomeService ? activeHomeService.map(b => {
-    const marker = markers.get(b.id);
+
+  const trips = dispatch?.drivers.map(driver => {
+    const stop = driver.nextStop;
     return {
-      id: b.id,
-      driver: b.driver_name ?? marker?.driver_name ?? null,
-      status: b.booking_progress_status ?? b.status,
-      lastLocationAt: b.last_location_at ?? marker?.location?.recorded_at ?? null,
-      lat: marker?.location?.lat ?? null,
-      lng: marker?.location?.lng ?? null,
+      id: driver.driverKey, bookingId: stop?.bookingId, routeKey: driver.routeKey,
+      driver: driver.driverName, status: driver.currentStatusLabel,
+      therapist: [...new Set(driver.therapists.map(t => t.name))].join(', '),
+      destination: stop?.stopKind === 'return' ? branchName : stop?.stopKind === 'pickup' ? 'Pickup point' : 'Service destination',
+      destinationPoint: stop?.hasAuthorizedDestination && stop.lat != null && stop.lng != null ? { lat: stop.lat, lng: stop.lng } : null,
+      lastLocationAt: driver.location?.recordedAt ?? null,
+      accuracyMeters: driver.location?.accuracyMeters ?? null,
+      lat: driver.location?.lat ?? null, lng: driver.location?.lng ?? null,
     };
-  }) : null;
+  }) ?? null;
 
   // Only read configured rooms and their active utility turnover tasks; no write,
   // status repair, room-ready mutation, or fabrication of 'ready' without authority.
@@ -273,7 +304,7 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
         .order('created_at', { ascending: false }),
       db.from('bookings')
         .select('id,resource_id,booking_date,start_time,end_time,status,hold_expires_at,session_started_at,session_completed_at,type,delivery_type', { count: 'exact' })
-        .eq('branch_id', branchId).gte('booking_date', previousDate)
+        .eq('branch_id', branchId).or(`booking_date.gte.${previousDate},and(session_started_at.not.is.null,session_completed_at.is.null,status.not.in.(completed,cancelled,expired,no_show))`)
         .lte('booking_date', date).not('resource_id', 'is', null),
     ]);
     if ([resourceResult, turnoverResult, bookingResult].some(result => result.error || result.count == null || result.count !== result.data?.length)) {
@@ -308,6 +339,22 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
   const conflictingSchedules = availability?.staff.filter(person =>
     person.is_service_provider && !person.is_driver && person.scheduleStatus === 'conflict').length ?? null;
   const issueRows: LiveIssue[] = [
+    ...(optimizerResult.status === 'fulfilled' ? optimizerResult.value.map(task => ({
+      id: `optimizer:${task.id}`, title: task.title, severity: task.priority === 'critical' ? 'critical' as const : 'warning' as const,
+      at: task.created_at, category: 'schedule', href: task.action_href?.startsWith('/crm/') ? task.action_href : '/crm/today',
+    })) : []),
+    ...(dispatch?.unassignedBookings ?? []).map(trip => ({
+      id: `dispatch:${trip.id}`, title: 'Home service needs a driver', severity: 'warning' as const, category: 'dispatch',
+      href: `/crm/dispatch?view=map&bookingId=${encodeURIComponent(trip.id)}`,
+    })),
+    ...(dispatch?.drivers ?? []).filter(driver => driver.reliability.isStale).map(driver => ({
+      id: `gps:${driver.driverKey}`, title: `${driver.driverName} · ${driver.reliability.label}`, severity: 'warning' as const,
+      category: 'dispatch', href: '/crm/dispatch?view=map',
+    })),
+    ...(liveBookings ?? []).filter(b => b.stage === 'in_service' && b.dueAt && Date.parse(b.dueAt) < now.getTime()).map(b => ({
+      id: `overrun:${b.id}`, title: `${b.service} · treatment overdue`, at: b.dueAt!, severity: 'critical' as const,
+      category: 'service', href: `/crm/bookings?bookingId=${encodeURIComponent(b.id)}`,
+    })),
     ...(ops?.readinessAvailable ? ops.readinessIssues.filter(x => x.severity !== 'success' && (availability == null || x.scope !== 'schedule')).map(x => ({
       id: `readiness:${x.id}`, title: x.title, severity: x.severity as LiveIssue['severity'], category: x.scope,
       href: typeof x.actionHref === 'string' && x.actionHref.startsWith('/crm/') ? x.actionHref : '/crm/operations-center',
@@ -333,11 +380,11 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
     })),
     ...(liveBookings ?? []).filter(booking => booking.date === date && booking.attention.length > 0).map(booking => ({
       id: `booking:${booking.id}`, title: `${booking.service}: ${booking.attention[0]}`,
-      severity: 'warning' as const, category: 'booking', href: '/crm/today?filter=needs_action',
+      severity: 'warning' as const, category: 'booking', href: `/crm/bookings?bookingId=${encodeURIComponent(booking.id)}`,
     })),
   ];
   const severityRank = { critical: 0, warning: 1, info: 2 };
-  const issues = ops?.readinessAvailable || availability || exceptions || identityStaff || rooms || unscheduledConflicts.length
+  const issues = issueRows.length || ops?.readinessAvailable || availability || exceptions || identityStaff || rooms || unscheduledConflicts.length
     ? [...new Map(issueRows.map(issue => [issue.id, issue])).values()].sort((a, b) =>
         severityRank[a.severity] - severityRank[b.severity] || a.title.localeCompare(b.title))
     : null;
@@ -351,12 +398,13 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
   }).sort((a,b) => b.at.localeCompare(a.at)).slice(0, 5) : null;
 
   return {
-    branch: branchName,
+    branch: branchName, branchId,
     businessDate: date,
     refreshedAt,
     bookings: liveBookings,
     summaryTotal: ops?.snapshot.bookingSummary.total ?? null,
-    collectionToday: ops?.snapshot.payment?.total_collected ?? null,
+    outstanding: ops?.snapshot.payment?.total_unpaid ?? null,
+    collectionToday: movements?.filter(tx => tx.transaction_type !== 'operational_expense').reduce((sum, tx) => sum + (tx.financial_account_movements ?? []).reduce((total, m) => total + Math.max(0, Number(m.amount)), 0), 0) ?? null,
     cashDrawer,
     expenses,
     staff,

@@ -4,6 +4,7 @@ import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LiveBoardData } from '@/lib/cradle-live/types';
 
+vi.mock('@/lib/actions/dispatch-live-map-actions', () => ({ getCrmDriverRouteAction: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('next/link', () => ({ default: ({ href, children, ...props }: React.PropsWithChildren<{ href: string }>) => <a href={href} {...props}>{children}</a> }));
 vi.mock('next/dynamic', () => ({ default: () => () => null }));

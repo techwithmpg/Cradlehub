@@ -31,10 +31,10 @@ export function createPopulatedCradleLiveFixture(branchName: string, now = new D
       time: '07:30:00', therapist: 'Sample Therapist D', room: 'Room C', paymentRef: 'sample-order-f' },
   ];
   const staff: LiveStaff[] = [
-    { id: 'sample-staff-a', name: 'Sample Therapist A', type: 'therapist', status: 'free_now', state: 'free_now',
+    { id: 'sample-staff-a', name: 'Sample Therapist A', type: 'therapist', status: 'free_now', queuePosition: 1, onDuty: true, state: 'free_now',
       detail: 'Present · In working hours', presence: 'present', schedule: '09:00–18:00',
       checkedInAt: iso(-90), checkedOutAt: null, attention: null },
-    { id: 'sample-staff-b', name: 'Sample Therapist B', type: 'therapist', status: 'in_service', state: 'in_service',
+    { id: 'sample-staff-b', name: 'Sample Therapist B', type: 'therapist', status: 'in_service', onDuty: true, state: 'in_service',
       detail: 'Spa · Room B', presence: 'present', schedule: '09:00–18:00',
       checkedInAt: iso(-95), checkedOutAt: null, attention: null },
     { id: 'sample-staff-c', name: 'Sample Therapist C', type: 'therapist', status: 'starts_later', state: 'starts_later',
