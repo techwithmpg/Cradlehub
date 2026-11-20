@@ -80,3 +80,9 @@ Resolve the baseline build and test gates under their owning scopes, verify rema
 ### Concurrent local-main advancement
 
 After the reviewed implementation, local main advanced independently to `d48da20f9d3035daedbf165abd409353bf238d2b`; remote main remained at the original base. The newer local changes include fixes for both baseline TypeScript errors, changes to the CRM realtime bridge, and updated optimization workflows. `git merge-tree --write-tree HEAD main` succeeded without conflicts. That check did not update either branch or execute the combined application. The running reviewed stage and its evidence use the original base. Reconcile and retest against the newer local main before an integration decision.
+
+### November 20 integration verification
+
+The owner authorized merging both remaining local branches and the six pending CRM and dashboard edits into main and pushing to origin. Integration started from `e15a2c53`. The driver O4 merge retains the hardened implementation already incorporated in `1e675fa9` and its subsequent fixes. The Cradle Live merge incorporates `6df8058c`. Station controls use the selected front-desk branch on desktop and mobile. CRM Today retains its existing schedule call and response fields when the wallboard's overnight-treatment option is off.
+
+At code commit `28c83c4f`, the local production build passed TypeScript checking and generated 164 of 164 static pages using a loopback database URL. All 57 focused tests passed. A comparison of the 65 failing files from the initial full run against the original main tree identified two new failing tests, both corrected before publication. The final rerun of those files and the focused tests covered 78 files. All 210 remaining failing cases and four suite-load failures also failed on the original main tree with matching error headlines. Live cross-branch and multi-desk acceptance remains open.
