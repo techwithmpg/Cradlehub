@@ -106,7 +106,9 @@ export async function getCrmTodayOperationalData(params: {
     readiness,
     locationMap,
   ] = await Promise.all([
-    getTodaysSchedule(branchId, date, undefined, params.includeOpenTreatments),
+    params.includeOpenTreatments
+      ? getTodaysSchedule(branchId, date, undefined, true)
+      : getTodaysSchedule(branchId, date),
     getCrmPendingBookingQueue(branchId, date, undefined, upcomingBookingEndDate(date)),
     getCrmUpcomingBookings(branchId, date),
     getCrmTodaySnapshot({ branchId, date }),
@@ -290,7 +292,7 @@ export async function getCrmTodayOperationalData(params: {
         ? (resourceNameMap.get(b.resource_id) ?? first(b.branch_resources)?.name ?? null)
         : (first(b.branch_resources)?.name ?? null),
       booking_progress_status: b.booking_progress_status,
-      hold_expires_at: b.hold_expires_at ?? null,
+      ...(params.includeOpenTreatments ? { hold_expires_at: b.hold_expires_at ?? null } : {}),
       checked_in_at: b.checked_in_at ?? null,
       session_started_at: b.session_started_at ?? null,
       session_due_at: b.session_due_at ?? null,
