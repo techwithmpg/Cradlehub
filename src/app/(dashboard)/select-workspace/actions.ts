@@ -26,5 +26,5 @@ export async function openOwnerFrontDeskBranch(formData: FormData): Promise<void
     maxAge: 60 * 60 * 24 * 30,
   });
   revalidatePath("/crm", "layout");
-  redirect("/crm/today");
+  redirect(formData.get("destination") === "live" ? "/crm/live-operations" : "/crm/today");
 }

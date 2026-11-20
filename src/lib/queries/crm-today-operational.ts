@@ -61,6 +61,8 @@ type BookingRow = {
   booking_progress_status?: string;
   checked_in_at?: string | null;
   session_started_at?: string | null;
+  hold_expires_at?: string | null;
+  session_duration_minutes_snapshot?: number | null;
   session_due_at?: string | null;
   session_completed_at?: string | null;
   created_at?: string | null;
@@ -90,6 +92,7 @@ export type CrmTodayOperationalData = {
 export async function getCrmTodayOperationalData(params: {
   branchId: string;
   date?: string;
+  includeOpenTreatments?: boolean;
 }): Promise<CrmTodayOperationalData> {
   const { branchId } = params;
   const date = params.date ?? getBranchBusinessDate();
@@ -103,7 +106,7 @@ export async function getCrmTodayOperationalData(params: {
     readiness,
     locationMap,
   ] = await Promise.all([
-    getTodaysSchedule(branchId, date),
+    getTodaysSchedule(branchId, date, undefined, params.includeOpenTreatments),
     getCrmPendingBookingQueue(branchId, date, undefined, upcomingBookingEndDate(date)),
     getCrmUpcomingBookings(branchId, date),
     getCrmTodaySnapshot({ branchId, date }),
@@ -278,7 +281,7 @@ export async function getCrmTodayOperationalData(params: {
       customer_name: first(b.customers)?.full_name ?? null,
       customer_phone: first(b.customers)?.phone ?? null,
       service_name: first(b.services)?.name ?? null,
-      service_duration: first(b.services)?.duration_minutes ?? null,
+      service_duration: (params.includeOpenTreatments ? b.session_duration_minutes_snapshot : null) ?? first(b.services)?.duration_minutes ?? null,
       staff_name: first(b.staff) ? (first(b.staff)!.nickname?.trim() || first(b.staff)!.full_name?.trim() || getStaffAdminName(first(b.staff)!)) : null,
       staff_id: first(b.staff)?.id ?? null,
       requested_staff_id: b.requested_staff_id ?? null,
@@ -287,6 +290,7 @@ export async function getCrmTodayOperationalData(params: {
         ? (resourceNameMap.get(b.resource_id) ?? first(b.branch_resources)?.name ?? null)
         : (first(b.branch_resources)?.name ?? null),
       booking_progress_status: b.booking_progress_status,
+      hold_expires_at: b.hold_expires_at ?? null,
       checked_in_at: b.checked_in_at ?? null,
       session_started_at: b.session_started_at ?? null,
       session_due_at: b.session_due_at ?? null,

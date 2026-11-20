@@ -4,6 +4,7 @@ export type CradleFlowStage = "waiting" | "in_service" | "ready_to_pay" | "compl
 
 export type CradleFlowBooking = ControlBooking & {
   booking_date: string;
+  hold_expires_at?: string | null;
   order_id?: string | null;
   attendee_id?: string | null;
   booking_attendees?:
