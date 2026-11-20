@@ -8,7 +8,7 @@ const WORKSPACE_LABEL: Record<string, string> = {
   owner: "Owner Workspace",
   marketing: "Marketing Workspace",
   manager: "Manager Workspace",
-  crm: "Front Desk Workspace",
+  crm: "Front Desk",
   staff: "Staff Workspace",
   driver: "Driver Workspace",
   utility: "Utility Workspace",
@@ -50,6 +50,7 @@ export function WorkspaceBreadcrumb({ role }: { role: string }) {
   const workspaceLabel = WORKSPACE_LABEL[workspaceKey] ?? "Dashboard";
   const roleLabel = ROLE_LABEL[canonicalRole] ?? canonicalRole;
   const accent = ROLE_ACCENT[canonicalRole] ?? "var(--cs-sand)";
+  const isCrmRoute = pathname.startsWith("/crm");
 
   return (
     <div
@@ -58,15 +59,15 @@ export function WorkspaceBreadcrumb({ role }: { role: string }) {
         alignItems: "center",
         gap: 8,
         minWidth: 0,
-        flex: "1 1 auto",
+        flex: isCrmRoute ? "0 0 auto" : "1 1 auto",
         paddingLeft: 40,
       }}
       className="md:pl-0"
     >
       <div
         style={{
-          width: 6,
-          height: 6,
+          width: 7,
+          height: 7,
           borderRadius: "50%",
           background: accent,
           flexShrink: 0,
@@ -75,7 +76,7 @@ export function WorkspaceBreadcrumb({ role }: { role: string }) {
       <span
         style={{
           fontSize: 13,
-          fontWeight: 500,
+          fontWeight: 600,
           color: "var(--cs-text)",
           fontFamily: "var(--cs-font-body)",
           minWidth: 0,
@@ -86,16 +87,18 @@ export function WorkspaceBreadcrumb({ role }: { role: string }) {
       >
         {workspaceLabel}
       </span>
-      <span
-        className="hidden lg:inline"
-        style={{
-          fontSize: 11,
-          color: "var(--cs-text-muted)",
-          whiteSpace: "nowrap",
-        }}
-      >
-        · {roleLabel}
-      </span>
+      {!isCrmRoute ? (
+        <span
+          className="hidden lg:inline"
+          style={{
+            fontSize: 11,
+            color: "var(--cs-text-muted)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          · {roleLabel}
+        </span>
+      ) : null}
     </div>
   );
 }

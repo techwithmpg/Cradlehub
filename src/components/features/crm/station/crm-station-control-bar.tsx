@@ -47,6 +47,7 @@ export function CrmStationControlBar({
   currentStaffId,
   currentStaffName,
   role,
+  variant = "bar",
 }: {
   branchId: string;
   branchName: string;
@@ -54,6 +55,7 @@ export function CrmStationControlBar({
   currentStaffId?: string;
   currentStaffName: string;
   role: string;
+  variant?: "bar" | "header";
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -364,59 +366,80 @@ export function CrmStationControlBar({
     return null;
   }
 
+  // In header mode, only render on /crm/* routes (excluding full-screen live-operations TV)
+  if (variant === "header" && (!pathname.startsWith("/crm") || pathname.startsWith("/crm/live-operations"))) {
+    return null;
+  }
+
   return (
     <>
-      <div className="border-b border-[#E6DFD5] bg-[#FAF8F5] px-4 py-2 text-xs">
-        <div className="mx-auto flex flex-wrap items-center justify-between gap-2">
-          {/* Left: This PC's Bound Station Toggle + Active Station Custodians */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center rounded-lg border border-[#DCD4CA] bg-white p-0.5 shadow-2xs">
+      <div
+        className={
+          variant === "header"
+            ? "flex min-w-0 flex-1 items-center justify-between gap-2"
+            : "border-b border-[#E6DFD5] bg-[#FAF8F5] px-4 py-2 text-xs"
+        }
+      >
+        <div
+          className={
+            variant === "header"
+              ? "flex min-w-0 flex-1 items-center justify-between gap-2"
+              : "mx-auto flex flex-wrap items-center justify-between gap-2"
+          }
+        >
+          {/* Left: Segmented PC Terminal Switcher + Unified Duty Pill */}
+          <div className="flex min-w-0 items-center gap-2">
+            <div
+              role="group"
+              aria-label="Active PC Station Role"
+              className="inline-flex shrink-0 items-center rounded-full border border-[#E2DDD5] bg-[#F7F4EF] p-0.5 shadow-2xs"
+            >
               <button
                 type="button"
                 onClick={() => void handleBindThisPc("intake")}
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-bold transition ${
+                className={`inline-flex h-6.5 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-bold tracking-tight transition ${
                   thisPcStation === "intake"
-                    ? "bg-[#164B36] text-white"
-                    : "text-[#5C5349] hover:bg-[#F5F0E9]"
+                    ? "bg-[#164B36] text-white shadow-2xs"
+                    : "text-[#5C5349] hover:text-[#1E1916]"
                 }`}
                 title="Bind this PC as PC 1: Cradle Intake (Walk-ins, Bookings & Session Tracking)"
               >
-                <Monitor className="size-3" />
-                <span>PC 1: Cradle Intake</span>
+                <Monitor className="size-3 shrink-0" />
+                <span>PC 1 · Intake</span>
               </button>
               <button
                 type="button"
                 onClick={() => void handleBindThisPc("cashier")}
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-bold transition ${
+                className={`inline-flex h-6.5 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-bold tracking-tight transition ${
                   thisPcStation === "cashier"
-                    ? "bg-[#164B36] text-white"
-                    : "text-[#5C5349] hover:bg-[#F5F0E9]"
+                    ? "bg-[#164B36] text-white shadow-2xs"
+                    : "text-[#5C5349] hover:text-[#1E1916]"
                 }`}
                 title="Bind this PC as PC 2: Cashier Station (Payments, Drawer, Boutique POS & Ledger)"
               >
-                <Banknote className="size-3" />
-                <span>PC 2: Cashier Station</span>
+                <Banknote className="size-3 shrink-0" />
+                <span>PC 2 · Cashier</span>
               </button>
             </div>
 
-            <div className="hidden h-4 w-px bg-[#DCD4CA] sm:block" />
-
-            <div className="flex flex-wrap items-center gap-2 text-[11px]">
-              <span className="inline-flex items-center gap-1 rounded-md border border-[#E2DDD5] bg-white px-2 py-1 text-[#3A322B]">
-                <span className="size-1.5 rounded-full bg-emerald-600" />
-                <span className="font-semibold text-[#786D61]">Intake Duty:</span>
-                <strong className="text-[#164B36]">{intakeOperator}</strong>
+            {/* Unified Duty Status Capsule */}
+            <div className="hidden min-w-0 items-center gap-2 rounded-full border border-[#E6DFD5] bg-white px-2.5 py-1 text-[11px] text-[#3A322B] xl:inline-flex">
+              <span className="inline-flex items-center gap-1 truncate">
+                <span className="size-1.5 shrink-0 rounded-full bg-emerald-600" />
+                <span className="text-[#786D61]">Intake:</span>
+                <strong className="font-bold text-[#164B36]">{intakeOperator}</strong>
               </span>
-              <span className="inline-flex items-center gap-1 rounded-md border border-[#E2DDD5] bg-white px-2 py-1 text-[#3A322B]">
-                <span className="size-1.5 rounded-full bg-blue-600" />
-                <span className="font-semibold text-[#786D61]">Cashier Duty:</span>
-                <strong className="text-[#164B36]">{cashierOperator}</strong>
+              <span className="h-3 w-px bg-[#E6DFD5]" aria-hidden="true" />
+              <span className="inline-flex items-center gap-1 truncate">
+                <span className="size-1.5 shrink-0 rounded-full bg-blue-600" />
+                <span className="text-[#786D61]">Cashier:</span>
+                <strong className="font-bold text-[#164B36]">{cashierOperator}</strong>
               </span>
             </div>
           </div>
 
-          {/* Right: Quick Station Actions (Handover Wizard, Day Close Wizard, Lock Screen) */}
-          <div className="flex flex-wrap items-center gap-1.5">
+          {/* Right: Sleek Station Operations Pill Group (Handover, Day Close, Lock) */}
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={() => {
@@ -424,10 +447,11 @@ export function CrmStationControlBar({
                 setHandoverStep(1);
                 setHandoverWizardOpen(true);
               }}
-              className="inline-flex h-7 items-center gap-1 rounded-lg border border-[#164B36]/30 bg-white px-2.5 text-[11px] font-bold text-[#164B36] transition hover:bg-[#EAF5EE]"
+              className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[#D8E5DD] bg-[#F3F8F5] px-2.5 text-[11px] font-bold text-[#164B36] transition hover:border-[#164B36]/40 hover:bg-[#E5F1EA]"
+              title="Open 3-step Station & Shift Handover Wizard"
             >
-              <ArrowLeftRight className="size-3" />
-              <span>Shift Handover</span>
+              <ArrowLeftRight className="size-3 shrink-0" />
+              <span>Handover</span>
             </button>
 
             <button
@@ -437,10 +461,11 @@ export function CrmStationControlBar({
                 setDayCloseStep(1);
                 setDayCloseWizardOpen(true);
               }}
-              className="inline-flex h-7 items-center gap-1 rounded-lg border border-amber-700/30 bg-amber-50/80 px-2.5 text-[11px] font-bold text-amber-950 transition hover:bg-amber-100"
+              className="inline-flex h-7 items-center gap-1.5 rounded-full border border-amber-300/80 bg-amber-50/90 px-2.5 text-[11px] font-bold text-amber-950 transition hover:border-amber-400 hover:bg-amber-100/90"
+              title="Open End-of-Day Close & Drawer Sign-Off Wizard"
             >
-              <ClipboardCheck className="size-3" />
-              <span>Day Close Wizard</span>
+              <ClipboardCheck className="size-3 shrink-0 text-amber-800" />
+              <span>Day Close</span>
             </button>
 
             <button
@@ -450,23 +475,23 @@ export function CrmStationControlBar({
                 window.dispatchEvent(new KeyboardEvent("keydown", { altKey: true, key: "l" }));
               }}
               title="Lock screen in-place (Alt+L) — preserves your current page"
-              className="inline-flex h-7 items-center gap-1 rounded-lg border border-[#DCD4CA] bg-white px-2 text-[11px] font-semibold text-[#5C5349] hover:bg-[#F5F0E9]"
+              className="inline-flex h-7 items-center gap-1 rounded-full border border-[#E2DDD5] bg-white px-2.5 text-[11px] font-semibold text-[#5C5349] transition hover:border-[#C9C1B6] hover:bg-[#FAF8F5] hover:text-[#1E1916]"
             >
-              <Lock className="size-3" />
-              <span className="hidden md:inline">Lock</span>
+              <Lock className="size-3 shrink-0" />
+              <span className="hidden 2xl:inline">Lock</span>
             </button>
           </div>
         </div>
 
-        {/* Automatic Shift-Change Banner when Incoming CRM Staff Clocks In */}
+        {/* Floating Shift-Change Alert Strip below the global top bar */}
         {incomingClockInAlert ? (
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs text-amber-950">
+          <div className="fixed left-1/2 top-[58px] z-40 flex w-[min(92vw,760px)] -translate-x-1/2 flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50/95 px-4 py-2.5 text-xs text-amber-950 shadow-lg backdrop-blur-xs">
             <div className="flex items-center gap-2">
               <AlertTriangle className="size-4 shrink-0 text-amber-700" />
               <span>
-                <strong>Shift Change Detected:</strong> Incoming CRM staff{" "}
+                <strong>Shift Change Detected:</strong>{" "}
                 <strong>{incomingClockInAlert.fullName}</strong> clocked in at{" "}
-                {incomingClockInAlert.clockedInAt}. Please hand over the station so they operate under their own shift session.
+                {incomingClockInAlert.clockedInAt}. Transfer station custody when ready.
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -479,7 +504,7 @@ export function CrmStationControlBar({
                 }}
                 className="rounded-lg bg-[#164B36] px-3 py-1 font-bold text-white hover:bg-[#113A2A]"
               >
-                Start Shift Handover Wizard
+                Start Handover
               </button>
               <button
                 type="button"

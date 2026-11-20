@@ -287,6 +287,7 @@ export function CrmBookingsOperationsGrid({
         if (tab === "upcoming" && state !== "upcoming" && state !== "checked_in") return false;
         if (tab === "in_service" && state !== "in_service") return false;
         if (tab === "completed" && state !== "completed") return false;
+        if (statusFilter === "all" && (state === "cancelled" || state === "no_show")) return false;
         if (statusFilter !== "all" && state !== statusFilter) return false;
         if (serviceFilter !== "all" && firstBookingRelation(candidate.services)?.id !== serviceFilter) return false;
         if (staffFilter !== "all" && candidate.staff_id !== staffFilter) return false;
@@ -361,7 +362,7 @@ export function CrmBookingsOperationsGrid({
               className="h-10 w-full rounded-lg border border-neutral-200 bg-white pl-9 pr-3 text-sm focus-visible:outline-2 focus-visible:outline-emerald-700" />
           </label>
           <select aria-label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-10 rounded-lg border border-neutral-200 bg-white px-2 text-xs">
-            <option value="all">Status</option><option value="upcoming">Scheduled</option><option value="checked_in">Arrived</option><option value="in_service">In Service</option><option value="completed">Completed</option>
+            <option value="all">Status (Active)</option><option value="upcoming">Scheduled</option><option value="checked_in">Arrived</option><option value="in_service">In Service</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No Show</option>
           </select>
           <select aria-label="Services" value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)} className="h-10 w-[86px] rounded-lg border border-neutral-200 bg-white px-2 text-xs">
             <option value="all">Services</option>{services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}

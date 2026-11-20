@@ -6,6 +6,7 @@ import { ChevronDown, HelpCircle, LogOut, Settings, Shuffle, UserRound } from "l
 import { WorkspaceSwitchLink } from "@/components/shared/workspace-switch-link";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { NotificationBell } from "@/components/features/notifications/notification-bell";
+import { CrmStationControlBar } from "@/components/features/crm/station/crm-station-control-bar";
 import { WorkspaceBreadcrumb } from "./workspace-breadcrumb";
 import { WorkspaceReadinessIndicator } from "./workspace-readiness-indicator";
 import type { WorkspaceAccess } from "@/lib/auth/workspace-access";
@@ -15,7 +16,6 @@ async function logoutAction() {
   "use server";
   const supabase = await createClient();
   await supabase.auth.signOut();
-  // Remove the authorized Review payload from the Next client router cache on logout.
   revalidatePath("/crm/master-sheet");
   redirect("/login");
 }
@@ -23,6 +23,9 @@ async function logoutAction() {
 type HeaderProps = {
   role: string;
   userId?: string;
+  staffId?: string;
+  branchId?: string | null;
+  branchName?: string | null;
   fullName: string;
   displayName?: string;
   avatarUrl?: string | null;
@@ -47,6 +50,9 @@ function settingsHref(role: string): string | null {
 export function Header({
   role,
   userId,
+  staffId,
+  branchId,
+  branchName,
   fullName,
   displayName,
   avatarUrl,
@@ -61,7 +67,7 @@ export function Header({
     <header
       data-testid="workspace-header"
       style={{
-        height: 52,
+        height: 54,
         backgroundColor: "var(--cs-surface)",
         borderBottom: "1px solid var(--cs-border-soft)",
         display: "flex",
@@ -72,16 +78,30 @@ export function Header({
         padding: "0 20px",
         position: "sticky",
         top: 0,
-        zIndex: 20,
+        zIndex: 30,
         boxShadow: "var(--cs-shadow-xs)",
       }}
     >
-      {/* Left – workspace breadcrumb */}
-      <WorkspaceBreadcrumb role={role} />
+      {/* Left – compact workspace label + docked CRM station controls */}
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <WorkspaceBreadcrumb role={role} />
+        {branchId ? (
+          <CrmStationControlBar
+            variant="header"
+            branchId={branchId}
+            branchName={branchName ?? "Branch"}
+            currentUserId={userId}
+            currentStaffId={staffId}
+            currentStaffName={headerName}
+            role={role}
+          />
+        ) : null}
+      </div>
 
-      {/* Right – date + user + sign out */}
+      {/* Right – date + readiness + bell + user profile */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <div
+          className="hidden 2xl:block"
           style={{
             fontSize: 11.5,
             color: "var(--cs-text-subtle)",
@@ -95,14 +115,14 @@ export function Header({
           })}
         </div>
 
-        <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
+        <div className="hidden 2xl:block" style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 2px" }} />
 
         <WorkspaceReadinessIndicator
           readiness={readiness ?? null}
           canOpenAdminSetup={settingsDestination === "/crm/setup"}
         />
 
-        <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 4px" }} />
+        <div style={{ width: 1, height: 16, background: "var(--cs-border)", margin: "0 2px" }} />
 
         <NotificationBell
           role={role}
@@ -176,7 +196,7 @@ export function Header({
               href="mailto:support@cradlewellnessliving.com"
             >
               <HelpCircle className="size-4" />
-              Help &amp; Support
+              Help & Support
             </a>
 
             <div className="my-1 h-px bg-[var(--cs-border-soft)]" />

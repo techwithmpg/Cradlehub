@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import { CrmStationControlBar } from "@/components/features/crm/station/crm-station-control-bar";
 import { WorkspaceInactivityGuard } from "@/components/features/crm/station/workspace-inactivity-guard";
 import { getLayoutStaffContext } from "@/lib/queries/staff-context";
 /**
@@ -77,16 +76,6 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           role={frontDesk.role}
         />
       </Suspense>
-      {branchId ? (
-        <CrmStationControlBar
-          branchId={branchId}
-          branchName={branchName}
-          currentUserId={frontDesk.userId}
-          currentStaffId={staffId}
-          currentStaffName={staffDisplayName}
-          role={frontDesk.role}
-        />
-      ) : null}
       {branchId ? <CrmBookingsRealtimeBridge branchId={branchId} /> : null}
       {branchId && frontDesk.role === "crm" && process.env.CRADLEHUB_PENDING_BOOKING_ALERTS_ENABLED === "true" ? (
         <CrmPendingBookingAlert branchId={branchId} userId={frontDesk.userId} />
