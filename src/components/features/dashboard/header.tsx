@@ -6,7 +6,6 @@ import { ChevronDown, HelpCircle, LogOut, Settings, Shuffle, UserRound } from "l
 import { WorkspaceSwitchLink } from "@/components/shared/workspace-switch-link";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { NotificationBell } from "@/components/features/notifications/notification-bell";
-import { CrmStationControlBar } from "@/components/features/crm/station/crm-station-control-bar";
 import { WorkspaceBreadcrumb } from "./workspace-breadcrumb";
 import { WorkspaceReadinessIndicator } from "./workspace-readiness-indicator";
 import type { WorkspaceAccess } from "@/lib/auth/workspace-access";
@@ -23,9 +22,6 @@ async function logoutAction() {
 type HeaderProps = {
   role: string;
   userId?: string;
-  staffId?: string;
-  branchId?: string | null;
-  branchName?: string | null;
   fullName: string;
   displayName?: string;
   avatarUrl?: string | null;
@@ -50,9 +46,6 @@ function settingsHref(role: string): string | null {
 export function Header({
   role,
   userId,
-  staffId,
-  branchId,
-  branchName,
   fullName,
   displayName,
   avatarUrl,
@@ -85,17 +78,7 @@ export function Header({
       {/* Left – compact workspace label + docked CRM station controls */}
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <WorkspaceBreadcrumb role={role} />
-        {branchId ? (
-          <CrmStationControlBar
-            variant="header"
-            branchId={branchId}
-            branchName={branchName ?? "Branch"}
-            currentUserId={userId}
-            currentStaffId={staffId}
-            currentStaffName={headerName}
-            role={role}
-          />
-        ) : null}
+        <div id="crm-station-header" className="flex min-w-0 flex-1 empty:hidden" />
       </div>
 
       {/* Right – date + readiness + bell + user profile */}

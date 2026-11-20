@@ -63,9 +63,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Header
               role={resolvedMe.system_role}
               userId={ctx.user.id}
-              staffId={resolvedMe.id}
-              branchId={branchId}
-              branchName={(resolvedMe.branches as { name: string } | null)?.name ?? null}
               fullName={resolvedMe.full_name}
               displayName={displayName}
               avatarUrl={resolvedMe.avatar_url}

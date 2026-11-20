@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import {
@@ -40,23 +41,43 @@ type ClockedInCrmStaff = {
 const LOCAL_STATION_ROLE_KEY = "cradlehub:pc_station_role";
 const LOCAL_STATION_ASSIGNMENTS_KEY = "cradlehub:branch_station_assignments";
 
-export function CrmStationControlBar({
-  branchId,
-  branchName,
-  currentUserId,
-  currentStaffId,
-  currentStaffName,
-  role,
-  variant = "bar",
-}: {
+type StationControlProps = {
   branchId: string;
   branchName: string;
   currentUserId?: string;
   currentStaffId?: string;
   currentStaffName: string;
   role: string;
-  variant?: "bar" | "header";
-}) {
+};
+
+const desktopHeaderQuery = "(min-width: 768px)";
+
+function subscribeToHeaderVisibility(onChange: () => void) {
+  const media = window.matchMedia(desktopHeaderQuery);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function getStationHeader() {
+  return window.matchMedia(desktopHeaderQuery).matches ? document.getElementById("crm-station-header") : null;
+}
+
+export function CrmStationControlBar(props: StationControlProps) {
+  const pathname = usePathname();
+  if (pathname.startsWith("/crm/live-operations")) return null;
+  return <StationControls {...props} />;
+}
+
+function StationControls({
+  branchId,
+  branchName,
+  currentUserId,
+  currentStaffId,
+  currentStaffName,
+  role,
+}: StationControlProps) {
+  const header = useSyncExternalStore(subscribeToHeaderVisibility, getStationHeader, () => null);
+  const variant = header ? "header" : "bar";
   const pathname = usePathname();
   const router = useRouter();
 
@@ -361,17 +382,7 @@ export function CrmStationControlBar({
     }
   };
 
-  // Hide control bar on full-screen Cradle Live TV display so the TV stays uncluttered
-  if (pathname.startsWith("/crm/live-operations")) {
-    return null;
-  }
-
-  // In header mode, only render on /crm/* routes (excluding full-screen live-operations TV)
-  if (variant === "header" && (!pathname.startsWith("/crm") || pathname.startsWith("/crm/live-operations"))) {
-    return null;
-  }
-
-  return (
+  const controls = (
     <>
       <div
         className={
@@ -892,4 +903,5 @@ export function CrmStationControlBar({
       ) : null}
     </>
   );
+  return header ? createPortal(controls, header) : controls;
 }
