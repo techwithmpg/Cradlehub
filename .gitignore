@@ -109,3 +109,8 @@ docs/service-images/generated-batches/
 # Local git worktrees
 .worktrees/
 
+# Local signed Android release packages (never commit APK binaries)
+/releases/driver-android/
+*.apk
+
+

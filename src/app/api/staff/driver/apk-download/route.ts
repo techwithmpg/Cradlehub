@@ -1,21 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { DriverApiError } from "@/lib/driver/server";
 import {
-  issueDriverApkSignedDownload,
+  issueDriverApkDownloadLink,
   requireDriverApkActor,
   resolveDriverApkReleaseState,
 } from "@/lib/driver/apk-distribution";
 
-const NO_STORE_HEADERS = {
+const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
   "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
 };
 
 function handleError(error: unknown) {
   if (error instanceof DriverApiError) {
     return NextResponse.json(
       { ok: false, code: error.code, error: error.message },
-      { status: error.status, headers: NO_STORE_HEADERS }
+      { status: error.status, headers: PRIVATE_NO_STORE_HEADERS }
     );
   }
   return NextResponse.json(
@@ -24,7 +25,7 @@ function handleError(error: unknown) {
       code: "driver_apk_failed",
       error: "Driver App download request failed.",
     },
-    { status: 500, headers: NO_STORE_HEADERS }
+    { status: 500, headers: PRIVATE_NO_STORE_HEADERS }
   );
 }
 
@@ -34,19 +35,37 @@ export async function GET() {
     const resolved = resolveDriverApkReleaseState();
     return NextResponse.json(
       { ok: true, release: resolved.publicInfo },
-      { status: 200, headers: NO_STORE_HEADERS }
+      { status: 200, headers: PRIVATE_NO_STORE_HEADERS }
     );
   } catch (error) {
     return handleError(error);
   }
 }
 
-export async function POST() {
+export async function POST(request?: NextRequest) {
   try {
-    const signed = await issueDriverApkSignedDownload();
+    if (request) {
+      const origin = request.headers.get("origin");
+      const secFetchSite = request.headers.get("sec-fetch-site");
+      if (
+        (origin && origin !== request.nextUrl.origin) ||
+        secFetchSite === "cross-site"
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "invalid_request_origin",
+            error: "Cross-origin download authorization requests are not permitted.",
+          },
+          { status: 403, headers: PRIVATE_NO_STORE_HEADERS }
+        );
+      }
+    }
+
+    const issued = await issueDriverApkDownloadLink();
     return NextResponse.json(
-      { ok: true, ...signed },
-      { status: 200, headers: NO_STORE_HEADERS }
+      { ok: true, ...issued },
+      { status: 200, headers: PRIVATE_NO_STORE_HEADERS }
     );
   } catch (error) {
     return handleError(error);
