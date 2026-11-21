@@ -149,8 +149,19 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
     attendees.add(line.attendee_id);
     guests.set(line.order_id, attendees);
   }
+  const isCurrentOperationalBooking = (b: (NonNullable<typeof ops>['queueData'])[number]) => {
+    if (b.booking_date === date) return true;
+    if (b.session_completed_at && getBranchBusinessDate(new Date(b.session_completed_at)) === date) return true;
+    // Allow genuine overnight sessions from yesterday only; exclude stale historical rows (> 1 day old)
+    if (b.booking_date === previousDate && isActualTreatment(b)) return true;
+    return false;
+  };
+  const staleUnclosedCount = ops
+    ? ops.queueData.filter(b => b.booking_date < previousDate && isActualTreatment(b)).length
+    : 0;
+
   const bookings: LiveBooking[] | null = ops
-    ? ops.queueData.filter(b => (b.booking_date >= date || isActualTreatment(b) || (b.session_completed_at && getBranchBusinessDate(new Date(b.session_completed_at)) === date)) && resolveLiveStage(b) !== null).map(b => {
+    ? ops.queueData.filter(b => isCurrentOperationalBooking(b) && resolveLiveStage(b) !== null).map(b => {
         const stage = resolveLiveStage(b)!;
         const isToday = b.booking_date === date;
         return {
@@ -204,7 +215,7 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
   const liveBookings = bookings?.map(booking => unscheduledBookingIds.has(booking.id)
     ? { ...booking, attention: ['Therapist schedule needs review', ...booking.attention].slice(0, 3) }
     : booking) ?? null;
-  const dispatch = tripsRaw && buildLiveMapDriversViewModel({ items: tripsRaw.items.filter(b => b.bookingDate <= date || b.travelStartedAt || b.sessionStartedAt), transportJourneys: tripsRaw.transportJourneys, nowMs: now.getTime() });
+  const dispatch = tripsRaw && buildLiveMapDriversViewModel({ items: tripsRaw.items.filter(b => b.bookingDate === date || (b.bookingDate === previousDate && Boolean(b.travelStartedAt || b.sessionStartedAt))), transportJourneys: tripsRaw.transportJourneys, nowMs: now.getTime() });
   const committed = new Set((tripsRaw?.transportJourneys ?? [])
     .filter(({journey}) => journey.stage !== 'complete' && journey.stage !== 'pickup_pending')
     .map(({journey}) => journey.therapistId));
@@ -304,7 +315,7 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
         .order('created_at', { ascending: false }),
       db.from('bookings')
         .select('id,resource_id,booking_date,start_time,end_time,status,hold_expires_at,session_started_at,session_completed_at,type,delivery_type', { count: 'exact' })
-        .eq('branch_id', branchId).or(`booking_date.gte.${previousDate},and(session_started_at.not.is.null,session_completed_at.is.null,status.not.in.(completed,cancelled,expired,no_show))`)
+        .eq('branch_id', branchId).gte('booking_date', previousDate)
         .lte('booking_date', date).not('resource_id', 'is', null),
     ]);
     if ([resourceResult, turnoverResult, bookingResult].some(result => result.error || result.count == null || result.count !== result.data?.length)) {
@@ -339,7 +350,7 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
   const conflictingSchedules = availability?.staff.filter(person =>
     person.is_service_provider && !person.is_driver && person.scheduleStatus === 'conflict').length ?? null;
   const issueRows: LiveIssue[] = [
-    ...(optimizerResult.status === 'fulfilled' ? optimizerResult.value.map(task => ({
+    ...(optimizerResult.status === 'fulfilled' ? optimizerResult.value.filter(task => getBranchBusinessDate(new Date(task.created_at)) >= previousDate).map(task => ({
       id: `optimizer:${task.id}`, title: task.title, severity: task.priority === 'critical' ? 'critical' as const : 'warning' as const,
       at: task.created_at, category: 'schedule', href: task.action_href?.startsWith('/crm/') ? task.action_href : '/crm/today',
     })) : []),
@@ -378,6 +389,7 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
       id: `room:${room.id}`, title: `${room.name}: capacity or turnover needs review`,
       severity: 'warning' as const, category: 'resource', href: '/crm/spaces-rules',
     })),
+    ...(staleUnclosedCount > 0 ? [{ id: 'hygiene:stale-open', title: `${staleUnclosedCount} historical test session${staleUnclosedCount === 1 ? "" : "s"} left open from earlier dates`, severity: 'info' as const, category: 'hygiene', href: '/crm/bookings?tab=needs-action' }] : []),
     ...(liveBookings ?? []).filter(booking => booking.date === date && booking.attention.length > 0).map(booking => ({
       id: `booking:${booking.id}`, title: `${booking.service}: ${booking.attention[0]}`,
       severity: 'warning' as const, category: 'booking', href: `/crm/bookings?bookingId=${encodeURIComponent(booking.id)}`,
@@ -389,13 +401,27 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
         severityRank[a.severity] - severityRank[b.severity] || a.title.localeCompare(b.title))
     : null;
 
+  const isTodayIso = (iso: string | null | undefined) =>
+    Boolean(iso && getBranchBusinessDate(new Date(iso)) === date);
   const events: LiveEvent[] | null = ops ? ops.queueData.flatMap(b => {
     const e: LiveEvent[] = [];
-    if (b.created_at) e.push({ id: b.id + ':created', at: b.created_at, title: 'Booking created', detail: b.service_name ?? 'Service' });
-    if (b.session_started_at) e.push({ id: b.id + ':started', at: b.session_started_at, title: 'Service started', detail: b.service_name ?? 'Service' });
-    if (b.session_completed_at) e.push({ id: b.id + ':ended', at: b.session_completed_at, title: 'Service completed', detail: b.service_name ?? 'Service' });
+    const who = getCradleFlowServiceRecipientName(b);
+    const svc = b.service_name ?? 'Service';
+    const label = who && who !== 'Guest' ? `${who} · ${svc}` : svc;
+    if (b.created_at && (b.booking_date === date || isTodayIso(b.created_at))) {
+      e.push({ id: b.id + ':created', at: b.created_at, title: 'New booking', detail: label });
+    }
+    if (b.checked_in_at && isTodayIso(b.checked_in_at)) {
+      e.push({ id: b.id + ':arrived', at: b.checked_in_at, title: 'Guest arrived', detail: label });
+    }
+    if (b.session_started_at && isTodayIso(b.session_started_at)) {
+      e.push({ id: b.id + ':started', at: b.session_started_at, title: 'Service started', detail: label });
+    }
+    if (b.session_completed_at && isTodayIso(b.session_completed_at)) {
+      e.push({ id: b.id + ':ended', at: b.session_completed_at, title: 'Service completed', detail: label });
+    }
     return e;
-  }).sort((a,b) => b.at.localeCompare(a.at)).slice(0, 5) : null;
+  }).sort((a,b) => b.at.localeCompare(a.at)).slice(0, 12) : null;
 
   return {
     branch: branchName, branchId,
@@ -422,3 +448,6 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
     errors,
   };
 }
+
+
+

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation";
 import { Expand, MonitorUp, RefreshCw, Radio } from "lucide-react";
 import { BOOKINGS_CHANGED_EVENT } from "@/lib/bookings/bookings-client-events";
+import { OPTIMIZATION_CHANGED_EVENT } from "@/lib/optimization/client-events";
+import { createClient } from "@/lib/supabase/client";
 import type { LiveBoardData } from "@/lib/cradle-live/types";
 import { People, Rooms, Treatments, Alerts, Finance, Lifecycle } from "./board-panels";
 import { Dispatch } from "./board-dispatch";
@@ -78,10 +80,11 @@ export function CradleLiveBoard({
     const tick = window.setInterval(() => {
       if (!document.hidden && !fixture) setNow(Date.now());
     }, 1000);
-    const poll = window.setInterval(refresh, 60000);
+    const poll = window.setInterval(refresh, 15000);
     document.addEventListener("fullscreenchange", onFull);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener(BOOKINGS_CHANGED_EVENT, refresh);
+    window.addEventListener(OPTIMIZATION_CHANGED_EVENT, refresh);
     window.addEventListener("online", onNet);
     window.addEventListener("offline", onNet);
     return () => {
@@ -95,10 +98,41 @@ export function CradleLiveBoard({
       document.removeEventListener("fullscreenchange", onFull);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener(BOOKINGS_CHANGED_EVENT, refresh);
+      window.removeEventListener(OPTIMIZATION_CHANGED_EVENT, refresh);
       window.removeEventListener("online", onNet);
       window.removeEventListener("offline", onNet);
     };
   }, [refresh, fixture]);
+  useEffect(() => {
+    if (fixture || !initial.branchId) return;
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return;
+    let disposed = false;
+    let debounce: number | null = null;
+    const queueRefresh = () => {
+      if (disposed) return;
+      if (debounce !== null) window.clearTimeout(debounce);
+      debounce = window.setTimeout(() => {
+        debounce = null;
+        if (!disposed) refresh();
+      }, 300);
+    };
+    const supabase = createClient();
+    const filter = `branch_id=eq.${initial.branchId}`;
+    const channel = supabase
+      .channel(`cradle-live-wallboard:${initial.branchId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings", filter }, queueRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "staff_shift_checkins", filter }, queueRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "financial_transactions", filter }, queueRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "workflow_tasks", filter }, queueRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "attendance_exceptions", filter }, queueRefresh)
+      .subscribe();
+    return () => {
+      disposed = true;
+      if (debounce !== null) window.clearTimeout(debounce);
+      void supabase.removeChannel(channel);
+    };
+  }, [fixture, initial.branchId, refresh]);
+
   const snapshot = Date.parse(initial.refreshedAt),
     age = Math.max(0, Math.floor((now - snapshot) / 60000));
   const stale =
@@ -243,3 +277,5 @@ export function CradleLiveBoard({
     </div>
   );
 }
+
+
