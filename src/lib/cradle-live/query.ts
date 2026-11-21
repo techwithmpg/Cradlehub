@@ -321,8 +321,11 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
     if ([resourceResult, turnoverResult, bookingResult].some(result => result.error || result.count == null || result.count !== result.data?.length)) {
       throw new Error('Room reads denied/incomplete');
     }
+    const staleTurnoverCutoffMs = now.getTime() - 25 * 60_000;
     const taskByRoom = new Map<string, string>();
     for (const task of turnoverResult.data ?? []) {
+      const createdMs = task.created_at ? Date.parse(task.created_at) : NaN;
+      if (Number.isFinite(createdMs) && createdMs < staleTurnoverCutoffMs) continue;
       if (task.entity_id && !taskByRoom.has(task.entity_id)) taskByRoom.set(task.entity_id, task.status);
     }
     rooms = (resourceResult.data ?? []).map((r: { id: string; name: string; capacity: number | null; is_active: boolean }) => {
@@ -448,6 +451,7 @@ export async function getCradleLiveData(): Promise<LiveBoardData> {
     errors,
   };
 }
+
 
 
 

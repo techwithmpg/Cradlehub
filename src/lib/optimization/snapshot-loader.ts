@@ -392,7 +392,11 @@ export async function loadUnifiedOperationalSnapshot(params: {
   const roomTurnovers: RoomTurnoverTaskInput[] = (turnoversRes.data ?? [])
     .filter((t) => Boolean(t.entity_id))
     .map((t) => {
-      const startMin = isoToBranchMinute(t.created_at, date) ?? Math.max(0, nowMinute - 10);
+      const createdDate = t.created_at ? getBranchBusinessDate(new Date(t.created_at)) : date;
+      const startMin =
+        createdDate < date
+          ? 0
+          : (isoToBranchMinute(t.created_at, date) ?? Math.max(0, nowMinute - 10));
       const meta = isRecord(t.metadata) ? t.metadata : {};
       const estMins =
         typeof meta.expected_minutes === "number" && meta.expected_minutes > 0
@@ -401,7 +405,7 @@ export async function loadUnifiedOperationalSnapshot(params: {
       return {
         task_id: t.id,
         resource_id: t.entity_id!,
-        resource_name: t.title ?? "Room",
+        resource_name: (t.title ?? "Room").replace(/^Turnover:\s*/i, ""),
         status:
           t.status === "in_progress"
             ? "in_progress"
@@ -409,16 +413,19 @@ export async function loadUnifiedOperationalSnapshot(params: {
               ? "open"
               : "resolved",
         started_minute: startMin,
-        expected_ready_minute: Math.max(nowMinute, startMin) + estMins,
+        expected_ready_minute: startMin + estMins,
       };
     });
 
   const turnoverMap = new Map<string, number>();
   for (const rt of roomTurnovers) {
-    turnoverMap.set(
-      rt.resource_id,
-      Math.max(turnoverMap.get(rt.resource_id) ?? 0, rt.expected_ready_minute)
-    );
+    // Only block scheduling while within the active reset window; overdue/forgotten tasks never block queuing
+    if (rt.expected_ready_minute > nowMinute) {
+      turnoverMap.set(
+        rt.resource_id,
+        Math.max(turnoverMap.get(rt.resource_id) ?? 0, rt.expected_ready_minute)
+      );
+    }
   }
 
   const roomBusyByResource = new Map<
@@ -696,3 +703,4 @@ export async function loadUnifiedOperationalSnapshot(params: {
     branchLocation,
   };
 }
+

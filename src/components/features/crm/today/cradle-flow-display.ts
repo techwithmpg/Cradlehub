@@ -25,7 +25,7 @@ export type CradleFlowFilter =
   | "completed";
 
 export const CRADLE_FLOW_FILTERS: { key: CradleFlowFilter; label: string }[] = [
-  { key: "all", label: "All" },
+  { key: "all", label: "Active" },
   { key: "needs_action", label: "Needs Action" },
   { key: "not_arrived", label: "Not Arrived" },
   { key: "waiting_arrived", label: "Waiting (Arrived)" },
@@ -128,7 +128,7 @@ export function matchesCradleFlowGroupFilter(
     );
   switch (filter) {
     case "all":
-      return true;
+      return group.stage !== "completed";
     case "upcoming":
       return false;
     case "needs_action":
@@ -163,7 +163,7 @@ export function matchesCradleFlowFilter(
   }
   switch (filter) {
     case "all":
-      return true;
+      return group.stage !== "completed";
     case "upcoming":
       return false;
     case "needs_action":
@@ -192,3 +192,4 @@ export function getCradleFlowDisplayCounts(bookings: CradleFlowBooking[], busine
     ])
   ) as Record<CradleFlowFilter, number>;
 }
+
