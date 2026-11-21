@@ -51,7 +51,7 @@ import {
   withPossibleMatch,
 } from "@/lib/integrations/google-sheets/sheet-native-match";
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
-import { CrmOperationsAssistantBar } from "@/components/features/optimization/crm-operations-assistant-bar";
+import { FloatingOperationsAssistant } from "@/components/features/optimization/floating-operations-assistant";
 import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 export type { Branch, WorkspaceBookingRow, WorkspaceContext } from "./booking-workspace-types";
@@ -576,11 +576,11 @@ export function BookingsWorkspace({
 
       {isCrm && referenceSource !== "master_sheet" && initialQuickFilter !== "upcoming" ? (
         <div className="space-y-2.5">
-          <CrmOperationsAssistantBar
+          <FloatingOperationsAssistant
             initialSummary={initialOptimizationSummary}
             branchId={branchId}
             date={date}
-            surface="bookings"
+            context="bookings"
             selectedBookingId={selectedBookingId}
             onSelectBooking={(bookingId) => {
               const sp = new URLSearchParams();
@@ -818,3 +818,4 @@ export function BookingsWorkspace({
     </div>
   );
 }
+

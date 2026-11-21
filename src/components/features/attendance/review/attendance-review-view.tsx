@@ -528,6 +528,40 @@ export function AttendanceReviewView({
                 );
               })}
             </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                const dupIds = items
+                  .filter(
+                    (it) =>
+                      it.diagnostic.code === "duplicate_scan" ||
+                      it.diagnostic.code === "request_replayed"
+                  )
+                  .flatMap((it) => it.relatedExceptionIds);
+                if (dupIds.length === 0) {
+                  toast.info("No duplicate or replayed scan noise to auto-clear.");
+                  return;
+                }
+                startTransition(async () => {
+                  const res = await bulkAcknowledgeAttendanceExceptionsAction({
+                    exceptionIds: dupIds,
+                  });
+                  if (res.ok) {
+                    toast.success(`Cleared ${dupIds.length} duplicate/replay scan item(s).`);
+                    onRefresh();
+                  } else {
+                    toast.error(res.message);
+                  }
+                });
+              }}
+              className="h-8 rounded-lg border-stone-200 bg-white text-xs font-semibold text-stone-700 hover:bg-stone-50"
+            >
+              <Sparkles className="mr-1.5 size-3.5 text-emerald-700" />
+              Auto-Clear Duplicates
+            </Button>
 
             <Button
               type="button"
@@ -957,3 +991,5 @@ export function AttendanceReviewView({
     </>
   );
 }
+
+

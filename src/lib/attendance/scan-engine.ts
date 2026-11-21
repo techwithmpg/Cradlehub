@@ -625,7 +625,7 @@ async function loadCommittedScanResult(
       securityNote: "No new attendance change was recorded.",
     });
   }
-  if (row && process.env.CRADLEHUB_ATTENDANCE_V2_ENABLED === "true") {
+  if (row && process.env.CRADLEHUB_ATTENDANCE_V2_ENABLED !== "false") {
     const device = await resolveDevice(admin, rawDeviceCredential);
     const staff = first(device?.staff);
     if (
@@ -2551,6 +2551,36 @@ async function recordAttendanceRecoveryIntent(params: {
   return committed.result;
 }
 
+async function autoResolvePriorMissingScanExceptions(
+  admin: AttendanceDb,
+  params: {
+    branchId: string;
+    staffId: string;
+    businessDate: string;
+    checkinId?: string | null;
+    isTest: boolean;
+  }
+): Promise<void> {
+  const nowIso = new Date().toISOString();
+  await admin
+    .from("attendance_exceptions")
+    .update({
+      status: "resolved",
+      resolution_status: "resolved",
+      resolution_owner: "automatic",
+      resolution_action: "resolved_by_clock_in",
+      resolution_note: `Automatically reconciled when staff clocked in on ${params.businessDate}.`,
+      resolved_at: nowIso,
+      ...(params.checkinId ? { checkin_id: params.checkinId } : {}),
+    })
+    .eq("branch_id", params.branchId)
+    .eq("staff_id", params.staffId)
+    .eq("is_test", params.isTest)
+    .eq("status", "open")
+    .is("scan_event_id", null)
+    .gte("detected_at", `${params.businessDate}T00:00:00.000Z`);
+}
+
 async function processAttendanceScan(
   admin: AttendanceDb,
   point: QrPointRow,
@@ -3536,6 +3566,14 @@ async function processAttendanceScan(
         }
       : null,
     deviceScanType: "attendance",
+  });
+
+  await autoResolvePriorMissingScanExceptions(admin, {
+    branchId: point.branch_id,
+    staffId: device.staff_id,
+    businessDate: branchNow.businessDate,
+    checkinId: committed.checkinId ?? null,
+    isTest,
   });
 
   return committed.result;
@@ -4787,3 +4825,5 @@ export async function activateDeviceWithToken(
     rawDeviceCredential,
   };
 }
+
+

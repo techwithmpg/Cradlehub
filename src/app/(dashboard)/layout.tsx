@@ -10,6 +10,7 @@ import { getCrmReadinessCached } from "@/lib/queries/crm-readiness";
 import { getUserWorkspaceAccess } from "@/lib/auth/get-user-workspace-access";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
 import { canViewMasterSheetReview } from "@/lib/auth/crm-permissions";
+import { OperationsAssistantProvider } from "@/components/features/optimization/floating-operations-assistant";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [ctx, hdrs] = await Promise.all([getLayoutStaffContext(), headers()]);
@@ -29,7 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     staffPwaRoute || !branchId ? Promise.resolve(null) : getCrmReadinessCached(branchId).catch(() => null),
   ]);
 
-  return (
+  const content = (
     <div
       style={{
         display: "flex",
@@ -86,4 +87,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </div>
     </div>
   );
+
+  if (staffPwaRoute) return content;
+  return (
+    <OperationsAssistantProvider branchId={branchId ?? undefined}>
+      {content}
+    </OperationsAssistantProvider>
+  );
 }
+

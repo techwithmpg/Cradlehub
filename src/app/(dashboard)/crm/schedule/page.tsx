@@ -8,7 +8,7 @@ import { getFrontDeskContext } from "@/lib/queries/crm-context";
 import { getBranchBusinessDate } from "@/lib/engine/slot-time";
 import { getSchedulingRules } from "@/lib/scheduling/rules/get-scheduling-rules";
 import { RetainedWorkspaceModule } from "@/components/features/dashboard/retained-workspace-provider";
-import { CrmOptimizationAssistantPanel } from "@/components/features/optimization/crm-optimization-assistant-panel";
+import { OperationsAssistantBridge } from "@/components/features/optimization/floating-operations-assistant";
 import { evaluateBranchSummarySafe } from "@/lib/optimization/auto-reevaluate";
 
 function getErrorMessage(error: unknown): string {
@@ -83,11 +83,10 @@ export default async function CrmSchedulePage({
   return (
     <RetainedWorkspaceModule moduleId="crm-schedule">
       <div className="space-y-4">
-        <CrmOptimizationAssistantPanel
+        <OperationsAssistantBridge context="schedule"
           initialSummary={optResult.summary}
           branchId={branchId}
           date={selectedDate}
-          compact
         />
         <ScheduleWorkspaceShell
           branchId={branchId}
@@ -107,3 +106,5 @@ export default async function CrmSchedulePage({
     </RetainedWorkspaceModule>
   );
 }
+
+

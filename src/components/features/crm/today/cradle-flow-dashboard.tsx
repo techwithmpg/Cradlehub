@@ -47,10 +47,8 @@ import {
   CradleFlowReadinessDialog,
 } from "./cradle-flow-support-dialogs";
 import { CradleFlowWorkflow } from "./cradle-flow-workflow";
-import {
-  collectBookingConflictsMap,
-  CrmOperationsAssistantBar,
-} from "@/components/features/optimization/crm-operations-assistant-bar";
+import { collectBookingConflictsMap } from "@/components/features/optimization/crm-operations-assistant-bar";
+import { FloatingOperationsAssistant } from "@/components/features/optimization/floating-operations-assistant";
 import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 type MutationAction = (input: unknown) => Promise<{ success: boolean; error?: string }>;
@@ -269,11 +267,11 @@ export function CradleFlowDashboard(props: CradleFlowDashboardProps) {
         onResumePending={openBooking}
         onOpenFinancialEntry={openFinancialEntry}
       />
-      <CrmOperationsAssistantBar
+      <FloatingOperationsAssistant
         initialSummary={props.initialOptimizationSummary ?? null}
         branchId={props.attendanceScanFeed.branchId ?? bookings[0]?.branch_id ?? undefined}
         date={props.attendanceScanDate}
-        surface="intake"
+        context="intake"
         onSummaryChange={setLiveOptSummary}
         onSelectBooking={(bookingId) => {
           const found = bookings.find((b) => b.id === bookingId);
@@ -486,3 +484,5 @@ function CradleFlowDialogs(props: DialogProps) {
     </>
   );
 }
+
+

@@ -57,7 +57,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       children
     );
   const workspaceContent = branchId ? (
-    <AdministrativeBookingModalProvider key={branchId} branchId={branchId} branchName={branchName}>
+    <AdministrativeBookingModalProvider key={`booking-modal-${branchId}`} branchId={branchId} branchName={branchName}>
       <GlobalServiceCompletionProvider branchId={branchId}>
         {process.env.CRADLEHUB_SERVICE_REMINDERS_ENABLED === "true"
           ? <GlobalServiceStartProvider key={branchId} branchId={branchId}>{retainedChildren}</GlobalServiceStartProvider>
@@ -79,7 +79,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
       </Suspense>
       {branchId ? (
         <CrmStationControlBar
-          key={branchId}
+          key={`station-bar-${branchId}`}
           branchId={branchId}
           branchName={branchName}
           currentUserId={frontDesk.userId}
@@ -118,4 +118,9 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     </div>
   );
 }
+
+
+
+
+
 

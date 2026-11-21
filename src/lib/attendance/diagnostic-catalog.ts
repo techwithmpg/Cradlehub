@@ -1377,7 +1377,14 @@ function messageCode(message: string): keyof typeof CATALOG | null {
     return "clock_out_review";
   }
   if (value.includes("day off")) return "off_day_scan";
-  if (value.includes("schedule")) return "no_schedule";
+  if (
+    value.includes("no weekly schedule") ||
+    value.includes("no schedule") ||
+    value.includes("missing schedule") ||
+    value.includes("unscheduled")
+  ) {
+    return "no_schedule";
+  }
   if (value.includes("active service") || value.includes("active assignment")) {
     return "active_service";
   }
@@ -1496,3 +1503,4 @@ export function resolveAttendanceDiagnosticFromScan(input: {
   const diagnostic = { code: catalogCode, ...CATALOG[catalogCode] };
   return input.attendanceChanged ? { ...diagnostic, attendanceChanged: true } : diagnostic;
 }
+

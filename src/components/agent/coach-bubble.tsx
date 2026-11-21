@@ -226,7 +226,7 @@ export function CoachBubble() {
   }, [history, isLoading]);
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3 md:bottom-8 md:right-8">
+    <div className="fixed bottom-5 right-22 z-40 flex flex-col items-end gap-3 md:bottom-7 md:right-24">
       {open && (
         <div
           className={cn(
@@ -365,3 +365,4 @@ export function CoachBubble() {
     </div>
   );
 }
+

@@ -74,6 +74,16 @@ const RoadMap = memo(function RoadMap({
               disableDefaultUI: true,
               zoomControl: true,
               gestureHandling: "cooperative",
+              styles: [
+                { elementType: "geometry", stylers: [{ color: "#f3f1ea" }] },
+                { elementType: "labels.text.fill", stylers: [{ color: "#4e5e54" }] },
+                { elementType: "labels.text.stroke", stylers: [{ color: "#faf8f3" }] },
+                { featureType: "water", elementType: "geometry", stylers: [{ color: "#d5e4df" }] },
+                { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+                { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#eae5d9" }] },
+                { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#dfece2" }] },
+                { featureType: "poi.business", stylers: [{ visibility: "off" }] },
+              ],
             })
           );
       })
@@ -111,11 +121,11 @@ const RoadMap = memo(function RoadMap({
         const selected = selectedId === trip.id;
         marker.setIcon({
           path: google.maps.SymbolPath.CIRCLE,
-          scale: selected ? 9 : 6,
-          fillColor: kind === "driver" ? "#165e43" : "#bc8b12",
+          scale: selected ? 10 : 7,
+          fillColor: kind === "driver" ? "#0e4330" : "#c99a2e",
           fillOpacity: 1,
-          strokeColor: "#fff",
-          strokeWeight: 2,
+          strokeColor: kind === "driver" ? "#b7ebd1" : "#fff7e0",
+          strokeWeight: selected ? 4 : 2.5,
         });
         if (!selectedId || selected) points.push(point);
       }
@@ -258,7 +268,7 @@ export function Dispatch({ data, now }: { data: LiveBoardData; now: number }) {
       href="/crm/dispatch?view=map"
       detail={
         <>
-          <i className={s.dot} /> driverã€€
+          <i className={s.dot} /> driver   
           <b className={s.goldDot} /> destination
         </>
       }
@@ -328,3 +338,5 @@ export function Dispatch({ data, now }: { data: LiveBoardData; now: number }) {
     </Panel>
   );
 }
+
+

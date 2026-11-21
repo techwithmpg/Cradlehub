@@ -48,7 +48,7 @@ import { sortSheetReferencesRecentFirst } from "@/lib/bookings/booking-recency";
 import { isOperationalBookingGroup } from "@/lib/bookings/operational-booking-eligibility";
 import { CrmBookingsOperationsGrid } from "./crm-bookings-operations-grid";
 import type { SheetNativeReferencesState } from "@/lib/integrations/google-sheets/sheet-native-types";
-import { CrmOperationsAssistantBar } from "@/components/features/optimization/crm-operations-assistant-bar";
+import { FloatingOperationsAssistant } from "@/components/features/optimization/floating-operations-assistant";
 import type { TieredCrmOperationsSummary } from "@/lib/optimization/crm-operations-assistant";
 
 const NO_SELECTION = "__no_booking_selected__";
@@ -390,11 +390,11 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
       <div className="space-y-3">
         {props.initialQuickFilter !== "upcoming" ? (
           <div className="space-y-2.5 px-4 pt-3 sm:px-6 lg:px-8">
-            <CrmOperationsAssistantBar
+            <FloatingOperationsAssistant
               initialSummary={props.initialOptimizationSummary ?? null}
               branchId={props.branchId}
               date={props.date}
-              surface="bookings"
+              context="bookings"
               selectedBookingId={selectedIdFromUrl}
               onSelectBooking={(bookingId) => {
                 const sp = new URLSearchParams(searchParams.toString());
@@ -822,3 +822,4 @@ export function BookingsDesktopWorkspace(props: DesktopWorkspaceProps) {
     </div>
   );
 }
+

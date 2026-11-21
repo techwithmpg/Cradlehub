@@ -159,8 +159,10 @@ function openCheckinMatchesSchedule(params: {
   checkin: OpenAttendanceIntentCheckin;
   schedule: AttendanceScheduleSelection;
 }): boolean {
-  if (params.schedule.isUnscheduled || params.schedule.isDayOff) return false;
   if (params.checkin.shiftDate !== params.schedule.shiftDate) return false;
+  if (params.schedule.isUnscheduled || params.schedule.isDayOff) {
+    return Boolean(params.checkin.checkedInAt && !params.checkin.checkedOutAt);
+  }
 
   const checkinShiftType = normalizedShiftType(params.checkin.shiftType);
   const scheduleShiftType = normalizedShiftType(params.schedule.shiftType);
@@ -677,3 +679,4 @@ export function minutesFromScheduleStart(params: {
   if (current === null || start === null) return 0;
   return minutesOrZero(current - start);
 }
+

@@ -59,7 +59,7 @@ export function BasicStaffQuickActions() {
       >
         {actions.map(({ label, href, icon: Icon, desc }) => (
           <Link
-            key={href}
+            key={`${href}-${label}`}
             href={href}
             style={{
               textDecoration: "none",
@@ -117,3 +117,4 @@ export function BasicStaffQuickActions() {
     </div>
   );
 }
+

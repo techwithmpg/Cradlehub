@@ -57,13 +57,15 @@ const money = (amount: number | null | undefined) =>
   amount == null ? "Unavailable" : moneyFormat.format(amount);
 const bookingHref = (id: string) => "/crm/bookings?bookingId=" + encodeURIComponent(id);
 const label = (state: string) => state.replaceAll("_", " ");
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w[0])
-    .filter((_, i, a) => i === 0 || i === a.length - 1)
-    .join("");
+const initials = (name: string) => {
+  const clean = name.replace(/\([^)]*\)/g, " ").trim();
+  const parts = clean.split(/\s+/).filter((w) => /^[A-Za-zÀ-ÖØ-öø-ÿ]/.test(w));
+  const first = parts[0];
+  const last = parts[parts.length - 1];
+  if (!first) return "—";
+  if (!last || parts.length === 1) return first.slice(0, 2).toUpperCase();
+  return ((first[0] ?? "") + (last[0] ?? "")).toUpperCase();
+};
 const spanTime = (ms: number) => {
   const seconds = Math.floor(Math.abs(ms) / 1000);
   return Math.floor(seconds / 60) + "m " + String(seconds % 60).padStart(2, "0") + "s";
@@ -85,6 +87,7 @@ export const People = memo(function People({ data }: { data: LiveBoardData }) {
     ?.filter((p) => p.queuePosition != null)
     .sort((a, b) => a.queuePosition! - b.queuePosition!);
   const first = ranked?.[0];
+  const nextUp = ranked?.slice(1, 4) ?? [];
   const rows = staff?.filter(
     (p) =>
       filter === "All" ||
@@ -117,6 +120,17 @@ export const People = memo(function People({ data }: { data: LiveBoardData }) {
             </div>
             {first && <b className={s.rank}>#{first.queuePosition}</b>}
           </div>
+          {nextUp.length > 0 && (
+            <div className={s.upNextList} aria-label="Up next in rotation">
+              {nextUp.map((therapist) => (
+                <div key={therapist.id} className={s.upNextItem}>
+                  <em>#{therapist.queuePosition}</em>
+                  <span>{therapist.name}</span>
+                  <time>{clock(therapist.checkedInAt)}</time>
+                </div>
+              ))}
+            </div>
+          )}
           <p>Booking assignments also require service eligibility and a suitable room.</p>
         </div>
         <div className={s.filters} aria-label="Therapist filters">
@@ -453,3 +467,7 @@ export const Finance = memo(function Finance({ data }: { data: LiveBoardData }) 
     </Panel>
   );
 });
+
+
+
+
