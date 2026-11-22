@@ -32,6 +32,7 @@ import {
 import { getScheduleWindowAbsoluteRange } from "@/lib/schedule/schedule-coverage";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
+import { getActiveAssistanceAssignmentsForBranchDate } from "@/lib/staff/interbranch-assistance-eligibility";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const DAY_MINUTES = 24 * 60;
@@ -324,6 +325,7 @@ function isSameDayBooking(params: {
 function reasonForStaff(params: {
   staff: StaffRow;
   branchId: string;
+  hasBranchAssistance?: boolean;
   serviceCapable: boolean;
   scheduleAvailable: boolean;
   overrideBlocked: boolean;
@@ -332,7 +334,7 @@ function reasonForStaff(params: {
   attendancePreferenceOnly: boolean;
 }): CrmAvailabilityReasonCode {
   if (params.staff.is_active === false) return "inactive_staff";
-  if (params.staff.branch_id !== params.branchId) return "wrong_branch";
+  if (params.staff.branch_id !== params.branchId && !params.hasBranchAssistance) return "wrong_branch";
   if (!params.serviceCapable) return "missing_service_capability";
   if (params.outsideHoursReason) return params.outsideHoursReason;
   if (params.overrideBlocked) return "blocked_by_override";
@@ -370,6 +372,7 @@ export async function resolveExactCrmBookingTime(params: {
 
   const [
     staffResult,
+    borrowedEntries,
     staffServicesResult,
     serviceDetailsResult,
     branchServiceTimingsResult,
@@ -386,6 +389,12 @@ export async function resolveExactCrmBookingTime(params: {
       .eq("branch_id", params.branchId)
       .eq("is_active", true)
       .order("full_name", { ascending: true }),
+    getActiveAssistanceAssignmentsForBranchDate({
+      branchId: params.branchId,
+      date: params.date,
+      statuses: ["arrived_clocked_in"],
+      supabase: admin as never,
+    }).catch(() => []),
     admin.from("staff_services").select("staff_id, service_id").in("service_id", params.serviceIds),
     admin
       .from("services")
@@ -419,7 +428,6 @@ export async function resolveExactCrmBookingTime(params: {
       .select(
         "staff_id, start_time, end_time, status, hold_expires_at, delivery_type, travel_buffer_mins"
       )
-      .eq("branch_id", params.branchId)
       .eq("booking_date", params.date)
       .not("staff_id", "is", null),
   ]);
@@ -438,9 +446,27 @@ export async function resolveExactCrmBookingTime(params: {
     throw new Error(`Could not load exact CRM availability: ${firstError.message}`);
   }
 
-  const branchStaff = ((staffResult.data ?? []) as StaffRow[]).filter(
+  const borrowedByStaffId = new Map(borrowedEntries.map((entry) => [entry.staff.id, entry]));
+  const homeBranchStaff = ((staffResult.data ?? []) as StaffRow[]).filter(
     (staff) => staff.branch_id === params.branchId && isOperationalStaff(staff)
   );
+  const homeStaffIds = new Set(homeBranchStaff.map((staff) => staff.id));
+  const borrowedStaffRows: StaffRow[] = borrowedEntries
+    .filter((entry) => !homeStaffIds.has(entry.staff.id) && isOperationalStaff(entry.staff))
+    .map((entry) => ({
+      id: entry.staff.id,
+      full_name: entry.staff.full_name,
+      nickname: entry.staff.nickname,
+      branch_id: entry.staff.branch_id,
+      is_active: entry.staff.is_active,
+      staff_type: entry.staff.staff_type,
+      system_role: entry.staff.system_role,
+      tier: entry.staff.tier,
+      archived_at: entry.staff.archived_at,
+      merged_into_staff_id: entry.staff.merged_into_staff_id,
+      metadata: entry.staff.metadata,
+    }));
+  const branchStaff = [...homeBranchStaff, ...borrowedStaffRows];
   const branchStaffIds = new Set(branchStaff.map((staff) => staff.id));
   const staffServiceRows = (staffServicesResult.data ?? []) as StaffServiceRow[];
   const serviceRows = (serviceDetailsResult.data ?? []) as ServiceTimingRow[];
@@ -612,11 +638,14 @@ export async function resolveExactCrmBookingTime(params: {
   const providers = branchStaff
     .filter((staff) => capableStaffIds.has(staff.id))
     .map<ExactCrmProviderAvailability>((staff) => {
-      const resolvedSchedule = resolveScheduleForStaffDay({
-        override: overridesByStaff.get(staff.id) ?? null,
-        individualRows: scheduleRowsByStaff.get(staff.id) ?? [],
-        staff,
-      });
+      const borrowedEntry = borrowedByStaffId.get(staff.id);
+      const resolvedSchedule = borrowedEntry
+        ? borrowedEntry.schedule
+        : resolveScheduleForStaffDay({
+            override: overridesByStaff.get(staff.id) ?? null,
+            individualRows: scheduleRowsByStaff.get(staff.id) ?? [],
+            staff,
+          });
       const scheduledForDay = resolvedSchedule.isWorking;
       const scheduleMatch = scheduledForDay
         ? resolveExactCrmScheduleMatch({
@@ -869,7 +898,7 @@ export async function resolveExactCrmBookingTime(params: {
           staff_id: staff.id,
           full_name: staff.full_name,
           active: staff.is_active !== false,
-          branch_match: staff.branch_id === params.branchId,
+          branch_match: staff.branch_id === params.branchId || borrowedByStaffId.has(staff.id),
           service_capability: serviceCapable,
           schedule_available: scheduleAvailable,
           override_blocked: overrideBlocked,
@@ -878,6 +907,7 @@ export async function resolveExactCrmBookingTime(params: {
           reason_code: reasonForStaff({
             staff,
             branchId: params.branchId,
+            hasBranchAssistance: borrowedByStaffId.has(staff.id),
             serviceCapable,
             scheduleAvailable,
             overrideBlocked,

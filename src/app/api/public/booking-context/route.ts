@@ -4,6 +4,8 @@ import { getBranchBookingRulesOrDefaultCached } from "@/lib/queries/branch-booki
 import { getBranchServiceCatalog } from "@/lib/services/service-catalog";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { getActiveAssistanceAssignmentsForBranchDate } from "@/lib/staff/interbranch-assistance-eligibility";
 import { resolveServiceImage } from "@/lib/service-images";
 import { publicAssetExistsOnServer } from "@/lib/public/server-image-assets";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -86,17 +88,47 @@ function firstCategory(value: CategoryRelation | undefined): CategoryRow | null 
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-async function getPublicStaffByBranch(branchId: string): Promise<StaffWithServicesRow[]> {
+async function getPublicStaffByBranch(
+  branchId: string,
+  assistanceDate = getBranchBusinessDate()
+): Promise<StaffWithServicesRow[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("staff")
-    .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname, avatar_url, archived_at, merged_into_staff_id, metadata, staff_services(service_id)")
-    .eq("branch_id", branchId)
-    .eq("is_active", true)
-    .order("tier")
-    .order("full_name");
+  const [{ data, error }, borrowedEntries] = await Promise.all([
+    supabase
+      .from("staff")
+      .select("id, full_name, tier, is_active, staff_type, system_role, is_head, nickname, avatar_url, archived_at, merged_into_staff_id, metadata, staff_services(service_id)")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .order("tier")
+      .order("full_name"),
+    getActiveAssistanceAssignmentsForBranchDate({
+      branchId,
+      date: assistanceDate,
+      statuses: ["arrived_clocked_in"],
+      supabase: supabase as never,
+    }).catch(() => []),
+  ]);
   if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as StaffWithServicesRow[];
+  const homeRows = (data ?? []) as unknown as StaffWithServicesRow[];
+  const seenIds = new Set(homeRows.map((row) => row.id));
+  const borrowedRows: StaffWithServicesRow[] = borrowedEntries
+    .filter((entry) => !seenIds.has(entry.staff.id))
+    .map((entry) => ({
+      id: entry.staff.id,
+      full_name: entry.staff.full_name,
+      tier: entry.staff.tier ?? "",
+      is_active: entry.staff.is_active,
+      staff_type: entry.staff.staff_type,
+      system_role: entry.staff.system_role,
+      is_head: entry.staff.is_head ?? null,
+      nickname: entry.staff.nickname,
+      avatar_url: entry.staff.avatar_url ?? null,
+      archived_at: entry.staff.archived_at,
+      merged_into_staff_id: entry.staff.merged_into_staff_id,
+      metadata: entry.staff.metadata,
+      staff_services: entry.staff.staff_services ?? [],
+    }));
+  return [...homeRows, ...borrowedRows];
 }
 
 async function canUseInhouseContext(): Promise<boolean> {

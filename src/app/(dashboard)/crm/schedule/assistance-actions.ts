@@ -16,6 +16,7 @@ import {
   canReviewAssistance,
   canCancelAssistance,
 } from "@/lib/staff/interbranch-assistance-request-policy";
+import type { AssistanceAssignmentStatus } from "@/lib/staff/interbranch-assistance-eligibility";
 import type { AssistanceRole, AssistanceVisitType } from "@/lib/staff/interbranch-assistance-contract";
 
 const TABLE = "staff_assistance_requests";
@@ -40,10 +41,19 @@ export type AssistanceRequestRecord = {
   reviewed_at: string | null;
 };
 
+export type AssistanceStaffAssignmentView = {
+  staff_id: string;
+  staff_name: string;
+  status: AssistanceAssignmentStatus;
+  arrived_clocked_in_at: string | null;
+  completed_at: string | null;
+};
+
 export type AssistanceView = AssistanceRequestRecord & {
   requesting_branch_name: string;
   lending_branch_name: string;
   selected_staff_names: string[];
+  assignments?: AssistanceStaffAssignmentView[];
 };
 
 export type AssistanceDashboard = {
@@ -118,12 +128,15 @@ export async function loadStaffAssistanceAction(): Promise<AssistanceResult<Assi
   const actor = await getActor();
   if (!actor) return failure("Staff Assistance has not been activated.");
   const db = adminDb();
-  const [branchesResult, requestsResult, homeEnabled] = await Promise.all([
+  const [branchesResult, requestsResult, homeEnabled, assignmentRowsResult] = await Promise.all([
     db.from("branches").select("id,name").eq("is_active", true).order("name"),
     db.from(TABLE).select("*")
       .or(`requesting_branch_id.eq.${actor.branchId},lending_branch_id.eq.${actor.branchId}`)
       .order("created_at", { ascending: false }).limit(100),
     branchAllowsHomeService(db, actor.branchId),
+    db.from("staff_assistance_assignments")
+      .select("request_id, staff_id, status, arrived_clocked_in_at, completed_at")
+      .or(`receiving_branch_id.eq.${actor.branchId},home_branch_id.eq.${actor.branchId}`),
   ]);
   if (branchesResult.error || requestsResult.error) {
     return failure(isMissingSchema(requestsResult.error)
@@ -142,6 +155,26 @@ export async function loadStaffAssistanceAction(): Promise<AssistanceResult<Assi
       names.set(member.id as string, String(member.nickname || member.full_name || "Staff member"));
     }
   }
+  const assignmentsByRequest = new Map<string, AssistanceStaffAssignmentView[]>();
+  if (!assignmentRowsResult.error) {
+    for (const row of (assignmentRowsResult.data ?? []) as Array<{
+      request_id: string;
+      staff_id: string;
+      status: AssistanceAssignmentStatus;
+      arrived_clocked_in_at: string | null;
+      completed_at: string | null;
+    }>) {
+      const list = assignmentsByRequest.get(row.request_id) ?? [];
+      list.push({
+        staff_id: row.staff_id,
+        staff_name: names.get(row.staff_id) ?? "Staff member",
+        status: row.status,
+        arrived_clocked_in_at: row.arrived_clocked_in_at,
+        completed_at: row.completed_at,
+      });
+      assignmentsByRequest.set(row.request_id, list);
+    }
+  }
   return {
     success: true,
     data: {
@@ -155,6 +188,7 @@ export async function loadStaffAssistanceAction(): Promise<AssistanceResult<Assi
         requesting_branch_name: branchNames.get(request.requesting_branch_id) ?? "Requesting branch",
         lending_branch_name: branchNames.get(request.lending_branch_id) ?? "Lending branch",
         selected_staff_names: request.selected_staff_ids.map((id) => names.get(id) ?? "Staff member"),
+        assignments: assignmentsByRequest.get(request.id) ?? [],
       })),
     },
   };
@@ -360,20 +394,49 @@ export async function decideStaffAssistanceAction(
   }).eq("id", request.id).eq("status", "requested").select("id").maybeSingle();
   if (updateError) return failure("Could not save the decision.");
   if (!updated) return failure("Another staff member has already reviewed this request. Refresh the list.");
-  await createNotification({
-    branchId: request.requesting_branch_id,
-    targetWorkspace: "crm",
-    type: value.decision === "approve" ? "interbranch_assistance_approved" : "interbranch_assistance_closed",
-    title: value.decision === "approve" ? "Assistance request approved" : "Assistance request updated",
-    body: value.decision === "approve"
-      ? "The lending branch CSR has selected staff. Booking and attendance activation are not yet enabled."
-      : `Staff assistance request ${next}.`,
-    entityType: "staff_assistance_request",
-    entityId: request.id,
-    actionHref: "/crm/schedule?tab=assistance",
-    priority: "normal",
-    dedupeKey: `assistance:${request.id}:${next}`,
-  });
+  const notificationCalls: Array<Promise<unknown>> = [
+    createNotification({
+      branchId: request.requesting_branch_id,
+      targetWorkspace: "crm",
+      type: value.decision === "approve" ? "interbranch_assistance_approved" : "interbranch_assistance_closed",
+      title: value.decision === "approve" ? "Assistance request approved" : "Assistance request updated",
+      body: value.decision === "approve"
+        ? "Lending branch CSR assigned staff. They become bookable as soon as they clock out at home and scan your branch QR."
+        : `Staff assistance request ${next}.`,
+      entityType: "staff_assistance_request",
+      entityId: request.id,
+      actionHref: "/crm/schedule?tab=assistance",
+      priority: "normal",
+      dedupeKey: `assistance:${request.id}:${next}`,
+    }),
+  ];
+  if (value.decision === "approve") {
+    const { data: recBranch } = await db
+      .from("branches")
+      .select("name")
+      .eq("id", request.requesting_branch_id)
+      .maybeSingle();
+    const recName = (recBranch?.name as string | null) ?? "the receiving branch";
+    for (const staffId of value.staffIds) {
+      notificationCalls.push(
+        createNotification({
+          branchId: request.lending_branch_id,
+          targetWorkspace: "staff",
+          recipientStaffId: staffId,
+          type: "interbranch_assistance_approved",
+          title: `Branch assistance assigned — ${recName}`,
+          body: `Clock out from your home branch first, then scan ${recName}'s attendance QR upon arrival to activate your shift.`,
+          entityType: "staff_assistance_request",
+          entityId: request.id,
+          actionHref: "/staff/scan",
+          priority: "high",
+          requiresAction: true,
+          dedupeKey: `assistance:${request.id}:staff:${staffId}`,
+        })
+      );
+    }
+  }
+  await Promise.all(notificationCalls);
   revalidatePath("/crm/schedule");
   const decisionDate = toManilaDate(request.start_at);
   scheduleBranchOptimizationReevaluation({

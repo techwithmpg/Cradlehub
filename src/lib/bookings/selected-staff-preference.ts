@@ -26,6 +26,7 @@ export type SelectedStaffPreferenceInput = {
     mergedIntoStaffId: string | null;
     isServiceProvider: boolean;
     qualifiedServiceIds: string[];
+    hasActiveBranchAssistance?: boolean;
   } | null;
   schedule: ResolvedStaffSchedule;
   blockedPeriods: Array<{
@@ -70,7 +71,7 @@ export function assessSelectedStaffHardEligibility(
   if (input.staff.archivedAt || input.staff.mergedIntoStaffId) {
     return hardBlock("selected_staff_archived");
   }
-  if (input.staff.branchId !== input.branchId) {
+  if (input.staff.branchId !== input.branchId && !input.staff.hasActiveBranchAssistance) {
     return hardBlock("selected_staff_wrong_branch");
   }
   if (

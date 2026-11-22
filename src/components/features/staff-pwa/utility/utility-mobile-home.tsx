@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Bell, ChevronRight, ClipboardList, DoorOpen, QrCode, Sparkles } from "lucide-react";
+import { ChevronRight, ClipboardList, DoorOpen, QrCode, Sparkles } from "lucide-react";
+import { StaffNoticesBellLink } from "@/components/features/staff-portal/staff-notices-bell-link";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import {
   StaffCard,
@@ -65,13 +66,13 @@ export function UtilityMobileHome({ runtime }: { runtime: UtilityWorkspaceRuntim
               <div className="truncate text-base font-semibold">{name}</div>
             </div>
           </div>
-          <Link
+          <StaffNoticesBellLink
+            staffId={runtime.staff.id}
+            workspace="utility"
             href="/staff/utility/notices"
-            aria-label="Notices"
+            iconSize={20}
             className="grid min-h-12 min-w-12 place-items-center rounded-full bg-white/10 focus-visible:outline-2 focus-visible:outline-[#c8a96b]"
-          >
-            <Bell size={20} aria-hidden="true" />
-          </Link>
+          />
         </div>
         <div className="relative mt-6">
           <p className="text-xs text-[#dfca92]">{dateLabel}</p>

@@ -10,6 +10,7 @@ import type { StaffScheduleExceptionReasonCode } from "@/lib/bookings/staff-sche
 import { resolveScheduleForStaffDay } from "@/lib/schedule/resolve-staff-schedule";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
+import { getActiveAssistanceAssignmentForStaffAtBranch } from "@/lib/staff/interbranch-assistance-eligibility";
 import { logError } from "@/lib/logger";
 
 type OnlineSelectedStaffResult =
@@ -42,7 +43,7 @@ export async function evaluateOnlineSelectedStaff(params: {
   endTime: string;
 }): Promise<OnlineSelectedStaffResult> {
   const admin = createAdminClient();
-  const [staffResult, qualificationsResult] = await Promise.all([
+  const [staffResult, qualificationsResult, activeAssistance] = await Promise.all([
     admin
       .from("staff")
       .select(
@@ -55,6 +56,13 @@ export async function evaluateOnlineSelectedStaff(params: {
       .select("service_id")
       .eq("staff_id", params.staffId)
       .in("service_id", params.serviceIds),
+    getActiveAssistanceAssignmentForStaffAtBranch({
+      staffId: params.staffId,
+      branchId: params.branchId,
+      date: params.date,
+      statuses: ["arrived_clocked_in"],
+      supabase: admin as never,
+    }).catch(() => null),
   ]);
 
   if (staffResult.error || qualificationsResult.error) {
@@ -96,6 +104,7 @@ export async function evaluateOnlineSelectedStaff(params: {
           qualifiedServiceIds.length > 0
         ),
         qualifiedServiceIds,
+        hasActiveBranchAssistance: Boolean(activeAssistance),
       }
     : null;
   const hardEligibility = assessSelectedStaffHardEligibility({
@@ -137,7 +146,6 @@ export async function evaluateOnlineSelectedStaff(params: {
       admin
         .from("bookings")
         .select("start_time, end_time, status, hold_expires_at")
-        .eq("branch_id", params.branchId)
         .eq("staff_id", params.staffId)
         .eq("booking_date", params.date),
     ]);
@@ -165,15 +173,17 @@ export async function evaluateOnlineSelectedStaff(params: {
     };
   }
 
-  const schedule = resolveScheduleForStaffDay({
-    override: overrideResult.data,
-    individualRows: schedulesResult.data ?? [],
-    staff: {
-      staff_type: staff!.staff_type,
-      system_role: staff!.system_role,
-    },
-    operational: true,
-  });
+  const schedule = activeAssistance
+    ? activeAssistance.schedule
+    : resolveScheduleForStaffDay({
+        override: overrideResult.data,
+        individualRows: schedulesResult.data ?? [],
+        staff: {
+          staff_type: staff!.staff_type,
+          system_role: staff!.system_role,
+        },
+        operational: true,
+      });
   const assessment = assessSelectedStaffPreference({
     branchId: params.branchId,
     serviceIds: params.serviceIds,

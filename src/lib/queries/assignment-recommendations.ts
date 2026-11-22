@@ -19,6 +19,7 @@ import type {
   StaffPreference,
 } from "@/lib/assignments/recommendation-engine";
 import { isOperationalStaff, type OperationalStaffFlags } from "@/lib/staff/operational-staff";
+import { getActiveAssistanceAssignmentsForBranchDate } from "@/lib/staff/interbranch-assistance-eligibility";
 import type { Json } from "@/types/supabase";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -376,30 +377,99 @@ async function buildContextFromBooking(
     return new Date(Number(y), Number(m) - 1, Number(d)).getDay();
   })();
 
-  const staffList = await getBranchStaffForScoring(branchId, options);
+  const [baseStaffList, borrowedEntries] = await Promise.all([
+    getBranchStaffForScoring(branchId, options),
+    conflictType === "therapist"
+      ? getActiveAssistanceAssignmentsForBranchDate({
+          branchId,
+          date,
+          statuses: ["arrived_clocked_in"],
+          supabase: options.supabase as never,
+        }).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+  const baseIds = new Set(baseStaffList.map((s) => s.id));
+  const staffList: StaffForScoring[] = [
+    ...baseStaffList,
+    ...borrowedEntries
+      .filter((entry) => !baseIds.has(entry.staff.id) && isOperationalStaff(entry.staff))
+      .map((entry) => ({
+        id: entry.staff.id,
+        full_name: entry.staff.full_name,
+        staff_type: entry.staff.staff_type ?? null,
+        system_role: entry.staff.system_role ?? null,
+        tier: entry.staff.tier ?? null,
+        is_active: entry.staff.is_active,
+        branch_id: entry.staff.branch_id ?? branchId,
+        archived_at: entry.staff.archived_at ?? null,
+        merged_into_staff_id: entry.staff.merged_into_staff_id ?? null,
+        metadata: entry.staff.metadata ?? null,
+      })),
+  ];
   const staffIds = staffList.map((s) => s.id);
+  const homeStaffIds = baseStaffList.map((s) => s.id);
+  const borrowedStaffIds = borrowedEntries.map((entry) => entry.staff.id);
 
   const [
     service,
     staffServices,
-    individualSchedules,
-    overrides,
+    homeSchedules,
+    homeOverrides,
     blockedTimes,
     checkins,
     conflictBookings,
+    borrowedConflictBookings,
     preferences,
   ] = await Promise.all([
     getServiceForRecommendation(serviceId, options),
     getStaffServicesForScoring(serviceId, staffIds, options),
-    getStaffSchedulesForScoring(staffIds, dayOfWeek, options),
-    getScheduleOverridesForScoring(staffIds, date, options),
+    getStaffSchedulesForScoring(homeStaffIds, dayOfWeek, options),
+    getScheduleOverridesForScoring(homeStaffIds, date, options),
     getBlockedTimesForScoring(staffIds, date, options),
     getCheckinsForScoring(branchId, date, options),
     conflictType === "driver"
       ? getDriverConflictBookings(branchId, date, options)
       : getTherapistConflictBookings(branchId, date, options),
+    conflictType === "therapist" && borrowedStaffIds.length > 0
+      ? (options.supabase ?? (await createClient()))
+          .from("bookings")
+          .select("id, staff_id, start_time, end_time, status")
+          .eq("booking_date", date)
+          .in("staff_id", borrowedStaffIds)
+          .not("status", "in", '("cancelled","no_show")')
+          .then(({ data }) =>
+            (data ?? []).map((b) => ({
+              booking_id: b.id,
+              staff_id: b.staff_id as string,
+              start_time: b.start_time,
+              end_time: b.end_time ?? b.start_time,
+              status: b.status,
+            }))
+          )
+      : Promise.resolve([]),
     getStaffPreferencesForScoring(staffIds, options),
   ]);
+
+  const borrowedSchedules: ScheduleForScoring[] = borrowedEntries.map((entry) => ({
+    id: entry.assignment.id,
+    staff_id: entry.staff.id,
+    day_of_week: dayOfWeek,
+    start_time: entry.startTime,
+    end_time: entry.endTime,
+    is_active: true,
+    shift_type: "single",
+    window_order: 1,
+    ends_next_day: entry.endsNextDay,
+  }));
+  const individualSchedules = [...homeSchedules, ...borrowedSchedules];
+  const overrides = homeOverrides;
+  const seenConflictIds = new Set<string>();
+  const allConflictBookings = [...conflictBookings, ...borrowedConflictBookings].filter((row) => {
+    if (!row.booking_id) return true;
+    if (seenConflictIds.has(row.booking_id)) return false;
+    seenConflictIds.add(row.booking_id);
+    return true;
+  });
 
   const isHomeService = booking.delivery_type === "home_service" || booking.type === "home_service";
 
@@ -423,7 +493,7 @@ async function buildContextFromBooking(
     overrides,
     blockedTimes,
     checkins,
-    existingBookings: conflictBookings.filter((row) => row.booking_id !== booking.id),
+    existingBookings: allConflictBookings.filter((row) => row.booking_id !== booking.id),
     preferences,
   };
 }

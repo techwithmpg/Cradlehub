@@ -37,7 +37,9 @@ export function AutoPushSubscriptionManager() {
       return false;
     }
 
-    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    const vapidPublicKey =
+      process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY ??
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     if (!vapidPublicKey) return false;
 
     let permission = Notification.permission;

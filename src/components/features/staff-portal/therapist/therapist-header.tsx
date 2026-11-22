@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Leaf } from "lucide-react";
+import { Leaf } from "lucide-react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
 import { STAFF_TYPE_LABELS } from "@/constants/staff";
 import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
+import { StaffNoticesBellLink } from "../staff-notices-bell-link";
 
 type TherapistHeaderProps = {
   staff: StaffPortalStaff;
@@ -66,17 +67,16 @@ export function TherapistHeader({ staff }: TherapistHeaderProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link
+          <StaffNoticesBellLink
+            staffId={staff.id}
+            workspace="staff"
             href={notificationsHref}
-            aria-label="Notifications"
             className={
               isCanonical
                 ? "grid size-12 place-items-center rounded-full text-white transition active:scale-95"
                 : "grid size-10 place-items-center rounded-full text-[#26384A] transition hover:bg-[#F2EEE8] active:scale-95"
             }
-          >
-            <Bell size={19} strokeWidth={1.9} />
-          </Link>
+          />
 
           <Link
             href={profileHref}

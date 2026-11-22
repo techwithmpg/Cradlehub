@@ -11,6 +11,11 @@ import { evaluateAttendanceDeviceRegistration } from "@/lib/attendance/device-po
 import { isAttendanceScanningEnabled } from "@/lib/config/mvp-flags";
 import { isOperationalStaff } from "@/lib/staff/operational-staff";
 import {
+  assistanceAssignmentScheduleForWindow,
+  getActiveAssistanceAssignmentForQrScan,
+  syncAssistanceAssignmentsOnScan,
+} from "@/lib/staff/interbranch-assistance-eligibility";
+import {
   reconcileFirstScanDeviceRegistration,
   resolveFirstScanUnknownDeviceIncident,
 } from "@/lib/attendance/device-registration";
@@ -378,6 +383,7 @@ type AttendanceScanProcessingOptions = {
   commit?: AttendanceScanCommitter;
   reconcileProvisional?: ProvisionalAttendanceReconciler;
   excludeDuplicateScanEventId?: string | null;
+  effectiveBranchSource?: string | null;
 };
 
 type AttendanceScanCommitRow =
@@ -2636,7 +2642,7 @@ async function processAttendanceScan(
   }
 
   const branchNow = getAttendanceBranchNow(settings);
-  const schedule = await selectScheduleWindow(admin, {
+  let schedule = await selectScheduleWindow(admin, {
     branchId: point.branch_id,
     staffId: device.staff_id,
     staffType: staff?.staff_type ?? null,
@@ -2646,6 +2652,29 @@ async function processAttendanceScan(
     branchTime: branchNow.time,
     timezone: branchNow.timezone,
   });
+  if (options.effectiveBranchSource === "interbranch_assistance") {
+    const activeAssistance = await getActiveAssistanceAssignmentForQrScan({
+      staffId: device.staff_id,
+      qrBranchId: point.branch_id,
+      supabase: admin as never,
+    }).catch(() => null);
+    if (activeAssistance) {
+      const { schedule: assistanceSchedule } = assistanceAssignmentScheduleForWindow({
+        id: activeAssistance.id,
+        startAt: activeAssistance.start_at,
+        endAt: activeAssistance.end_at,
+      });
+      schedule = {
+        ...resolveStaffAttendanceSchedule({
+          scanDate: branchNow.localDate,
+          scanTime: branchNow.time,
+          timezone: branchNow.timezone,
+          schedule: assistanceSchedule,
+        }),
+        resolvedSchedule: assistanceSchedule,
+      };
+    }
+  }
   const nowIso = new Date().toISOString();
   const openCheckins = await getOpenCheckins(admin, {
     staffId: device.staff_id,
@@ -3159,6 +3188,19 @@ async function processAttendanceScan(
     });
 
     await resolveClosingInterventionSignals(admin, activeCheckin.id);
+    if (committed.result.ok) {
+      await syncAssistanceAssignmentsOnScan({
+        staffId: device.staff_id,
+        scannedBranchId: point.branch_id,
+        action: "clock_out",
+        checkinId: activeCheckin.id,
+        isTest,
+        staffName,
+        receivingBranchName: branchName,
+        nowIso,
+        supabase: admin as never,
+      });
+    }
     return committed.result;
   }
 
@@ -3575,6 +3617,20 @@ async function processAttendanceScan(
     checkinId: committed.checkinId ?? null,
     isTest,
   });
+
+  if (committed.result.ok) {
+    await syncAssistanceAssignmentsOnScan({
+      staffId: device.staff_id,
+      scannedBranchId: point.branch_id,
+      action: "clock_in",
+      checkinId: committed.checkinId ?? null,
+      isTest,
+      staffName,
+      receivingBranchName: branchName,
+      nowIso,
+      supabase: admin as never,
+    });
+  }
 
   return committed.result;
 }
@@ -4337,6 +4393,41 @@ async function processQrScanFresh(
         });
 
   if (branchDecision === "wrong_branch") {
+    if (
+      point.point_type === "attendance" &&
+      effectiveAttendanceBranch?.source === "assistance_home_clock_out_required"
+    ) {
+      const blockedResult = blocked(
+        "Clock out from your home branch first",
+        "You still have an open shift at your home branch. Scan your home branch attendance QR to clock out before starting your branch assistance shift.",
+        {
+          reasonCode: "assistance_home_clock_out_required",
+          severity: "warning",
+          securityNote: "No receiving-branch clock-in was created while your home shift remains open.",
+        }
+      );
+      const eventId = await recordScanEvent(admin, {
+        branchId: point.branch_id,
+        qrPointId: point.id,
+        staffId: device.staff_id,
+        deviceId: device.id,
+        scanType: "attendance",
+        action: "assistance_clock_in_blocked_open_home_shift",
+        outcome: "blocked",
+        reasonCode: "assistance_home_clock_out_required",
+        message: blockedResult.message,
+        requestId: ctx.requestId,
+        userAgent: ctx.userAgent,
+        ipAddress: ctx.ipAddress,
+        metadata: {
+          openHomeBranchId: effectiveAttendanceBranch.branchId,
+          ...testMetadata,
+        },
+        isTest,
+      });
+      return { ...blockedResult, scanEventId: eventId ?? undefined };
+    }
+
     const pendingRequest = await loadPendingBranchCorrectionRequest(
       admin,
       device.staff_id,
@@ -4473,7 +4564,9 @@ async function processQrScanFresh(
   }
 
   if (point.point_type === "attendance") {
-    return processAttendanceScan(admin, point, device, ctx);
+    return processAttendanceScan(admin, point, device, ctx, {
+      effectiveBranchSource: effectiveAttendanceBranch?.source ?? null,
+    });
   }
 
   const seenUpdate = await admin

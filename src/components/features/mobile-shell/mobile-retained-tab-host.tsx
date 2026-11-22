@@ -156,14 +156,15 @@ export function MobileRetainedTabHost({
     return () => window.removeEventListener(MOBILE_INSTANT_NAV_EVENT, onInstantNav);
   }, [handleInstantNav]);
 
-  // Listen for live branch entity deltas (new assignment, status change) and softly refresh active PWA data
+  // Listen for live branch entity deltas (new assignment, status change, workflow task) and softly refresh active PWA data
   useWorkspaceEntityDelta(branchId, (delta) => {
     if (
       delta.kind === "booking.upserted" ||
-      delta.kind === "booking.status_patched"
+      delta.kind === "booking.status_patched" ||
+      delta.kind === "workflow.task_changed"
     ) {
       const now = Date.now();
-      if (now - lastRefreshRef.current > 2500) {
+      if (now - lastRefreshRef.current > 1500) {
         lastRefreshRef.current = now;
         router.refresh();
       }
