@@ -1,6 +1,8 @@
 import "server-only";
 
 import { getBranchBookingRulesOrDefault } from "@/lib/queries/branch-booking-rules";
+import { getBranchBusinessDate } from "@/lib/engine/slot-time";
+import { getActiveAssistanceAssignmentsForBranchDate } from "@/lib/staff/interbranch-assistance-eligibility";
 import { getBranchServiceCatalog } from "@/lib/services/service-catalog";
 import { canActAsBookingServiceProvider } from "@/lib/staff/service-providers";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -108,7 +110,8 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
   resources: QuickBookingResourceOption[];
 }> {
   const admin = createAdminClient();
-  const [branchServices, staffResult, resourcesResult] = await Promise.all([
+  const today = getBranchBusinessDate();
+  const [branchServices, staffResult, borrowedEntries, resourcesResult] = await Promise.all([
     getBranchServiceCatalog(branchId, { audience: "crm" }),
     admin
       .from("staff")
@@ -120,6 +123,12 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
       .is("archived_at", null)
       .is("merged_into_staff_id", null)
       .order("full_name", { ascending: true }),
+    getActiveAssistanceAssignmentsForBranchDate({
+      branchId,
+      date: today,
+      statuses: ["arrived_clocked_in"],
+      supabase: admin as never,
+    }).catch(() => []),
     admin
       .from("branch_resources")
       .select("id, name, type, capacity")
@@ -176,7 +185,26 @@ export async function getQuickBookingOptions(branchId: string): Promise<{
     })
     .filter((service): service is QuickBookingServiceOption => service !== null);
 
-  const staff = ((staffResult.data ?? []) as unknown as StaffRow[])
+  const homeStaffRows = (staffResult.data ?? []) as unknown as StaffRow[];
+  const homeStaffIds = new Set(homeStaffRows.map((member) => member.id));
+  const combinedStaffRows: StaffRow[] = [
+    ...homeStaffRows,
+    ...borrowedEntries
+      .filter((entry) => !homeStaffIds.has(entry.staff.id))
+      .map((entry) => ({
+        id: entry.staff.id,
+        full_name: entry.staff.full_name,
+        nickname: entry.staff.nickname,
+        is_active: entry.staff.is_active,
+        staff_type: entry.staff.staff_type,
+        system_role: entry.staff.system_role,
+        archived_at: entry.staff.archived_at,
+        merged_into_staff_id: entry.staff.merged_into_staff_id,
+        staff_services: entry.staff.staff_services ?? [],
+      })),
+  ];
+
+  const staff = combinedStaffRows
     .filter((member) =>
       canActAsBookingServiceProvider(member, (member.staff_services ?? []).length > 0)
     )

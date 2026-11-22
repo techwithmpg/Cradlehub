@@ -7,6 +7,7 @@ import {
   type ServiceCapabilityContext,
 } from "@/lib/staff/service-providers";
 import { isOperationalStaff, type OperationalStaffFlags } from "@/lib/staff/operational-staff";
+import { getActiveAssistanceAssignmentsForBranchDate } from "@/lib/staff/interbranch-assistance-eligibility";
 import {
   BRANCH_TIMEZONE,
   filterPastSlotsForDate,
@@ -298,7 +299,7 @@ async function filterSlotsToWorkingWindows(params: {
   const staffIds = Array.from(new Set(params.slots.map((slot) => slot.staff_id)));
   const dayOfWeek = getDayOfWeekFromYmd(params.date);
 
-  const [schedulesResult, overridesResult] = await Promise.all([
+  const [schedulesResult, overridesResult, borrowedEntries] = await Promise.all([
     params.supabase
       .from("staff_schedules")
       .select(
@@ -311,6 +312,12 @@ async function filterSlotsToWorkingWindows(params: {
       .select("staff_id, shift_type, start_time, end_time, is_day_off, ends_next_day")
       .in("staff_id", staffIds)
       .eq("override_date", params.date),
+    getActiveAssistanceAssignmentsForBranchDate({
+      branchId: params.branchId,
+      date: params.date,
+      statuses: ["arrived_clocked_in"],
+      supabase: params.supabase as never,
+    }).catch(() => []),
   ]);
 
   if (schedulesResult.error) {
@@ -319,6 +326,8 @@ async function filterSlotsToWorkingWindows(params: {
   if (overridesResult.error) {
     throw new Error(`Schedule override query failed: ${overridesResult.error.message}`);
   }
+
+  const borrowedByStaffId = new Map(borrowedEntries.map((entry) => [entry.staff.id, entry]));
 
   const individualRowsByStaff = new Map<string, IndividualScheduleSourceRow[]>();
   for (const row of (schedulesResult.data ?? []) as StaffScheduleRow[]) {
@@ -342,10 +351,13 @@ async function filterSlotsToWorkingWindows(params: {
 
   return uniqueSlotsByStaffAndTime(
     params.slots.filter((slot) => {
-      const resolved = resolveScheduleForStaffDay({
-        override: overridesByStaff.get(slot.staff_id) ?? null,
-        individualRows: individualRowsByStaff.get(slot.staff_id) ?? [],
-      });
+      const borrowedEntry = borrowedByStaffId.get(slot.staff_id);
+      const resolved = borrowedEntry
+        ? borrowedEntry.schedule
+        : resolveScheduleForStaffDay({
+            override: overridesByStaff.get(slot.staff_id) ?? null,
+            individualRows: individualRowsByStaff.get(slot.staff_id) ?? [],
+          });
 
       if (!resolved.isWorking) return false;
 
@@ -358,46 +370,77 @@ async function filterSlotsToWorkingWindows(params: {
   );
 }
 
-async function getActiveStaffProviderRows(branchId: string): Promise<StaffProviderRow[]> {
+async function getActiveStaffProviderRows(
+  branchId: string,
+  date?: string
+): Promise<StaffProviderRow[]> {
   const supabase = createAdminClient();
-  const primary = await supabase
-    .from("staff")
-    .select(
-      "id, branch_id, is_active, staff_type, system_role, archived_at, merged_into_staff_id, metadata"
-    )
-    .eq("branch_id", branchId)
-    .eq("is_active", true)
-    .is("archived_at", null)
-    .is("merged_into_staff_id", null);
+  const [primary, borrowedEntries] = await Promise.all([
+    supabase
+      .from("staff")
+      .select(
+        "id, branch_id, is_active, staff_type, system_role, archived_at, merged_into_staff_id, metadata"
+      )
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null),
+    date
+      ? getActiveAssistanceAssignmentsForBranchDate({
+          branchId,
+          date,
+          statuses: ["arrived_clocked_in"],
+          supabase: supabase as never,
+        }).catch(() => [])
+      : Promise.resolve([]),
+  ]);
 
+  let baseRows: StaffProviderRow[];
   if (!primary.error) {
-    return ((primary.data ?? []) as StaffProviderRow[]).filter((member) =>
+    baseRows = ((primary.data ?? []) as StaffProviderRow[]).filter((member) =>
       isOperationalStaff(member as OperationalStaffFlags)
     );
+  } else {
+    if (!isMissingStaffProviderColumnError(primary.error.message)) {
+      throw new Error(`Staff provider query failed: ${primary.error.message}`);
+    }
+
+    const fallback = await supabase
+      .from("staff")
+      .select("id, branch_id, is_active, system_role, archived_at, merged_into_staff_id, metadata")
+      .eq("branch_id", branchId)
+      .eq("is_active", true)
+      .is("archived_at", null)
+      .is("merged_into_staff_id", null);
+
+    if (fallback.error) {
+      throw new Error(`Staff provider fallback query failed: ${fallback.error.message}`);
+    }
+
+    baseRows = ((fallback.data ?? []) as Array<Omit<StaffProviderRow, "staff_type">>)
+      .filter((member) => isOperationalStaff(member as OperationalStaffFlags))
+      .map((member) => ({
+        ...member,
+        staff_type: null,
+      }));
   }
 
-  if (!isMissingStaffProviderColumnError(primary.error.message)) {
-    throw new Error(`Staff provider query failed: ${primary.error.message}`);
+  const seenIds = new Set(baseRows.map((member) => member.id));
+  for (const entry of borrowedEntries) {
+    if (seenIds.has(entry.staff.id) || !isOperationalStaff(entry.staff)) continue;
+    seenIds.add(entry.staff.id);
+    baseRows.push({
+      id: entry.staff.id,
+      branch_id: branchId,
+      is_active: entry.staff.is_active,
+      staff_type: entry.staff.staff_type,
+      system_role: entry.staff.system_role,
+      archived_at: entry.staff.archived_at,
+      merged_into_staff_id: entry.staff.merged_into_staff_id,
+      metadata: entry.staff.metadata,
+    });
   }
-
-  const fallback = await supabase
-    .from("staff")
-    .select("id, branch_id, is_active, system_role, archived_at, merged_into_staff_id, metadata")
-    .eq("branch_id", branchId)
-    .eq("is_active", true)
-    .is("archived_at", null)
-    .is("merged_into_staff_id", null);
-
-  if (fallback.error) {
-    throw new Error(`Staff provider fallback query failed: ${fallback.error.message}`);
-  }
-
-  return ((fallback.data ?? []) as Array<Omit<StaffProviderRow, "staff_type">>)
-    .filter((member) => isOperationalStaff(member as OperationalStaffFlags))
-    .map((member) => ({
-      ...member,
-      staff_type: null,
-    }));
+  return baseRows;
 }
 
 async function fetchAvailableSlotsFromRpc(
@@ -436,6 +479,7 @@ function serviceCapabilitySets(rows: StaffServiceRow[]) {
 
 async function filterSlotsForQualifiedProviders(params: {
   branchId: string;
+  date?: string;
   serviceIds: string[];
   slots: AvailabilitySlot[];
   serviceTimings: Map<string, ServiceTiming>;
@@ -446,7 +490,7 @@ async function filterSlotsForQualifiedProviders(params: {
 
   const supabase = createAdminClient();
   const [staffRows, capabilityResult] = await Promise.all([
-    getActiveStaffProviderRows(params.branchId),
+    getActiveStaffProviderRows(params.branchId, params.date),
     supabase
       .from("staff_services")
       .select("staff_id, service_id")
@@ -565,7 +609,7 @@ export async function getAvailableSlots(params: {
       p_staff_id: params.staffId,
     });
   } else {
-    const staffRows = await getActiveStaffProviderRows(params.branchId);
+    const staffRows = await getActiveStaffProviderRows(params.branchId, params.date);
     const candidateStaffIds = staffRows
       .filter((member) => canActAsBookingServiceProvider(member, true))
       .map((member) => member.id);
@@ -595,6 +639,7 @@ export async function getAvailableSlots(params: {
 
   slots = await filterSlotsForQualifiedProviders({
     branchId: params.branchId,
+    date: params.date,
     serviceIds: [params.serviceId],
     slots,
     serviceTimings,

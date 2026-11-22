@@ -12,6 +12,7 @@ import {
 } from "@/lib/schedule/resolve-staff-schedule";
 import { getStaffAdminName } from "@/lib/staff/display-name";
 import { isOperationalStaff, type OperationalStaffFlags } from "@/lib/staff/operational-staff";
+import { getActiveAssistanceAssignmentsForBranchDate } from "@/lib/staff/interbranch-assistance-eligibility";
 
 type OneOrMany<T> = T | T[] | null;
 type JsonRecord = Record<string, unknown>;
@@ -312,7 +313,35 @@ export async function getDailySchedule(params: {
   supabase?: SupabaseClient<Database>;
 }): Promise<DailyScheduleStaffRow[]> {
   const supabase = params.supabase ?? (await createClient());
-  const staffRows = await loadOperationalStaff(supabase, params.branchId);
+  const [homeStaffRows, borrowedEntries] = await Promise.all([
+    loadOperationalStaff(supabase, params.branchId),
+    getActiveAssistanceAssignmentsForBranchDate({
+      branchId: params.branchId,
+      date: params.date,
+      statuses: ["approved", "home_clocked_out", "arrived_clocked_in"],
+      supabase: supabase as never,
+    }).catch(() => []),
+  ]);
+  const homeStaffIds = new Set(homeStaffRows.map((staff) => staff.id));
+  const borrowedByStaffId = new Map(borrowedEntries.map((entry) => [entry.staff.id, entry]));
+  const staffRows: ScheduleStaffMetaRow[] = [
+    ...homeStaffRows,
+    ...borrowedEntries
+      .filter((entry) => !homeStaffIds.has(entry.staff.id) && isOperationalStaff(entry.staff))
+      .map((entry) => ({
+        id: entry.staff.id,
+        full_name: `${entry.staff.full_name} (Assisting from ${entry.homeBranchName})`,
+        nickname: entry.staff.nickname ? `${entry.staff.nickname} (Assisting)` : null,
+        tier: entry.staff.tier,
+        staff_type: entry.staff.staff_type,
+        system_role: entry.staff.system_role,
+        branch_id: entry.staff.branch_id,
+        is_active: entry.staff.is_active,
+        archived_at: entry.staff.archived_at,
+        merged_into_staff_id: entry.staff.merged_into_staff_id,
+        metadata: entry.staff.metadata,
+      })),
+  ];
   const staffIds = staffRows.map((staff) => staff.id);
 
   if (staffIds.length === 0) return [];
@@ -335,7 +364,7 @@ export async function getDailySchedule(params: {
       .from("schedule_overrides")
       .select("id, staff_id, override_date, is_day_off, shift_type, start_time, end_time, reason")
       .eq("override_date", params.date)
-      .in("staff_id", staffIds),
+      .in("staff_id", homeStaffRows.map((s) => s.id)),
     supabase
       .from("staff_shift_checkins")
       .select(
@@ -344,18 +373,24 @@ export async function getDailySchedule(params: {
       .eq("branch_id", params.branchId)
       .in("staff_id", staffIds)
       .or(`attendance_business_date.eq.${params.date},shift_date.eq.${params.date}`),
-    getResolvedStaffSchedulesForDate({
-      supabase,
-      branchId: params.branchId,
-      date: params.date,
-      staff: staffRows.map((staff) => ({
-        id: staff.id,
-        staff_type: staff.staff_type,
-        system_role: staff.system_role,
-        operational: true,
-      })),
-    }),
+    homeStaffRows.length > 0
+      ? getResolvedStaffSchedulesForDate({
+          supabase,
+          branchId: params.branchId,
+          date: params.date,
+          staff: homeStaffRows.map((staff) => ({
+            id: staff.id,
+            staff_type: staff.staff_type,
+            system_role: staff.system_role,
+            operational: true,
+          })),
+        })
+      : Promise.resolve(new Map()),
   ]);
+
+  for (const [staffId, entry] of borrowedByStaffId.entries()) {
+    resolvedSchedules.set(staffId, entry.schedule);
+  }
 
   if (bookingsResult.error) {
     throw new Error(`Bookings query failed: ${bookingsResult.error.message}`);

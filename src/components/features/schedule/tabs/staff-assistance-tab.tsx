@@ -21,6 +21,26 @@ const STATUS_LABEL: Record<AssistanceView["status"], string> = {
   declined: "Declined",
   cancelled: "Cancelled",
 };
+const ASSIGNMENT_STATUS_BADGE: Record<
+  NonNullable<AssistanceView["assignments"]>[number]["status"],
+  { label: string; className: string }
+> = {
+  approved: { label: "Pending Arrival", className: "bg-amber-50 text-amber-800 border-amber-200" },
+  home_clocked_out: {
+    label: "Left Home Branch",
+    className: "bg-sky-50 text-sky-800 border-sky-200",
+  },
+  arrived_clocked_in: {
+    label: "Arrived · Bookable",
+    className: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  },
+  completed: { label: "Completed", className: "bg-stone-100 text-stone-700 border-stone-200" },
+  cancelled: { label: "Cancelled", className: "bg-stone-100 text-stone-600 border-stone-200" },
+  expired: { label: "Expired", className: "bg-stone-100 text-stone-600 border-stone-200" },
+  failed_arrival: { label: "No Arrival", className: "bg-rose-50 text-rose-800 border-rose-200" },
+  exception: { label: "Exception", className: "bg-rose-50 text-rose-800 border-rose-200" },
+};
+
 const ROLE_LABEL: Record<AssistanceRole, string> = {
   therapist: "Therapist",
   nail_tech: "Nail Technician",
@@ -199,9 +219,9 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
         </button>
       </div>
 
-      <div role="note" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+      <div role="note" className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-950">
         <ShieldCheck className="mt-0.5 size-4 shrink-0" />
-        <p>Stage B: CSR requests and branch-to-branch CSR decisions only. Approved staff are <strong>not automatically bookable</strong> and attendance does not transfer yet.</p>
+        <p>Stage C active: approved staff receive a personal notice, clock out from their home branch, and scan this branch&apos;s attendance QR on arrival to become bookable for shifts and services.</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -244,8 +264,25 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
                     <span>· {request.visit_type === "home_service" ? "Home Service" : "In-spa"}</span>
                   </p>
                   {request.notes && <p className="text-xs text-[var(--cs-text-muted)]">Note: {request.notes}</p>}
-                  {request.selected_staff_names.length > 0 &&
-                    <p className="text-xs font-semibold text-emerald-800">Selected: {request.selected_staff_names.join(", ")}</p>}
+                  {request.assignments && request.assignments.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      {request.assignments.map((a) => {
+                        const badge = ASSIGNMENT_STATUS_BADGE[a.status];
+                        return (
+                          <span
+                            key={a.staff_id}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${badge.className}`}
+                          >
+                            <span>{a.staff_name}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{badge.label}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : request.selected_staff_names.length > 0 ? (
+                    <p className="text-xs font-semibold text-emerald-800">Selected: {request.selected_staff_names.join(", ")}</p>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {canReview && <button type="button" onClick={() => void openReview(request)}
@@ -309,8 +346,8 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
                 placeholder="e.g. Fully booked this afternoon" rows={3}
                 className="w-full resize-none rounded-lg border p-3 text-sm" />
               <p className="text-right text-[11px] text-[var(--cs-text-muted)]">{notes.length}/200</p></div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              CSR at the lending branch selects and approves staff. Approval does not yet activate cross-branch bookings or attendance.
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
+              CSR at the lending branch selects and approves staff. Once approved, selected staff must clock out at their home branch and scan your attendance QR upon arrival to become bookable.
             </div>
             <div className="flex items-center justify-end gap-2">
               <button type="button" onClick={() => setRequestOpen(false)} className="min-h-10 rounded-lg border px-4 text-sm">Cancel</button>
@@ -331,7 +368,7 @@ export function StaffAssistanceTab({ branchId, branchName, date }: {
             <p className="text-sm font-semibold">{reviewing.requesting_branch_name} requests {reviewing.quantity} {ROLE_LABEL[reviewing.requested_role]}{reviewing.quantity > 1 ? "s" : ""}</p>
             <p className="text-xs text-[var(--cs-text-secondary)]">{period(reviewing)}</p>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              Verify each person&apos;s shift, qualifications and your own branch coverage before approving. This is a provisional decision; no live transfer or bookability is activated.
+              Verify each person&apos;s shift, qualifications and your own branch coverage before approving. Selected staff will be notified and become bookable at the receiving branch once they scan its attendance QR.
             </div>
             <p className="text-xs font-bold">Select {reviewing.quantity} staff ({selectedStaff.length} selected)</p>
             {loadingCandidates ? <p className="p-4 text-sm">Checking staff availability…</p> :

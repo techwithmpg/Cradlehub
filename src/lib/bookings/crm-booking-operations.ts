@@ -4,6 +4,7 @@ import type { Database } from "@/types/supabase";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyConfirmedHomeServiceDriver } from "@/lib/home-service/confirmed-driver-notification";
 import { notifyConfirmedAssignedStaff } from "@/lib/bookings/confirmed-staff-notification";
+import { getActiveAssistanceAssignmentForStaffAtBranch } from "@/lib/staff/interbranch-assistance-eligibility";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { resolveConfirmedBookingRequestAlerts } from "@/lib/notifications/shared-resolution";
 import { publishServiceTransition } from "@/lib/bookings/service-transition-notifications";
@@ -1248,12 +1249,21 @@ export async function assignBookingTherapist(
 
   const admin = createAdminClient();
 
-  // Verify staff exists, is active, and belongs to the booking branch
-  const { data: staff, error: staffError } = await admin
-    .from("staff")
-    .select("id, branch_id, full_name, is_active, staff_type, system_role")
-    .eq("id", parsed.data.staffId)
-    .maybeSingle();
+  // Verify staff exists, is active, and belongs to the booking branch or active arrived assistance
+  const [{ data: staff, error: staffError }, activeAssistance] = await Promise.all([
+    admin
+      .from("staff")
+      .select("id, branch_id, full_name, is_active, staff_type, system_role")
+      .eq("id", parsed.data.staffId)
+      .maybeSingle(),
+    getActiveAssistanceAssignmentForStaffAtBranch({
+      staffId: parsed.data.staffId,
+      branchId: booking.branch_id,
+      date: booking.booking_date,
+      statuses: ["arrived_clocked_in"],
+      supabase: admin as never,
+    }).catch(() => null),
+  ]);
 
   if (staffError)
     return {
@@ -1261,7 +1271,7 @@ export async function assignBookingTherapist(
       ...(ctx.allowOwnerCrossBranch === false ? { code: "SERVER_ERROR" } : {}),
       error: "Staff could not be loaded. Please try again.",
     };
-  if (!staff || !staff.is_active || staff.branch_id !== booking.branch_id) {
+  if (!staff || !staff.is_active || (staff.branch_id !== booking.branch_id && !activeAssistance)) {
     return { success: false, error: "Selected therapist is not available for this branch." };
   }
 
