@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyConfirmedHomeServiceDriver } from "@/lib/home-service/confirmed-driver-notification";
+import { notifyConfirmedAssignedStaff } from "@/lib/bookings/confirmed-staff-notification";
 import { createNotification, resolveNotificationsForEntity } from "@/lib/notifications/create";
 import { resolveConfirmedBookingRequestAlerts } from "@/lib/notifications/shared-resolution";
 import { publishServiceTransition } from "@/lib/bookings/service-transition-notifications";
@@ -1887,12 +1888,13 @@ export async function confirmCrmBooking(
         nextStatus: "confirmed",
       });
     }
-    // The order confirmation RPC has committed. Notify only explicitly assigned
-    // active drivers, per confirmed service line, with an immutable dedupe key.
+    // The order confirmation RPC has committed. Notify explicitly assigned
+    // active staff & drivers, per confirmed service line, with immutable dedupe keys.
     await Promise.all(
-      [...new Set([booking.id, ...data.changed_ids])].map((id) =>
-        notifyConfirmedHomeServiceDriver(id, booking.branch_id)
-      )
+      [...new Set([booking.id, ...data.changed_ids])].flatMap((id) => [
+        notifyConfirmedHomeServiceDriver(id, booking.branch_id),
+        notifyConfirmedAssignedStaff(id, booking.branch_id),
+      ])
     );
     // The order confirmation RPC has committed. Clear the shared CRM review
     // alert for every confirmed line, including the primary notification key.
@@ -1986,10 +1988,13 @@ export async function confirmCrmBooking(
     nextStatus: "confirmed",
   });
 
-  // Only the confirmed, server-authoritative driver assignment receives a route alert.
-  if (isHomeServiceBooking(booking)) {
-    await notifyConfirmedHomeServiceDriver(booking.id, booking.branch_id);
-  }
+  // Notify the server-authoritative assigned staff & (for home service) driver.
+  await Promise.all([
+    notifyConfirmedAssignedStaff(booking.id, booking.branch_id),
+    ...(isHomeServiceBooking(booking)
+      ? [notifyConfirmedHomeServiceDriver(booking.id, booking.branch_id)]
+      : []),
+  ]);
 
   // CRM confirmation is now persisted; the old "booking awaits review"
   // alert is no longer actionable for any CSR in this branch.

@@ -75,6 +75,12 @@ export type WorkspaceEntityDelta =
       branchId: string;
       checkin: AttendanceCheckinDelta;
       timestamp: number;
+    }
+  | {
+      kind: "workflow.task_changed";
+      branchId: string;
+      taskId: string;
+      timestamp: number;
     };
 
 let sharedChannel: BroadcastChannel | null = null;

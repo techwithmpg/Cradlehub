@@ -56,10 +56,10 @@ export function staffNoticeHref(
       ? `/crm/bookings?bookingId=${encodeURIComponent(notice.entity_id)}`
       : "/crm/today";
   }
-  if (notice.entity_type === "booking" && notice.entity_id) {
-    return `/staff-portal/service-progress?bookingId=${encodeURIComponent(notice.entity_id)}`;
+  if (notice.entity_type === "booking") {
+    return "/staff/progress";
   }
-  return notice.entity_type === "booking" ? "/staff/progress" : "/staff/notices";
+  return "/staff/notices";
 }
 
 export function safeAttendanceNoticeCopy(

@@ -109,6 +109,26 @@ export function WorkspaceEntityDeltaBridge({ branchId }: { branchId: string }) {
           });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "workflow_tasks",
+          filter: `branch_id=eq.${branchId}`,
+        },
+        (payload) => {
+          const row = (payload.new ?? payload.old ?? null) as Record<string, unknown> | null;
+          if (!row || typeof row.id !== "string") return;
+
+          emitWorkspaceEntityDelta({
+            kind: "workflow.task_changed",
+            branchId,
+            taskId: row.id,
+            timestamp: Date.now(),
+          });
+        }
+      )
       .subscribe();
 
     return () => {

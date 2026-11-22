@@ -336,19 +336,21 @@ function PrimaryServiceCard({ work }: { work: ProviderPrimaryWork }) {
         ) : null}
       </div>
 
-      {active ? (
-        <div className="mt-3 border-t border-[#EEE9E2] pt-3">
-          <BookingProgressActions booking={booking} />
-        </div>
-      ) : (
-        <Link
-          href="/staff/progress"
-          className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#0D6548] px-4 text-[14px] font-bold text-white shadow-[0_6px_18px_rgba(13,101,72,0.18)] transition active:scale-[0.99]"
-        >
-          {isHome ? "Open Job" : "View Service Details"}
-          <ChevronRight size={17} />
-        </Link>
-      )}
+      <div className="mt-3 border-t border-[#EEE9E2] pt-3">
+        <BookingProgressActions booking={booking} />
+      </div>
+
+      <Link
+        href="/staff/progress"
+        className={
+          active
+            ? "mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-[14px] border border-[#DFD8CD] bg-[#FAF8F4] px-4 text-[13px] font-semibold text-[#163A2B] transition active:scale-[0.99]"
+            : "mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#0D6548] px-4 text-[14px] font-bold text-white shadow-[0_6px_18px_rgba(13,101,72,0.18)] transition active:scale-[0.99]"
+        }
+      >
+        {isHome ? "Open Job" : "View Service Details"}
+        <ChevronRight size={17} />
+      </Link>
     </section>
   );
 }
