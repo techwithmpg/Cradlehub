@@ -273,13 +273,32 @@ function isInClockInWindow(params: {
   window: ResolvedStaffScheduleWindow;
 }): boolean {
   const start = timeToMinutes(params.window.startTime);
+  const end = absoluteWindowEndMinutes(params.window);
   if (start === null) return false;
+  const latestAllowed =
+    end !== null
+      ? Math.max(end, start + params.settings.clock_in_window_after_shift_start_minutes)
+      : start + Math.max(720, params.settings.clock_in_window_after_shift_start_minutes);
   return inWindowMinutes({
     scanTime: params.scanTime,
     window: params.window,
-    start: start - (params.attendanceV2 ? EARLY_ARRIVAL_LIMIT_MINUTES : EARLIEST_CLOCK_IN_MINUTES),
-    end: start + params.settings.clock_in_window_after_shift_start_minutes,
+    start: start - (params.attendanceV2 ? EARLY_ARRIVAL_LIMIT_MINUTES : Math.max(480, EARLIEST_CLOCK_IN_MINUTES)),
+    end: latestAllowed,
   });
+}
+
+function isExtremelyLateScan(params: {
+  scanTime: string;
+  settings: AttendanceSettings;
+  schedule: AttendanceScheduleSelection;
+}): boolean {
+  const win = params.schedule.selectedWindow;
+  if (!win) return false;
+  const current = absoluteScanMinutesForWindow(params.scanTime, win);
+  const start = timeToMinutes(win.startTime);
+  if (current === null || start === null) return false;
+  const extremeThreshold = Math.max(params.settings.late_grace_minutes * 2, 30);
+  return current > start + extremeThreshold;
 }
 
 function clockInIntentForWindow(params: {
@@ -287,14 +306,13 @@ function clockInIntentForWindow(params: {
   settings: AttendanceSettings;
   schedule: AttendanceScheduleSelection;
 }): AttendanceScanIntentType {
-  const current = timeToMinutes(params.scanTime);
-  const start = params.schedule.selectedWindow
-    ? timeToMinutes(params.schedule.selectedWindow.startTime)
-    : null;
+  const win = params.schedule.selectedWindow;
+  const current = win ? absoluteScanMinutesForWindow(params.scanTime, win) : timeToMinutes(params.scanTime);
+  const start = win ? timeToMinutes(win.startTime) : null;
   if (current === null || start === null) return "clock_in";
-  if (current < start) return "early_clock_in";
-  if (current > start + params.settings.late_grace_minutes) return "late_clock_in";
-  return "clock_in";
+  // Early arrivals are recorded as a normal clock-in; credited timer starts at scheduledStartAt
+  if (current <= start + params.settings.late_grace_minutes) return "clock_in";
+  return "late_clock_in";
 }
 
 function scheduleSelectionFromWindow(params: {
@@ -380,7 +398,7 @@ export function resolveStaffAttendanceSchedule(params: {
       const end = absoluteWindowEndMinutes(window);
       const current = absoluteScanMinutesForWindow(params.scanTime, window);
       if (start === null || end === null || current === null) return false;
-      return current >= start - 120 && current <= end + 120;
+      return current >= start - 480 && current <= end + 240;
     }) ??
     windows[0] ??
     null;
@@ -554,25 +572,6 @@ export function resolveAttendanceScanIntent(
   }
 
   const attendanceWindows = getAttendanceScheduleWindows(input.schedule);
-  const clockOutWindow = attendanceWindows.find((window) =>
-    isInClockOutWindow({
-      scanTime: input.scanTime,
-      settings: input.settings,
-      window,
-    })
-  );
-  if (clockOutWindow) {
-    return closingScanRecoveryIntent({
-      schedule: scheduleSelectionFromWindow({
-        scanDate: input.scanDate,
-        scanTime: input.scanTime,
-        timezone: input.timezone ?? input.settings.timezone,
-        schedule: input.schedule,
-        window: clockOutWindow,
-      }),
-    });
-  }
-
   const clockInWindow = attendanceWindows.find((window) =>
     isInClockInWindow({
       attendanceV2: input.attendanceV2,
@@ -594,13 +593,47 @@ export function resolveAttendanceScanIntent(
       settings: input.settings,
       schedule: clockInSchedule,
     });
+    const extremelyLate =
+      type === "late_clock_in" &&
+      isExtremelyLateScan({
+        scanTime: input.scanTime,
+        settings: input.settings,
+        schedule: clockInSchedule,
+      });
 
     return intent({
       type,
       action: "clock_in",
       schedule: clockInSchedule,
-      title: type === "late_clock_in" ? "Late clock-in" : "Clock-in",
-      message: "Attendance can be opened for this scheduled shift.",
+      title: extremelyLate
+        ? "Extremely late clock-in"
+        : type === "late_clock_in"
+          ? "Late clock-in"
+          : "Clock-in",
+      message: extremelyLate
+        ? "Extremely late arrival recorded in staff attendance record."
+        : type === "late_clock_in"
+          ? "Late arrival recorded in staff attendance record."
+          : "Attendance recorded; shift timer starts at scheduled shift start.",
+    });
+  }
+
+  const clockOutWindow = attendanceWindows.find((window) =>
+    isInClockOutWindow({
+      scanTime: input.scanTime,
+      settings: input.settings,
+      window,
+    })
+  );
+  if (clockOutWindow) {
+    return closingScanRecoveryIntent({
+      schedule: scheduleSelectionFromWindow({
+        scanDate: input.scanDate,
+        scanTime: input.scanTime,
+        timezone: input.timezone ?? input.settings.timezone,
+        schedule: input.schedule,
+        window: clockOutWindow,
+      }),
     });
   }
 
@@ -679,4 +712,5 @@ export function minutesFromScheduleStart(params: {
   if (current === null || start === null) return 0;
   return minutesOrZero(current - start);
 }
+
 

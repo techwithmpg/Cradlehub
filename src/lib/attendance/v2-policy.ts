@@ -1,5 +1,5 @@
 /** Owner-approved 2026-11-16 / reconciled 2026-11-18: one scan; arrival and credited start stay distinct. */
-export const EARLY_ARRIVAL_LIMIT_MINUTES = 120;
+export const EARLY_ARRIVAL_LIMIT_MINUTES = 480;
 export const STANDARD_CLOCK_OUT_REMINDER_DELAY_MINUTES = 20;
 export const HOME_SERVICE_CLOCK_OUT_REMINDER_DELAY_MINUTES = 10;
 export const CLOCK_OUT_REMINDER_REPEAT_INTERVAL_MS = 15 * 60_000;
@@ -117,3 +117,5 @@ export function attendanceClockOutLabel(
   if (credit && record.checked_out_at && !credit.actualClockOutAt) return "Reviewed time";
   return format(credit ? credit.actualClockOutAt : record.checked_out_at);
 }
+
+

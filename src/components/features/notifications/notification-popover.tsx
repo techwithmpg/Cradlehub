@@ -7,7 +7,6 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CrmEmptyState } from "@/components/features/crm/premium/crm-empty-state";
 import type { WorkspaceNotification } from "@/lib/notifications/types";
@@ -132,22 +131,41 @@ export function NotificationPopover({
           </div>
         </div>
 
-        {hasMarkableUnread ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={handleMarkAll}
-            disabled={markingAll}
-            className="h-7 text-[0.6875rem] font-semibold text-[var(--cs-sand-dark)] hover:bg-[var(--cs-sand-mist)] hover:text-[var(--cs-sand-dark)]"
-          >
-            {markingAll ? "Marking..." : "Mark all read"}
-          </Button>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1">
+          {hasMarkableUnread ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={handleMarkAll}
+              disabled={markingAll}
+              className="h-7 px-2 text-[0.6875rem] font-semibold text-[var(--cs-sand-dark)] hover:bg-[var(--cs-sand-mist)] hover:text-[var(--cs-sand-dark)]"
+            >
+              {markingAll ? "Marking..." : "Mark read"}
+            </Button>
+          ) : null}
+          {displayedItems.length > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                void handleMarkAll();
+                for (const item of displayedItems) {
+                  if (!item.requires_action) onDismiss(item.id);
+                }
+              }}
+              disabled={markingAll}
+              className="h-7 px-2 text-[0.6875rem] font-semibold text-[var(--cs-text-secondary)] hover:bg-red-50 hover:text-red-700"
+            >
+              Clear
+            </Button>
+          ) : null}
+        </div>
       </header>
 
-      <ScrollArea
-        className="min-h-0 flex-1 bg-[var(--cs-surface)]"
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white"
         role={isLoading ? "status" : undefined}
         aria-busy={isLoading}
       >
@@ -187,9 +205,9 @@ export function NotificationPopover({
             ))}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
-      <footer className="shrink-0 border-t border-[var(--cs-border-soft)] bg-[var(--cs-surface-warm)] px-3 py-3">
+      <footer className="relative z-10 shrink-0 border-t border-[var(--cs-border-soft)] bg-[#faf8f5] px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
         {SETTINGS_ROLES.has(role) ? (
           <div className="mb-2">
             <NotificationSettingsDialog role={role} />
@@ -197,7 +215,7 @@ export function NotificationPopover({
         ) : null}
         <Link
           href={roleHref}
-          className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--cs-border-soft)] bg-[var(--cs-surface)] px-3 text-xs font-semibold text-[var(--cs-text-secondary)] transition hover:border-[var(--cs-sand)] hover:bg-[var(--cs-sand-mist)] hover:text-[var(--cs-sand-dark)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]/30"
+          className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--cs-border-soft)] bg-white px-3 text-xs font-semibold text-[var(--cs-text-secondary)] transition hover:border-[var(--cs-sand)] hover:bg-[var(--cs-sand-mist)] hover:text-[var(--cs-sand-dark)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cs-sand)]/30"
         >
           View all notifications
           <ChevronRight className="size-3.5" aria-hidden="true" />
