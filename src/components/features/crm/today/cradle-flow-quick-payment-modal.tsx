@@ -171,15 +171,42 @@ export function CradleFlowQuickPaymentModal({
     }, 0);
   }, [boutiqueCart, boutiqueCatalog]);
 
+  const netBoutiqueBillAmount = Math.max(
+    0,
+    boutiqueAddonTotal - (appliedGiftVoucher?.balance ?? 0)
+  );
+
+  function syncPrimaryTenderWithBoutique(nextCart: Record<string, number>, nextVoucher = appliedGiftVoucher) {
+    const nextAddon = Object.entries(nextCart).reduce((sum, [sku, qty]) => {
+      const found = boutiqueCatalog.find((s) => s.sku === sku);
+      return sum + (found ? found.price * qty : 0);
+    }, 0);
+    const nextNetAddon = Math.max(0, nextAddon - (nextVoucher?.balance ?? 0));
+    const delta = nextNetAddon - netBoutiqueBillAmount;
+    if (Math.abs(delta) > 0.001) {
+      setTenders((current) => {
+        if (current.length === 0) return current;
+        const firstVal = Number(current[0]!.amount) || 0;
+        const updatedVal = Math.max(0, Math.round((firstVal + delta) * 100) / 100);
+        return [
+          { ...current[0]!, amount: updatedVal.toFixed(2) },
+          ...current.slice(1),
+        ];
+      });
+    }
+  }
+
   function updateBoutiqueQty(sku: string, delta: number) {
     setBoutiqueCart((prev) => {
       const next = (prev[sku] ?? 0) + delta;
+      const copy = { ...prev };
       if (next <= 0) {
-        const copy = { ...prev };
         delete copy[sku];
-        return copy;
+      } else {
+        copy[sku] = next;
       }
-      return { ...prev, [sku]: next };
+      syncPrimaryTenderWithBoutique(copy);
+      return copy;
     });
   }
 
@@ -444,8 +471,8 @@ export function CradleFlowQuickPaymentModal({
     !cashReceivedError &&
     !confirmedReceipt &&
     !discountBlocked &&
-    totalCents > 0 &&
-    totalCents <= remainingCents
+    (totalCents > 0 || cents(netBoutiqueBillAmount) > 0) &&
+    totalCents <= remainingCents + cents(netBoutiqueBillAmount)
   );
 
   function updateTender(id: string, change: Partial<Tender>) {
@@ -1515,16 +1542,19 @@ export function CradleFlowQuickPaymentModal({
                       </div>
 
                       {(boutiqueAddonTotal > 0 || appliedGiftVoucher) ? (
-                        <button
-                          type="button"
-                          disabled={boutiqueBusy}
-                          onClick={() => void handleStandaloneBoutiqueCheckout()}
-                          className="h-8 rounded-lg bg-[#14543e] px-3 text-xs font-bold text-white hover:bg-[#0f402f] disabled:opacity-50"
-                        >
-                          {boutiqueBusy
-                            ? "Processing…"
-                            : `Settle Boutique Now (${php(Math.max(0, boutiqueAddonTotal - (appliedGiftVoucher?.balance ?? 0)))})`}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-lg bg-[#eaf5ee] px-2.5 py-1.5 text-[11px] font-bold text-[#14543e]">
+                            Included in Payment: +{php(netBoutiqueBillAmount)}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={boutiqueBusy}
+                            onClick={() => void handleStandaloneBoutiqueCheckout()}
+                            className="h-8 rounded-lg border border-[#14543e] bg-white px-2.5 text-xs font-bold text-[#14543e] hover:bg-[#eaf5ee] disabled:opacity-50"
+                          >
+                            {boutiqueBusy ? "Processing…" : "Boutique Only Receipt"}
+                          </button>
+                        </div>
                       ) : null}
                     </div>
                   </div>
@@ -1767,3 +1797,4 @@ export function CradleFlowQuickPaymentModal({
     </Dialog>
   );
 }
+

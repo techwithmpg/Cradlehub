@@ -594,52 +594,16 @@ export function evaluateUnifiedOperationsFallback(
   }
 
   const turnoverReady = new Map<string, number>();
+  const staleTurnovers: typeof req.room_turnovers = [];
   for (const task of req.room_turnovers) {
     if (task.status === "open" || task.status === "in_progress") {
-      // Never block scheduling past expected_ready_minute; flag overdue turnover as a non-blocking anomaly instead
       if (task.expected_ready_minute > req.now_minute) {
         turnoverReady.set(
           task.resource_id,
           Math.max(turnoverReady.get(task.resource_id) ?? 0, task.expected_ready_minute)
         );
       } else {
-        const overdueMins = Math.max(1, req.now_minute - task.expected_ready_minute);
-        pushConflict({
-          issue_type: "room_turnover_collision",
-          branch_id: req.branch_id,
-          affected_booking_ids: [],
-          affected_staff_ids: [],
-          affected_resource_ids: [task.resource_id],
-          severity: "warning",
-          confidence_or_data_quality: {
-            status: "high",
-            score: 0.9,
-            notes: ["Room turnover task remained open past expected reset window."],
-          },
-          predicted_impact: `${task.resource_name} turnover is still open (${overdueMins}m overdue — Utility may have forgotten to click Finish). Room remains open for scheduling; verify readiness.`,
-          latest_useful_action_time: fmtMinute(req.now_minute),
-          latest_useful_action_minute: req.now_minute,
-          recommended_actions: [
-            {
-              action_id: `clear-stale-turnover:${task.task_id}`,
-              action_type: "prioritize_room_turnover",
-              label: `Verify & clear ${task.resource_name} turnover`,
-              detail: "Confirm room is clean and close the lingering utility turnover task.",
-              target_booking_id: null,
-              proposed_staff_id: null,
-              proposed_staff_name: null,
-              proposed_resource_id: task.resource_id,
-              proposed_resource_name: task.resource_name,
-              proposed_driver_id: null,
-              proposed_driver_name: null,
-              proposed_start_minute: null,
-              proposed_end_minute: null,
-              requires_confirmation: false,
-            },
-          ],
-          dedupe_key: `uoe:${req.branch_id}:stale_turnover:${task.resource_id}`,
-          source_snapshot_version: req.source_snapshot_version,
-        });
+        staleTurnovers.push(task);
       }
     }
   }
@@ -710,6 +674,48 @@ export function evaluateUnifiedOperationsFallback(
   const resourceMap = new Map(req.resources.map((r) => [r.resource_id, r]));
 
   const conflicts: PredictiveConflictItem[] = [];
+  for (const task of staleTurnovers) {
+    const overdueMins = Math.max(1, req.now_minute - task.expected_ready_minute);
+    conflicts.push({
+      issue_type: "room_turnover_collision",
+      branch_id: req.branch_id,
+      affected_booking_ids: [],
+      affected_staff_ids: [],
+      affected_resource_ids: [task.resource_id],
+      severity: "warning",
+      confidence_or_data_quality: {
+        status: "high",
+        score: 0.9,
+        notes: ["Room turnover task remained open past expected reset window."],
+      },
+      predicted_impact: `${task.resource_name} turnover is still open (${overdueMins}m overdue — Utility may have forgotten to click Finish). Room remains open for scheduling; verify readiness.`,
+      latest_useful_action_time: fmtMinute(req.now_minute),
+      latest_useful_action_minute: req.now_minute,
+      recommended_actions: [
+        {
+          action_id: `clear-stale-turnover:${task.task_id}`,
+          action_type: "prioritize_room_turnover",
+          label: `Verify & clear ${task.resource_name} turnover`,
+          detail: "Confirm room is clean and close the lingering utility turnover task.",
+          target_booking_id: null,
+          proposed_staff_id: null,
+          proposed_staff_name: null,
+          proposed_resource_id: task.resource_id,
+          proposed_resource_name: task.resource_name,
+          proposed_driver_id: null,
+          proposed_driver_name: null,
+          proposed_start_minute: null,
+          requires_customer_approval: false,
+          verified_feasible: true,
+        },
+      ],
+      dedupe_key: `uoe:${req.branch_id}:stale_turnover:${task.resource_id}`,
+      source_snapshot_version: req.source_snapshot_version,
+      authorization_required: "none",
+      expiration_or_resolution_condition: "Utility marks room turnover finished or CRM verifies readiness.",
+      assistant_tier: "persistent_action_required",
+    });
+  }
   const seenKeys = new Set<string>();
   const pushConflict = (c: PredictiveConflictItem) => {
     if (!seenKeys.has(c.dedupe_key)) {
@@ -1336,4 +1342,5 @@ export function evaluateUnifiedOperationsFallback(
     evaluator_latency_ms: Math.round((performance.now() - t0) * 100) / 100,
   };
 }
+
 

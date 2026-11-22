@@ -22,6 +22,7 @@ export type CradleFlowFilter =
   | "ready_to_pay"
   | "home_service"
   | "upcoming"
+  | "past_unfollowed"
   | "completed";
 
 export const CRADLE_FLOW_FILTERS: { key: CradleFlowFilter; label: string }[] = [
@@ -33,8 +34,26 @@ export const CRADLE_FLOW_FILTERS: { key: CradleFlowFilter; label: string }[] = [
   { key: "ready_to_pay", label: "Ready to Pay" },
   { key: "home_service", label: "Home Service" },
   { key: "upcoming", label: "Upcoming" },
+  { key: "past_unfollowed", label: "Past / Unfollowed" },
   { key: "completed", label: "Completed" },
 ];
+
+export function isPastUnfollowedBooking(
+  booking: CradleFlowBooking,
+  businessDate?: string,
+  now = new Date()
+): boolean {
+  const stage = getCradleFlowStage(booking);
+  if (stage !== "waiting" || isArrived(booking)) return false;
+  const refDate = businessDate ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
+  if (booking.booking_date < refDate) return true;
+  if (booking.booking_date > refDate) return false;
+  const endClock = booking.end_time || booking.start_time;
+  if (!endClock) return false;
+  const endIso = `${booking.booking_date}T${endClock.length === 5 ? `${endClock}:00` : endClock}+08:00`;
+  const endMs = Date.parse(endIso);
+  return Number.isFinite(endMs) && now.getTime() > endMs;
+}
 
 export function isHomeServiceVisit(booking: CradleFlowBooking): boolean {
   return booking.type === "home_service" || booking.delivery_type === "home_service";
@@ -126,13 +145,19 @@ export function matchesCradleFlowGroupFilter(
     return (
       filter === "upcoming" || (filter === "needs_action" && group.attentionSummary.length > 0)
     );
+  const isPastUnfollowed =
+    group.stage === "waiting" &&
+    applicable.every((line) => isPastUnfollowedBooking(line, businessDate));
+
   switch (filter) {
     case "all":
-      return group.stage !== "completed";
+      return group.stage !== "completed" && !isPastUnfollowed;
+    case "past_unfollowed":
+      return isPastUnfollowed;
     case "upcoming":
       return false;
     case "needs_action":
-      return group.attentionSummary.length > 0;
+      return group.attentionSummary.length > 0 && !isPastUnfollowed;
     case "in_service":
       return group.stage === "in_service";
     case "ready_to_pay":
@@ -140,9 +165,9 @@ export function matchesCradleFlowGroupFilter(
     case "completed":
       return group.stage === "completed";
     case "home_service":
-      return applicable.some(isHomeServiceVisit);
+      return applicable.some(isHomeServiceVisit) && !isPastUnfollowed;
     case "not_arrived":
-      return group.stage === "waiting" && applicable.every((line) => !isArrived(line));
+      return group.stage === "waiting" && applicable.every((line) => !isArrived(line)) && !isPastUnfollowed;
     case "waiting_arrived":
       return group.stage === "waiting" && applicable.some(isArrived);
   }
@@ -161,15 +186,18 @@ export function matchesCradleFlowFilter(
     if (filter === "needs_action") return getCradleFlowAttention(booking).length > 0;
     return false;
   }
+  const pastUnfollowed = isPastUnfollowedBooking(booking, businessDate);
   switch (filter) {
     case "all":
-      return group.stage !== "completed";
+      return stage !== "completed" && !pastUnfollowed;
+    case "past_unfollowed":
+      return pastUnfollowed;
     case "upcoming":
       return false;
     case "needs_action":
-      return getCradleFlowAttention(booking).length > 0;
+      return getCradleFlowAttention(booking).length > 0 && !pastUnfollowed;
     case "not_arrived":
-      return stage === "waiting" && !isArrived(booking);
+      return stage === "waiting" && !isArrived(booking) && !pastUnfollowed;
     case "waiting_arrived":
       return stage === "waiting" && isArrived(booking);
     case "in_service":
@@ -177,7 +205,7 @@ export function matchesCradleFlowFilter(
     case "ready_to_pay":
       return stage === "ready_to_pay";
     case "home_service":
-      return isHomeServiceVisit(booking);
+      return isHomeServiceVisit(booking) && !pastUnfollowed;
     case "completed":
       return stage === "completed";
   }

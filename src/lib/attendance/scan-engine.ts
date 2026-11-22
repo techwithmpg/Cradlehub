@@ -2892,7 +2892,7 @@ async function processAttendanceScan(
         scanIntent.requiresRecovery ||
         (scanIntent.type !== "clock_in" && !(attendanceV2 && scanIntent.type === "early_clock_in")) ||
         currentMetrics.lateMinutes > 0;
-      const earlyArrival = attendanceV2 && scanIntent.type === "early_clock_in";
+      const earlyArrival = attendanceV2 && (scanIntent.type === "early_clock_in" || scanIntent.type === "clock_in");
       const greeting = buildAttendanceGreeting({
         staffId: device.staff_id,
         nickname: staffNickname,
@@ -3449,7 +3449,7 @@ async function processAttendanceScan(
     requestId: ctx.requestId,
     businessDate: branchNow.businessDate,
   });
-  const earlyArrival = attendanceV2 && scanIntent.type === "early_clock_in";
+  const earlyArrival = attendanceV2 && (scanIntent.type === "early_clock_in" || scanIntent.type === "clock_in");
   const shiftStartLabel = attendanceSchedule.scheduledStartAt
     ? new Intl.DateTimeFormat("en-US", {
         timeZone: settings.timezone,
@@ -4825,5 +4825,6 @@ export async function activateDeviceWithToken(
     rawDeviceCredential,
   };
 }
+
 
 
