@@ -311,6 +311,88 @@ describe("current Attendance shift selection", () => {
     expect(result?.history.map((row) => row.id)).toEqual(["fresh-today", "stale-yesterday"]);
     expect(mockUpdateSpy).not.toHaveBeenCalled();
   });
+
+  async function readWithCheckinsAndSessions(
+    rows: Record<string, unknown>[],
+    sessions: Record<string, unknown>[]
+  ) {
+    mockGetUser.mockResolvedValueOnce({ data: { user: { id: "auth-staff-123" } } });
+    mockStaffSelect.mockResolvedValueOnce({
+      data: {
+        id: "staff-uuid-1",
+        full_name: "Maria Santos",
+        nickname: "Maria",
+        branch_id: "branch-uuid-1",
+        staff_type: "therapist",
+        system_role: "staff",
+      },
+      error: null,
+    });
+    mockAttendanceSettingsSelect.mockResolvedValueOnce({
+      data: { branch_id: "branch-uuid-1", timezone: "Asia/Manila", attendance_day_boundary: "06:00:00" },
+      error: null,
+    });
+    mockRuleVersionsSelect.mockResolvedValueOnce({ data: null, error: null });
+    mockCheckinsSelect.mockResolvedValueOnce({ data: rows, error: null });
+    mockExceptionsSelect.mockResolvedValueOnce({ data: [], error: null });
+    mockBookingsSelect.mockResolvedValueOnce({ data: sessions, error: null });
+    mockStaffDevicesSelect.mockResolvedValue({ data: { id: "device-1" }, error: null });
+    const { getPureAttendanceSnapshot } = await import("@/lib/staff-portal/attendance");
+    return getPureAttendanceSnapshot(30);
+  }
+
+  it("never reports Clocked in or In Service when historical unfinished session_started exists without an open shift", async () => {
+    const staleBooking = {
+      id: "ec32192e-0788-4b49-bd8a-416719cafba0",
+      staff_id: "staff-uuid-1",
+      booking_date: "2026-06-15",
+      start_time: "14:00:00",
+      status: "in_progress",
+      booking_progress_status: "session_started",
+      session_started_at: "2026-06-15T06:00:00Z",
+      session_due_at: "2026-06-15T07:00:00Z",
+      session_completed_at: null,
+      session_duration_minutes_snapshot: 60,
+    };
+
+    // 1. Historical unfinished service, no open shift -> not_clocked_in + read-only
+    const noOpen = await readWithCheckinsAndSessions([], [staleBooking]);
+    expect(noOpen?.currentRecord).toBeNull();
+    expect(noOpen?.currentClockState).toBe("not_clocked_in");
+    expect(noOpen?.todayState.currentAttendanceState).not.toBe("in_service");
+    expect(noOpen?.todayState.operationalStatus).not.toBe("on_service");
+    expect(noOpen?.portalClockOut?.code).toBe("no_open_attendance");
+
+    // 2. Closed shift today + unfinished session_started -> stays clocked_out
+    vi.mocked(getAttendanceBranchNow).mockReturnValueOnce({
+      localDate: businessDate, businessDate, time: "08:00:00",
+      minutesIntoDay: 480, timezone: "Asia/Manila", dayBoundary: "06:00:00",
+    });
+    const closedShift = await readWithCheckinsAndSessions(
+      [
+        {
+          ...baseCheckin,
+          id: "closed-today",
+          shift_date: businessDate,
+          attendance_business_date: businessDate,
+          status: "checked_out",
+          checked_out_at: "2026-09-14T00:10:00Z",
+        },
+      ],
+      [staleBooking]
+    );
+    expect(closedShift?.currentClockState).toBe("clocked_out");
+    expect(closedShift?.todayState.currentAttendanceState).toBe("clocked_out");
+
+    // Guarantee source reader scopes booking_date and performs zero mutations
+    const source = readFileSync("src/lib/staff-portal/attendance.ts", "utf8");
+    expect(source).toContain('.gte("booking_date", addDaysToYmd(today, -1))');
+    expect(source).toContain(
+      '.lte("booking_date", branchNow.localDate > today ? branchNow.localDate : today)'
+    );
+    expect(mockUpdateSpy).not.toHaveBeenCalled();
+    expect(mockRpcSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe("W1A: Attendance Settings Read-Only Path Contract", () => {

@@ -38,6 +38,8 @@ import {
 import { triggerUtilityRoomTurnoverOnServiceCompletion } from "@/lib/staff-pwa/utility-turnover";
 import { publishServiceTransition } from "@/lib/bookings/service-transition-notifications";
 import { getProviderBusinessDate } from "@/lib/staff-pwa/provider-date";
+import { getActiveAssistanceAssignmentForStaffAtBranch } from "@/lib/staff/interbranch-assistance-eligibility";
+import { addDaysToYmd } from "@/lib/engine/slot-time";
 
 const STAFF_PORTAL_PATHS = [
   "/staff-portal",
@@ -862,7 +864,7 @@ export async function updateBookingProgressAction({
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
     .select(
-      "id, staff_id, branch_id, type, delivery_type, status, booking_progress_status, driver_id"
+      "id, staff_id, branch_id, booking_date, type, delivery_type, status, booking_progress_status, driver_id"
     )
     .eq("id", bookingId)
     .single();
@@ -884,16 +886,6 @@ export async function updateBookingProgressAction({
   const isDriver = operationalGroup === "driver";
   const isAssignedProvider = operationalGroup === "provider" && isAssignedStaff;
 
-  // This single-tenant workspace permits owner oversight across branches.
-  // Every other role must operate within its own branch, even when assigned.
-  if (role !== "owner" && (!me.branch_id || booking.branch_id !== me.branch_id)) {
-    return {
-      ok: false,
-      code: "PERMISSION_DENIED",
-      message: "This booking is outside your branch.",
-    };
-  }
-
   // Categorize the requested action
   const therapistActions: BookingProgressStatus[] = ["session_started", "completed"];
   // Drivers can advance travel stages for home-service trips
@@ -902,6 +894,52 @@ export async function updateBookingProgressAction({
   const isTherapistAction = therapistActions.includes(nextStatus);
   const isDriverAction = driverActions.includes(nextStatus);
   const isCsrAction = csrActions.includes(nextStatus);
+
+  // This single-tenant workspace permits owner oversight across branches.
+  // Non-owner roles operate within their own branch, except Stage C borrowed
+  // providers executing session start/complete under an authorized receiving-branch assignment.
+  if (role !== "owner" && (!me.branch_id || booking.branch_id !== me.branch_id)) {
+    const canCheckBorrowedProviderSession =
+      isAssignedProvider && isTherapistAction && Boolean(booking.branch_id) && Boolean(booking.booking_date);
+    let activeAssistance = canCheckBorrowedProviderSession
+      ? await getActiveAssistanceAssignmentForStaffAtBranch({
+          staffId: me.id,
+          branchId: booking.branch_id,
+          date: booking.booking_date,
+          statuses:
+            nextStatus === "completed" && booking.booking_progress_status === "session_started"
+              ? ["arrived_clocked_in", "completed"]
+              : ["arrived_clocked_in"],
+        }).catch(() => null)
+      : null;
+    if (
+      !activeAssistance &&
+      canCheckBorrowedProviderSession &&
+      nextStatus === "completed" &&
+      booking.booking_progress_status === "session_started"
+    ) {
+      const overnightCandidate = await getActiveAssistanceAssignmentForStaffAtBranch({
+        staffId: me.id,
+        branchId: booking.branch_id,
+        date: addDaysToYmd(booking.booking_date, -1),
+        statuses: ["arrived_clocked_in"],
+      }).catch(() => null);
+      if (
+        overnightCandidate &&
+        overnightCandidate.endsNextDay &&
+        Date.parse(overnightCandidate.assignment.end_at) >= Date.now() - 6 * 3600_000
+      ) {
+        activeAssistance = overnightCandidate;
+      }
+    }
+    if (!activeAssistance) {
+      return {
+        ok: false,
+        code: "PERMISSION_DENIED",
+        message: "This booking is outside your branch.",
+      };
+    }
+  }
 
   // Driver assignment never grants Provider session or attendance authority.
   if (

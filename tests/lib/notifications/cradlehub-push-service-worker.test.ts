@@ -240,4 +240,65 @@ describe("cradlehub-push-sw", () => {
       data: { actionHref: "/" },
     });
   });
+
+  it("retains OS notification and reconcile title/body when foreground Staff PWA inner route is visible", async () => {
+    const postMessage = vi.fn();
+    const harness = createHarness([
+      {
+        url: "https://app.cradlehub.test/staff/progress",
+        visibilityState: "visible",
+        postMessage,
+      },
+    ]);
+    let pending: Promise<unknown> = Promise.resolve();
+    harness.listeners.get("push")!({
+      data: {
+        json: () => ({
+          notificationId: "staff-inner-1",
+          type: "booking_assigned",
+          title: "New booking — Guest",
+          body: "Massage at 3:00 PM",
+          actionHref: "/staff/progress",
+          priority: "normal",
+        }),
+      },
+      waitUntil: (promise) => {
+        pending = Promise.resolve(promise);
+      },
+    });
+    await pending;
+
+    expect(harness.showNotification).toHaveBeenCalledTimes(1);
+    expect(postMessage).toHaveBeenCalledWith({
+      type: "CRADLEHUB_PUSH_RECONCILE",
+      notificationId: "staff-inner-1",
+      actionHref: "/staff/progress",
+      title: "New booking — Guest",
+      body: "Massage at 3:00 PM",
+    });
+  });
+
+  it("opens shared /staff/scan attendance links inside an active driver window without diverting CRM", async () => {
+    const crmNavigate = vi.fn().mockResolvedValue(undefined);
+    const driverNavigate = vi.fn().mockResolvedValue(undefined);
+    const driverFocus = vi.fn().mockResolvedValue(undefined);
+    const harness = createHarness([
+      { url: "https://app.cradlehub.test/crm", navigate: crmNavigate, focus: vi.fn() },
+      { url: "https://app.cradlehub.test/staff/driver", navigate: driverNavigate, focus: driverFocus },
+    ]);
+    let pending: Promise<unknown> = Promise.resolve();
+    harness.listeners.get("notificationclick")!({
+      notification: {
+        close: vi.fn(),
+        data: { actionHref: "/staff/scan" },
+      },
+      waitUntil: (promise) => {
+        pending = Promise.resolve(promise);
+      },
+    });
+    await pending;
+    expect(crmNavigate).not.toHaveBeenCalled();
+    expect(driverNavigate).toHaveBeenCalledWith("https://app.cradlehub.test/staff/scan");
+    expect(driverFocus).toHaveBeenCalledTimes(1);
+  });
 });

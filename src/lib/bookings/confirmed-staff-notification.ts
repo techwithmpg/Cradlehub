@@ -2,6 +2,7 @@ import "server-only";
 
 import { createNotificationOnce } from "@/lib/notifications/create";
 import { logError } from "@/lib/logger";
+import { getActiveAssistanceAssignmentForStaffAtBranch } from "@/lib/staff/interbranch-assistance-eligibility";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type Relation<T> = T | T[] | null;
@@ -42,7 +43,6 @@ export async function notifyConfirmedAssignedStaff(
       .from("staff")
       .select("id, auth_user_id, branch_id, is_active, archived_at, merged_into_staff_id")
       .eq("id", booking.staff_id)
-      .eq("branch_id", booking.branch_id)
       .maybeSingle();
 
     if (
@@ -54,6 +54,19 @@ export async function notifyConfirmedAssignedStaff(
       staff.merged_into_staff_id
     ) {
       return;
+    }
+
+    if (staff.branch_id !== booking.branch_id) {
+      const assistance = await getActiveAssistanceAssignmentForStaffAtBranch({
+        staffId: staff.id,
+        branchId: booking.branch_id,
+        date: booking.booking_date,
+        statuses: ["arrived_clocked_in"],
+        supabase: admin,
+      }).catch(() => null);
+      if (!assistance) {
+        return;
+      }
     }
 
     const isHomeService =

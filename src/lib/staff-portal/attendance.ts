@@ -358,7 +358,9 @@ export const getPureAttendanceSnapshot = cache(async (
       .eq("staff_id", staff.id)
       .eq("branch_id", staff.branch_id)
       .eq("booking_progress_status", "session_started")
-      .is("session_completed_at", null),
+      .is("session_completed_at", null)
+      .gte("booking_date", addDaysToYmd(today, -1))
+      .lte("booking_date", branchNow.localDate > today ? branchNow.localDate : today),
     getResolvedStaffSchedulesForDate({
       supabase,
       branchId: staff.branch_id,
@@ -584,13 +586,8 @@ export const getPureAttendanceSnapshot = cache(async (
     }
   }
 
-  const displayedClockState = currentRecord
-    ? currentClockState
-    : todayState.operationalStatus === "clocked_in" || todayState.operationalStatus === "on_service"
-      ? "clocked_in"
-      : todayState.operationalStatus === "clocked_out"
-        ? "clocked_out"
-        : currentClockState;
+  // Attendance clock state must come from attendance records, never unfinished service sessions.
+  const displayedClockState = currentClockState;
 
   return {
     staffId: staff.id,

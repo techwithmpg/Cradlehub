@@ -989,8 +989,8 @@ export async function getAttendanceWorkspaceData(params: {
     sessions,
     exceptions: dailyExceptions,
   });
-  const activeSessions = sessions.filter(
-    (session) => session.booking_progress_status === "session_started"
+  const activeSessions = dailyStaffStates.filter(
+    (state) => state.activeServiceSession !== null
   ).length;
 
   return {

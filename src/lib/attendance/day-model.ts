@@ -269,13 +269,22 @@ export function resolveAttendanceDayStaffStates(params: {
       businessDate: params.businessDate,
       currentWindow: currentShiftWindow,
     });
-    const activeServiceSession =
-      params.sessions.find(
-        (session) =>
-          session.staff_id === staff.id &&
-          session.booking_progress_status === "session_started" &&
-          !session.session_completed_at
-      ) ?? null;
+    const isOpen = record?.status === "checked_in" && !record.checked_out_at;
+    // Attendance state remains grounded in an open shift; historical or unclocked
+    // session_started rows must never fabricate In Service or Clocked In state.
+    const activeServiceSession = isOpen
+      ? (params.sessions.find(
+          (session) =>
+            session.staff_id === staff.id &&
+            session.booking_progress_status === "session_started" &&
+            !session.session_completed_at &&
+            (session.booking_date === params.businessDate || session.booking_date === record.shift_date) &&
+            (!session.session_started_at ||
+              !Number.isFinite(Date.parse(session.session_started_at)) ||
+              !Number.isFinite(Date.parse(record.checked_in_at)) ||
+              Date.parse(session.session_started_at) >= Date.parse(record.checked_in_at))
+        ) ?? null)
+      : null;
     const openExceptions = params.exceptions.filter((exception) => {
       if (exception.staff_id !== staff.id || !isActionableAttendanceException(exception)) {
         return false;
@@ -291,7 +300,6 @@ export function resolveAttendanceDayStaffStates(params: {
       ...(schedule.conflictCode ? [schedule.conflictCode] : []),
       ...openExceptions.map(effectiveAttendanceExceptionType),
     ];
-    const isOpen = record?.status === "checked_in" && !record.checked_out_at;
     const scheduledStart =
       currentShiftWindow?.scheduledStartAt ??
       nextShiftWindow?.scheduledStartAt ??

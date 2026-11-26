@@ -202,6 +202,49 @@ describe("Web Push recipient targeting", () => {
     ).toBe(true);
   });
 
+  it("allows Stage C borrowed provider push on home subscription when receiving branch assistance is validated", () => {
+    const borrowedNotice = {
+      ...notification,
+      branch_id: "branch-receiving",
+      target_workspace: "staff",
+      recipient_staff_id: "therapist-1",
+      type: "booking_assigned",
+      entity_type: "booking",
+    };
+    const sub = subscription({
+      workspace: "staff",
+      staff_id: "therapist-1",
+      branch_id: "branch-main",
+    }) as never;
+    const person = staff({
+      id: "therapist-1",
+      branch_id: "branch-main",
+      system_role: "service_staff",
+    }) as never;
+
+    expect(subscriptionMatchesNotification(sub, borrowedNotice as never, person, "all")).toBe(false);
+    expect(
+      subscriptionMatchesNotification(
+        sub,
+        borrowedNotice as never,
+        person,
+        "all",
+        undefined,
+        "therapist-1"
+      )
+    ).toBe(true);
+    expect(
+      subscriptionMatchesNotification(
+        sub,
+        borrowedNotice as never,
+        person,
+        "all",
+        undefined,
+        "other-staff"
+      )
+    ).toBe(false);
+  });
+
   it("deactivates 404/410 and repeated permanent failures without retry loops", () => {
     expect(pushFailureOutcome(0, 404)).toEqual({ failureCount: 1, deactivate: true });
     expect(pushFailureOutcome(0, 410)).toEqual({ failureCount: 1, deactivate: true });

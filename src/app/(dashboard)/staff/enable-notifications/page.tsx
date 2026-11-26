@@ -16,7 +16,29 @@ type ActivationState =
   | "unavailable"
   | "failed";
 
-const PUBLIC_KEY = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY ?? "";
+const PUBLIC_KEY =
+  process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY ||
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+  "";
+
+const CHECK_TIMEOUT_MS = 10_000;
+const ENABLE_STEP_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(timeoutMessage)), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (reason) => {
+        window.clearTimeout(timer);
+        reject(reason);
+      }
+    );
+  });
+}
 
 function toKey(value: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
@@ -63,9 +85,14 @@ async function errorFrom(response: Response, fallback: string): Promise<string> 
 export default function EnableNotificationsPage() {
   const [state, setState] = useState<ActivationState>("checking");
   const [error, setError] = useState<string | null>(null);
+  const [hasExistingBrowserSub, setHasExistingBrowserSub] = useState(false);
+  const [checkNonce, setCheckNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
+
     async function check() {
       if (isIosDevice() && !installedAsApp()) {
         if (!cancelled) setState("ios_install");
@@ -88,6 +115,7 @@ export default function EnableNotificationsPage() {
         const response = await fetch("/api/notifications/push/subscription", {
           credentials: "same-origin",
           cache: "no-store",
+          signal: controller.signal,
         });
         if (cancelled) return;
         if (response.status === 401) {
@@ -99,25 +127,53 @@ export default function EnableNotificationsPage() {
           setState("unavailable");
           return;
         }
-        const details = (await response.json()) as { configured?: boolean };
+        const details = (await response.json()) as {
+          configured?: boolean;
+          activeSubscriptionCount?: number;
+        };
         if (!details.configured || !PUBLIC_KEY) {
           setState("unavailable");
           setError("Notifications are not configured for this device yet.");
           return;
         }
-        setState("ready");
-      } catch {
+        if (Notification.permission === "granted" && (details.activeSubscriptionCount ?? 0) > 0) {
+          try {
+            const existingSub = await Promise.race([
+              navigator.serviceWorker
+                .getRegistration("/")
+                .then((reg) => reg?.pushManager?.getSubscription() ?? null),
+              new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 3000)),
+            ]);
+            if (cancelled) return;
+            setHasExistingBrowserSub(Boolean(existingSub));
+          } catch {
+            setHasExistingBrowserSub(false);
+          }
+        } else {
+          setHasExistingBrowserSub(false);
+        }
+        if (!cancelled) setState("ready");
+      } catch (err) {
         if (!cancelled) {
-          setError("Could not connect to CradleHub. Check your connection and reopen this page.");
+          const timedOut = err instanceof DOMException && err.name === "AbortError";
+          setError(
+            timedOut
+              ? "Notification check timed out. Check your connection and tap Retry."
+              : "Could not connect to CradleHub. Check your connection and reopen this page."
+          );
           setState("unavailable");
         }
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     }
     void check();
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
-  }, []);
+  }, [checkNonce]);
 
   async function enable() {
     if (state !== "ready" && state !== "failed" && state !== "enabled_unverified") return;
@@ -136,41 +192,75 @@ export default function EnableNotificationsPage() {
         return;
       }
 
-      const registration = await navigator.serviceWorker.register("/cradlehub-push-sw.js", {
-        scope: "/",
-        updateViaCache: "none",
-      });
+      const registration = await withTimeout(
+        navigator.serviceWorker.register("/cradlehub-push-sw.js", {
+          scope: "/",
+          updateViaCache: "none",
+        }),
+        ENABLE_STEP_TIMEOUT_MS,
+        "Notification service worker registration timed out. Please try again."
+      );
+      const existingSub = await withTimeout(
+        registration.pushManager.getSubscription(),
+        ENABLE_STEP_TIMEOUT_MS,
+        "Checking existing browser push subscription timed out."
+      );
       const subscription =
-        (await registration.pushManager.getSubscription()) ??
-        (await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: toKey(PUBLIC_KEY),
-        }));
+        existingSub ??
+        (await withTimeout(
+          registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: toKey(PUBLIC_KEY),
+          }),
+          ENABLE_STEP_TIMEOUT_MS,
+          "Subscribing to push notifications timed out. Please try again."
+        ));
 
-      const save = await fetch("/api/notifications/push/subscription", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(subscription.toJSON()),
-      });
+      const saveController = new AbortController();
+      const saveTimer = window.setTimeout(() => saveController.abort(), ENABLE_STEP_TIMEOUT_MS);
+      let save: Response;
+      try {
+        save = await fetch("/api/notifications/push/subscription", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(subscription.toJSON()),
+          signal: saveController.signal,
+        });
+      } finally {
+        window.clearTimeout(saveTimer);
+      }
       if (!save.ok) {
         setError(await errorFrom(save, "CradleHub could not save your phone subscription."));
         setState(save.status === 401 ? "login_required" : "failed");
         return;
       }
+      setHasExistingBrowserSub(true);
 
       // Optional verification without an additional tap. Do not claim that the
       // user saw a notification merely because the API accepted the request.
+      const testController = new AbortController();
+      const testTimer = window.setTimeout(() => testController.abort(), ENABLE_STEP_TIMEOUT_MS);
       const test = await fetch("/api/notifications/push/test", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ endpoint: subscription.endpoint }),
-      }).catch(() => null);
+        signal: testController.signal,
+      })
+        .catch(() => null)
+        .finally(() => window.clearTimeout(testTimer));
 
       setState(test?.ok ? "enabled" : "enabled_unverified");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Notification setup failed.");
+      const timedOut = cause instanceof DOMException && cause.name === "AbortError";
+      setError(
+        timedOut
+          ? "Saving notification setup timed out. Check your connection and try again."
+          : cause instanceof Error
+            ? cause.message
+            : "Notification setup failed."
+      );
       setState("failed");
     }
   }
@@ -196,13 +286,24 @@ export default function EnableNotificationsPage() {
         <div className="mt-6" role="status" aria-live="polite">
           {state === "checking" && <p className="text-sm text-stone-500">Checking your phone…</p>}
           {ready && (
-            <button
-              type="button"
-              onClick={() => void enable()}
-              className="w-full rounded-xl bg-[#153A2D] px-5 py-4 text-base font-semibold text-white transition hover:bg-[#23533f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153A2D]"
-            >
-              {state === "enabled_unverified" ? "Retry test notification" : "Enable notifications"}
-            </button>
+            <div className="space-y-3">
+              {state === "ready" && hasExistingBrowserSub && (
+                <p className="text-xs font-medium text-emerald-700">
+                  This browser already has a saved alert subscription. Tap below to refresh it and send a test alert.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => void enable()}
+                className="w-full rounded-xl bg-[#153A2D] px-5 py-4 text-base font-semibold text-white transition hover:bg-[#23533f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153A2D]"
+              >
+                {state === "enabled_unverified"
+                  ? "Retry test notification"
+                  : hasExistingBrowserSub && state === "ready"
+                    ? "Refresh & send test alert"
+                    : "Enable notifications"}
+              </button>
+            </div>
           )}
           {state === "working" && <p className="text-sm text-stone-600">Connecting your phone…</p>}
           {state === "enabled" && (
@@ -240,7 +341,22 @@ export default function EnableNotificationsPage() {
               This browser cannot enable web push. Open the link in Chrome on Android or the installed CradleHub app on iPhone.
             </p>
           )}
-          {state === "unavailable" && <p className="text-sm text-amber-700">{error}</p>}
+          {state === "unavailable" && (
+            <div className="space-y-3">
+              <p className="text-sm text-amber-700">{error}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setState("checking");
+                  setCheckNonce((n) => n + 1);
+                }}
+                className="inline-flex rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-[#153A2D] hover:bg-stone-50"
+              >
+                Retry check
+              </button>
+            </div>
+          )}
           {state === "failed" && <p className="mb-3 text-sm text-amber-700">{error}</p>}
         </div>
         {ready && state !== "enabled_unverified" && (

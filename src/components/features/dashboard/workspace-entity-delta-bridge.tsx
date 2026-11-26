@@ -13,7 +13,12 @@ import { emitWorkspaceEntityDelta } from "@/lib/workspace/entity-delta-bus";
 export function WorkspaceEntityDeltaBridge({ branchId }: { branchId: string }) {
   useEffect(() => {
     if (!branchId) return;
-    const supabase = createClient();
+    let supabase: ReturnType<typeof createClient>;
+    try {
+      supabase = createClient();
+    } catch {
+      return;
+    }
 
     const channel = supabase
       .channel(`cradlehub-entity-delta:${branchId}`)

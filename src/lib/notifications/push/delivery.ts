@@ -114,7 +114,8 @@ export function subscriptionMatchesNotification(
   notification: WorkspaceNotification,
   staff: StaffScope | undefined,
   ownerPreference: OwnerBookingPreference,
-  validatedAttendanceRecipient?: string
+  validatedAttendanceRecipient?: string,
+  validatedBorrowedRecipient?: string
 ) {
   if (!isCurrentNotice(notification) || !workspaceMatchesStaff(subscription, staff)) return false;
 
@@ -129,10 +130,26 @@ export function subscriptionMatchesNotification(
   const validatedPersonalAttendance = isV2AttendanceReminder(notification) &&
     validatedAttendanceRecipient === notification.recipient_staff_id &&
     validatedAttendanceRecipient === subscription.staff_id && validatedAttendanceRecipient === staff?.id;
-  if (!validatedPersonalAttendance && (!notification.branch_id || subscription.branch_id !== notification.branch_id)) {
+  const validatedBorrowedProvider =
+    Boolean(validatedBorrowedRecipient) &&
+    subscription.workspace === "staff" &&
+    notification.target_workspace === "staff" &&
+    notification.entity_type === "booking" &&
+    validatedBorrowedRecipient === notification.recipient_staff_id &&
+    validatedBorrowedRecipient === subscription.staff_id &&
+    validatedBorrowedRecipient === staff?.id &&
+    Boolean(staff?.branch_id) &&
+    subscription.branch_id === staff?.branch_id;
+  if (
+    !validatedPersonalAttendance &&
+    !validatedBorrowedProvider &&
+    (!notification.branch_id || subscription.branch_id !== notification.branch_id)
+  ) {
     return false;
   }
-  if (!validatedPersonalAttendance && staff?.branch_id !== subscription.branch_id) return false;
+  if (!validatedPersonalAttendance && !validatedBorrowedProvider && staff?.branch_id !== subscription.branch_id) {
+    return false;
+  }
   if (
     notification.recipient_staff_id &&
     notification.recipient_staff_id !== subscription.staff_id
@@ -377,6 +394,71 @@ export async function deliverWorkspaceNotificationPush(
       ])
     );
 
+    let validatedBorrowedRecipient: string | undefined;
+    if (
+      notification.target_workspace === "staff" &&
+      notification.entity_type === "booking" &&
+      notification.recipient_staff_id &&
+      notification.branch_id
+    ) {
+      const targetStaff = staffById.get(notification.recipient_staff_id);
+      if (targetStaff && targetStaff.branch_id !== notification.branch_id) {
+        const bookingDate = notification.entity_id
+          ? await admin
+              .from("bookings")
+              .select("booking_date")
+              .eq("id", notification.entity_id)
+              .eq("branch_id", notification.branch_id)
+              .maybeSingle()
+              .then((res) => (res.error ? null : res.data?.booking_date ?? null))
+          : null;
+        const assistanceDb = admin as unknown as {
+          from: (table: "staff_assistance_assignments") => {
+            select: (cols: string) => {
+              eq: (c: string, v: string) => {
+                eq: (c: string, v: string) => {
+                  eq: (c: string, v: string) => {
+                    limit: (n: number) => Promise<{
+                      data: Array<{
+                        id?: string;
+                        assistance_date?: string | null;
+                        end_at?: string | null;
+                      }> | null;
+                      error: unknown;
+                    }>;
+                  };
+                };
+              };
+            };
+          };
+        };
+        const { data: assistanceRows, error: assistanceError } = await assistanceDb
+          .from("staff_assistance_assignments")
+          .select("id, assistance_date, end_at")
+          .eq("staff_id", notification.recipient_staff_id)
+          .eq("receiving_branch_id", notification.branch_id)
+          .eq("status", "arrived_clocked_in")
+          .limit(20);
+        const nowMs = Date.now();
+        const activeMatch =
+          !assistanceError &&
+          Array.isArray(assistanceRows) &&
+          assistanceRows.some((row) => {
+            if (!row.id) return false;
+            const endMs = row.end_at ? Date.parse(row.end_at) : NaN;
+            if (Number.isFinite(endMs) && endMs < nowMs - 12 * 3600_000) return false;
+            if (bookingDate && row.assistance_date !== bookingDate) {
+              const stillActiveOvernight = Number.isFinite(endMs) && endMs >= nowMs;
+              if (!stillActiveOvernight) return false;
+            }
+            return true;
+          });
+        if (activeMatch) {
+          validatedBorrowedRecipient = notification.recipient_staff_id;
+        }
+      }
+    }
+
     const nativePreferred = notification.target_workspace === "driver" && notification.entity_type === "booking" &&
       ["home_service_assigned", "booking_reassigned", "booking_cancelled", "booking_rescheduled", "booking_status_changed"].includes(notification.type)
       ? await preferredNativeDriverIds(staffIds)
@@ -390,7 +472,8 @@ export async function deliverWorkspaceNotificationPush(
           : undefined,
         ownerPreferences.get(subscription.auth_user_id) ??
           "home_service_and_urgent",
-        options?.validatedAttendanceRecipient
+        options?.validatedAttendanceRecipient,
+        validatedBorrowedRecipient
       ) && !(subscription.staff_id && nativePreferred.has(subscription.staff_id)) && !options?.skipSubscriptionIds?.has(subscription.id) &&
       (!options?.eligibleStaffIds || (Boolean(subscription.staff_id) && options.eligibleStaffIds.has(subscription.staff_id!)))
     );
