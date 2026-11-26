@@ -309,6 +309,20 @@ describe("Stage WEB-1 Borrowed Stage C Therapist & Notification Stabilization", 
     await notifyConfirmedAssignedStaff("booking-sm-1", "branch-receiving");
     expect(state.createdNotifications).toHaveLength(0);
 
+    // Expired end_at must NOT trigger receiving-branch customer notifications
+    state.assistanceRows = [
+      {
+        ...state.assistanceRows[0],
+        id: "assign-expired-today",
+        assistance_date: "2026-11-27",
+        start_at: "2026-11-27T00:00:00Z",
+        end_at: "2026-11-27T03:00:00Z",
+        status: "arrived_clocked_in",
+      },
+    ];
+    await notifyConfirmedAssignedStaff("booking-sm-1", "branch-receiving");
+    expect(state.createdNotifications).toHaveLength(0);
+
     state.assistanceRows = [
       {
         id: "assign-1",
@@ -430,6 +444,20 @@ describe("Stage WEB-1 Borrowed Stage C Therapist & Notification Stabilization", 
     });
 
     // Arrived Stage C borrowed therapist -> allowed for session_started and completed
+    // Expired end_at must NOT trigger receiving-branch customer notifications
+    state.assistanceRows = [
+      {
+        ...state.assistanceRows[0],
+        id: "assign-expired-today",
+        assistance_date: "2026-11-27",
+        start_at: "2026-11-27T00:00:00Z",
+        end_at: "2026-11-27T03:00:00Z",
+        status: "arrived_clocked_in",
+      },
+    ];
+    await notifyConfirmedAssignedStaff("booking-sm-1", "branch-receiving");
+    expect(state.createdNotifications).toHaveLength(0);
+
     state.assistanceRows = [
       {
         id: "assign-1",
@@ -522,6 +550,42 @@ describe("Stage WEB-1 Borrowed Stage C Therapist & Notification Stabilization", 
     });
     expect(overnightCompleted).toMatchObject({ ok: true, status: "completed" });
     expect(state.rpcCalls).toHaveLength(3);
+
+    // Expired same-day assistance (end_at in the past) cannot start a new cross-branch service session
+    state.booking = {
+      ...state.booking!,
+      booking_date: "2026-11-27",
+      status: "confirmed",
+      booking_progress_status: "checked_in",
+    };
+    state.assistanceRows = [
+      {
+        id: "assign-expired-start",
+        request_id: "req-3",
+        staff_id: "therapist-home",
+        home_branch_id: "branch-home",
+        receiving_branch_id: "branch-receiving",
+        requested_role: "therapist",
+        visit_type: "full_day",
+        start_at: "2026-11-27T00:00:00Z",
+        end_at: "2026-11-27T03:00:00Z",
+        assistance_date: "2026-11-27",
+        status: "arrived_clocked_in",
+        home_clocked_out_at: null,
+        receiving_checkin_id: "chk-3",
+        arrived_clocked_in_at: "2026-11-27T00:05:00Z",
+        completed_at: null,
+      },
+    ];
+    const deniedExpired = await updateBookingProgressAction({
+      bookingId: "booking-sm-1",
+      nextStatus: "session_started",
+    });
+    expect(deniedExpired).toMatchObject({
+      ok: false,
+      code: "PERMISSION_DENIED",
+      message: "This booking is outside your branch.",
+    });
   });
 
   it("verifies WEB-1 notification routing, CRM live bell wiring, and bounded push-enable timeout", () => {

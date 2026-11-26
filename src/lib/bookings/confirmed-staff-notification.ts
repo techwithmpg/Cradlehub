@@ -64,7 +64,8 @@ export async function notifyConfirmedAssignedStaff(
         statuses: ["arrived_clocked_in"],
         supabase: admin,
       }).catch(() => null);
-      if (!assistance) {
+      const endMs = assistance ? Date.parse(assistance.assignment.end_at) : NaN;
+      if (!assistance || (Number.isFinite(endMs) && endMs < Date.now())) {
         return;
       }
     }

@@ -447,5 +447,31 @@ describe("authoritative attendance day model", () => {
       availabilityState: "available",
       activeBookingId: null,
     });
+
+    // Overnight open shift -> preserves post-midnight booking started after shift clock-in
+    expect(
+      resolve({
+        records: [
+          record({
+            shift_date: "2026-07-14",
+            checked_in_at: "2026-07-14T14:00:00.000Z",
+            scheduled_end_at: "2026-07-14T22:00:00.000Z",
+          }),
+        ],
+        sessions: [
+          {
+            ...historicalSession,
+            id: "booking-overnight-1",
+            booking_date: "2026-07-15",
+            session_started_at: "2026-07-14T16:30:00.000Z",
+          },
+        ],
+      })
+    ).toMatchObject({
+      currentAttendanceState: "in_service",
+      operationalStatus: "on_service",
+      availabilityState: "in_service",
+      activeBookingId: "booking-overnight-1",
+    });
   });
 });

@@ -115,9 +115,9 @@ export async function loadStaffNotices() {
     if (notice.entity_type === "booking") {
       const booking = bookingMap.get(notice.entity_id ?? "");
       if (!booking || !allowedBranchIds.has(booking.branch_id)) return false;
-      if (booking.branch_id !== staff.branch_id && booking.booking_date) {
+      if (booking.branch_id !== staff.branch_id) {
         const dates = allowedDatesByBranch.get(booking.branch_id);
-        if (dates && dates.size > 0 && !dates.has(booking.booking_date)) return false;
+        if (!booking.booking_date || !dates || !dates.has(booking.booking_date)) return false;
       }
       if (group === "driver" && (booking.driver_id !== staff.id || booking.delivery_type !== "home_service")) return false;
       if (group === "provider" && booking.staff_id !== staff.id) return false;

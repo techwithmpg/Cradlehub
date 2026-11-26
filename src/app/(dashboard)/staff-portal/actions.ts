@@ -912,6 +912,20 @@ export async function updateBookingProgressAction({
               : ["arrived_clocked_in"],
         }).catch(() => null)
       : null;
+    if (activeAssistance) {
+      const nowMs = Date.now();
+      const startMs = Date.parse(activeAssistance.assignment.start_at);
+      const endMs = Date.parse(activeAssistance.assignment.end_at);
+      const isFinishingStartedSession =
+        nextStatus === "completed" && booking.booking_progress_status === "session_started";
+      const withinWindow = isFinishingStartedSession
+        ? !Number.isFinite(endMs) || endMs >= nowMs - 6 * 3600_000
+        : (!Number.isFinite(startMs) || nowMs >= startMs - 120 * 60_000) &&
+          (!Number.isFinite(endMs) || nowMs <= endMs);
+      if (!withinWindow) {
+        activeAssistance = null;
+      }
+    }
     if (
       !activeAssistance &&
       canCheckBorrowedProviderSession &&
