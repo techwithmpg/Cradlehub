@@ -273,7 +273,10 @@ describe("Driver APK download endpoint authorization & lifecycle", () => {
     mockState.user = null;
     const getRes = await GET();
     expect(getRes.status).toBe(401);
-    const postRes = await POST();
+    const req = new NextRequest("https://www.cradlewellnessliving.com/api/staff/driver/apk-download", {
+      method: "POST",
+    });
+    const postRes = await POST(req);
     expect(postRes.status).toBe(401);
   });
 
@@ -289,7 +292,10 @@ describe("Driver APK download endpoint authorization & lifecycle", () => {
 
     for (const profile of blockedProfiles) {
       mockState.staff = profile;
-      const res = await POST();
+      const req = new NextRequest("https://www.cradlewellnessliving.com/api/staff/driver/apk-download", {
+        method: "POST",
+      });
+      const res = await POST(req);
       expect(res.status, `Expected 403 for profile ${String(profile.id)}`).toBe(403);
     }
   });
@@ -360,7 +366,10 @@ describe("Driver APK download endpoint authorization & lifecycle", () => {
     expect(getBody.release.available).toBe(false);
     expect(getBody.release.statusLabel).toBe("Not yet available");
 
-    const postRes = await POST();
+    const postReq = new NextRequest("https://www.cradlewellnessliving.com/api/staff/driver/apk-download", {
+      method: "POST",
+    });
+    const postRes = await POST(postReq);
     expect(postRes.status).toBe(503);
     const postBody = await postRes.json();
     expect(postBody.code).toBe("apk_not_available");
