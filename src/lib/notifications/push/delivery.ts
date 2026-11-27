@@ -2,6 +2,11 @@ import "server-only";
 import { preferredNativeDriverIds } from "@/lib/driver/native-push";
 import { createHash } from "node:crypto";
 import { staffNotificationWorkspace, staffNoticeHref, isCurrentNotice, safeAttendanceNoticeCopy } from "@/lib/staff-pwa/notice-policy";
+import {
+  authorizeBorrowedStaffBookingPush,
+  type BorrowedBookingAuthorityRow,
+  type StageCAssistanceRowCandidate,
+} from "@/lib/staff/stage-c-authorization";
 
 import webpush from "web-push";
 
@@ -29,6 +34,8 @@ type StaffScope = {
   is_active: boolean;
   system_role: string;
   staff_type?: string | null;
+  archived_at?: string | null;
+  merged_into_staff_id?: string | null;
 };
 
 export type PushDeliveryResult = {
@@ -99,7 +106,13 @@ function workspaceMatchesStaff(
   if (subscription.workspace === "owner" && !subscription.staff_id) {
     return isSuperAdmin(subscription.auth_user_id);
   }
-  if (!staff || !staff.is_active || staff.auth_user_id !== subscription.auth_user_id) {
+  if (
+    !staff ||
+    !staff.is_active ||
+    staff.archived_at ||
+    staff.merged_into_staff_id ||
+    staff.auth_user_id !== subscription.auth_user_id
+  ) {
     return false;
   }
   const role = canonicalizeSystemRole(staff.system_role);
@@ -369,7 +382,7 @@ export async function deliverWorkspaceNotificationPush(
     const staffResult = staffIds.length
       ? await admin
           .from("staff")
-          .select("id, auth_user_id, branch_id, system_role, staff_type, is_active")
+          .select("id, auth_user_id, branch_id, system_role, staff_type, is_active, archived_at, merged_into_staff_id")
           .in("id", staffIds)
       : { data: [] as StaffScope[], error: null };
     if (staffResult.error) throw staffResult.error;
@@ -399,19 +412,18 @@ export async function deliverWorkspaceNotificationPush(
       notification.target_workspace === "staff" &&
       notification.entity_type === "booking" &&
       notification.recipient_staff_id &&
-      notification.branch_id
+      notification.branch_id &&
+      notification.entity_id
     ) {
       const targetStaff = staffById.get(notification.recipient_staff_id);
-      if (targetStaff && targetStaff.branch_id !== notification.branch_id) {
-        const bookingDate = notification.entity_id
-          ? await admin
-              .from("bookings")
-              .select("booking_date")
-              .eq("id", notification.entity_id)
-              .eq("branch_id", notification.branch_id)
-              .maybeSingle()
-              .then((res) => (res.error ? null : res.data?.booking_date ?? null))
-          : null;
+      if (
+        targetStaff &&
+        targetStaff.is_active &&
+        !targetStaff.archived_at &&
+        !targetStaff.merged_into_staff_id &&
+        targetStaff.branch_id &&
+        targetStaff.branch_id !== notification.branch_id
+      ) {
         const assistanceDb = admin as unknown as {
           from: (table: "staff_assistance_assignments") => {
             select: (cols: string) => {
@@ -419,11 +431,7 @@ export async function deliverWorkspaceNotificationPush(
                 eq: (c: string, v: string) => {
                   eq: (c: string, v: string) => {
                     limit: (n: number) => Promise<{
-                      data: Array<{
-                        id?: string;
-                        assistance_date?: string | null;
-                        end_at?: string | null;
-                      }> | null;
+                      data: StageCAssistanceRowCandidate[] | null;
                       error: unknown;
                     }>;
                   };
@@ -432,30 +440,39 @@ export async function deliverWorkspaceNotificationPush(
             };
           };
         };
-        const { data: assistanceRows, error: assistanceError } = await assistanceDb
-          .from("staff_assistance_assignments")
-          .select("id, assistance_date, end_at")
-          .eq("staff_id", notification.recipient_staff_id)
-          .eq("receiving_branch_id", notification.branch_id)
-          .eq("status", "arrived_clocked_in")
-          .limit(20);
-        const nowMs = Date.now();
-        const activeMatch =
-          !assistanceError &&
-          Array.isArray(assistanceRows) &&
-          assistanceRows.some((row) => {
-            if (!row.id) return false;
-            const endMs = row.end_at ? Date.parse(row.end_at) : NaN;
-            if (Number.isFinite(endMs) && endMs < nowMs - 12 * 3600_000) return false;
-            if (bookingDate && row.assistance_date !== bookingDate) {
-              const stillActiveOvernight = Number.isFinite(endMs) && endMs >= nowMs;
-              if (!stillActiveOvernight) return false;
-            }
-            return true;
-          });
-        if (activeMatch) {
-          validatedBorrowedRecipient = notification.recipient_staff_id;
-        }
+
+        const [bookingRes, assistanceRes] = await Promise.all([
+          admin
+            .from("bookings")
+            .select(
+              "id, branch_id, staff_id, booking_date, status, booking_progress_status, session_started_at, session_completed_at"
+            )
+            .eq("id", notification.entity_id)
+            .eq("branch_id", notification.branch_id)
+            .maybeSingle(),
+          assistanceDb
+            .from("staff_assistance_assignments")
+            .select(
+              "id, staff_id, receiving_branch_id, assistance_date, start_at, end_at, status"
+            )
+            .eq("staff_id", notification.recipient_staff_id)
+            .eq("receiving_branch_id", notification.branch_id)
+            .eq("status", "arrived_clocked_in")
+            .limit(20),
+        ]);
+
+        const booking = !bookingRes.error
+          ? (bookingRes.data as BorrowedBookingAuthorityRow | null)
+          : null;
+        const assistanceRows = !assistanceRes.error ? assistanceRes.data : null;
+
+        validatedBorrowedRecipient = authorizeBorrowedStaffBookingPush({
+          notification,
+          targetStaff,
+          booking,
+          assistanceRows,
+          nowMs: Date.now(),
+        });
       }
     }
 

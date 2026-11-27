@@ -391,7 +391,7 @@ describe("Stage WEB-1 Borrowed Stage C Therapist & Notification Stabilization", 
     ];
     expect((await getStaffNotices()).items).toEqual([]);
 
-    // Expired arrived assignment (>12h past end_at) -> must NOT load
+    // Expired arrived assignment (past end_at -> zero grace bypass) -> must NOT load
     state.assistanceRows = [
       {
         id: "assign-expired",
@@ -399,16 +399,32 @@ describe("Stage WEB-1 Borrowed Stage C Therapist & Notification Stabilization", 
         home_branch_id: "branch-home",
         receiving_branch_id: "branch-receiving",
         assistance_date: "2026-11-25",
+        start_at: "2026-11-25T01:00:00Z",
         end_at: "2026-11-25T11:00:00Z",
         status: "arrived_clocked_in",
       },
     ];
     expect((await getStaffNotices()).items).toEqual([]);
 
-    // Active arrived assignment on 2026-11-27 paired with off-date booking (2026-11-25) -> must NOT load
+    // Same-day assignment just past end_at (e.g. 09:00..11:50 Manila, now 12:00 Manila) -> must NOT load
     state.assistanceRows = [
       {
-        id: "assign-1",
+        id: "assign-ended-10m-ago",
+        staff_id: "therapist-home",
+        home_branch_id: "branch-home",
+        receiving_branch_id: "branch-receiving",
+        assistance_date: "2026-11-27",
+        start_at: "2026-11-27T01:00:00Z",
+        end_at: "2026-11-27T03:50:00Z",
+        status: "arrived_clocked_in",
+      },
+    ];
+    expect((await getStaffNotices()).items).toEqual([]);
+
+    // Missing start_at or end_at -> fail closed, must NOT load
+    state.assistanceRows = [
+      {
+        id: "assign-missing-start",
         staff_id: "therapist-home",
         home_branch_id: "branch-home",
         receiving_branch_id: "branch-receiving",
@@ -417,7 +433,24 @@ describe("Stage WEB-1 Borrowed Stage C Therapist & Notification Stabilization", 
         status: "arrived_clocked_in",
       },
     ];
+    expect((await getStaffNotices()).items).toEqual([]);
+
+    // Active arrived daytime assignment on 2026-11-27 must NOT expose off-date (2026-11-25) OR next-day (2026-11-28) bookings
+    state.assistanceRows = [
+      {
+        id: "assign-1",
+        staff_id: "therapist-home",
+        home_branch_id: "branch-home",
+        receiving_branch_id: "branch-receiving",
+        assistance_date: "2026-11-27",
+        start_at: "2026-11-27T01:00:00Z",
+        end_at: "2026-11-27T11:00:00Z",
+        status: "arrived_clocked_in",
+      },
+    ];
     state.bookingsList = [{ ...state.booking!, booking_date: "2026-11-25" }];
+    expect((await getStaffNotices()).items).toEqual([]);
+    state.bookingsList = [{ ...state.booking!, booking_date: "2026-11-28" }];
     expect((await getStaffNotices()).items).toEqual([]);
 
     // Active arrived assignment + matching booking date -> loads and marks read on notice.branch_id
@@ -425,6 +458,21 @@ describe("Stage WEB-1 Borrowed Stage C Therapist & Notification Stabilization", 
     const loaded = await getStaffNotices();
     expect(loaded.items).toHaveLength(1);
     expect(loaded.items[0]).toMatchObject({ id: "notice-sm-1", href: "/staff/progress" });
+
+    // Genuine overnight shift crossing Manila midnight (Nov 26 22:00 -> Nov 27 14:00) exposes Nov 27 booking
+    state.assistanceRows = [
+      {
+        id: "assign-overnight-active",
+        staff_id: "therapist-home",
+        home_branch_id: "branch-home",
+        receiving_branch_id: "branch-receiving",
+        assistance_date: "2026-11-26",
+        start_at: "2026-11-26T14:00:00Z",
+        end_at: "2026-11-27T06:00:00Z",
+        status: "arrived_clocked_in",
+      },
+    ];
+    expect((await getStaffNotices()).items).toHaveLength(1);
 
     const marked = await markStaffNoticeRead("notice-sm-1");
     expect(marked).toEqual({ ok: true });

@@ -1,7 +1,10 @@
 import "server-only";
-import { addDaysToYmd } from "@/lib/engine/slot-time";
+import {
+  getPermittedAssistanceDates,
+  parseStageCAssistanceWindow,
+  type StageCAssistanceRowCandidate,
+} from "@/lib/staff/stage-c-authorization";
 import { getStaffPwaContext } from "./staff-context";
-import { getProviderBusinessDate } from "./provider-date";
 import { noticeMatchesStaff, staffNotificationWorkspace, staffNoticeHref, safeAttendanceNoticeCopy } from "./notice-policy";
 
 export type StaffNotice = {
@@ -20,12 +23,7 @@ export async function loadStaffNotices() {
           eq: (column: string, value: string) => {
             eq: (column: string, value: string) => {
               limit: (n: number) => Promise<{
-                data: Array<{
-                  receiving_branch_id?: string | null;
-                  assistance_date?: string | null;
-                  start_at?: string | null;
-                  end_at?: string | null;
-                }> | null;
+                data: StageCAssistanceRowCandidate[] | null;
                 error: unknown;
               }>;
             };
@@ -33,34 +31,28 @@ export async function loadStaffNotices() {
         };
       };
     };
-    const [assistanceRes, businessDate] = await Promise.all([
-      assistanceDb
-        .from("staff_assistance_assignments")
-        .select("receiving_branch_id, assistance_date, start_at, end_at")
-        .eq("staff_id", staff.id)
-        .eq("status", "arrived_clocked_in")
-        .limit(50),
-      getProviderBusinessDate(staff.branch_id).catch(() => null),
-    ]);
+    const assistanceRes = await assistanceDb
+      .from("staff_assistance_assignments")
+      .select("id, staff_id, receiving_branch_id, assistance_date, start_at, end_at, status")
+      .eq("staff_id", staff.id)
+      .eq("status", "arrived_clocked_in")
+      .limit(50);
     const nowMs = Date.now();
-    const validDates = businessDate ? new Set([addDaysToYmd(businessDate, -1), businessDate]) : null;
     if (!assistanceRes.error && Array.isArray(assistanceRes.data)) {
       for (const row of assistanceRes.data) {
-        if (!row.receiving_branch_id) continue;
-        const endMs = row.end_at ? Date.parse(row.end_at) : NaN;
-        const withinWindow = Number.isFinite(endMs)
-          ? endMs >= nowMs - 12 * 3600_000
-          : Boolean(!validDates || (row.assistance_date && validDates.has(row.assistance_date)));
-        if (!withinWindow) continue;
-        allowedBranchIds.add(row.receiving_branch_id);
-        if (row.assistance_date) {
-          const dates = allowedDatesByBranch.get(row.receiving_branch_id) ?? new Set<string>();
-          dates.add(row.assistance_date);
-          if (Number.isFinite(endMs) && endMs >= nowMs - 6 * 3600_000) {
-            dates.add(addDaysToYmd(row.assistance_date, 1));
-          }
-          allowedDatesByBranch.set(row.receiving_branch_id, dates);
+        const window = parseStageCAssistanceWindow(row, {
+          staffId: staff.id,
+          allowedStatuses: ["arrived_clocked_in"],
+        });
+        if (!window) continue;
+        if (nowMs < window.effectiveStartMs || nowMs > window.endMs) continue;
+
+        allowedBranchIds.add(window.receivingBranchId);
+        const dates = allowedDatesByBranch.get(window.receivingBranchId) ?? new Set<string>();
+        for (const permittedDate of getPermittedAssistanceDates(window)) {
+          dates.add(permittedDate);
         }
+        allowedDatesByBranch.set(window.receivingBranchId, dates);
       }
     }
   }
