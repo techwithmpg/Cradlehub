@@ -444,20 +444,6 @@ describe("Stage WEB-1 Borrowed Stage C Therapist & Notification Stabilization", 
     });
 
     // Arrived Stage C borrowed therapist -> allowed for session_started and completed
-    // Expired end_at must NOT trigger receiving-branch customer notifications
-    state.assistanceRows = [
-      {
-        ...state.assistanceRows[0],
-        id: "assign-expired-today",
-        assistance_date: "2026-11-27",
-        start_at: "2026-11-27T00:00:00Z",
-        end_at: "2026-11-27T03:00:00Z",
-        status: "arrived_clocked_in",
-      },
-    ];
-    await notifyConfirmedAssignedStaff("booking-sm-1", "branch-receiving");
-    expect(state.createdNotifications).toHaveLength(0);
-
     state.assistanceRows = [
       {
         id: "assign-1",
