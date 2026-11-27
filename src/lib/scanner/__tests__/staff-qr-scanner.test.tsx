@@ -91,20 +91,20 @@ describe("Staff scanner server delegation", () => {
   it("renders honest recovery controls on permission denial or pause without start button", () => {
     harness.state = "permission_denied";
     const view1 = render(<StaffQrScanner returnHref="/staff/" />);
-    expect(screen.getByRole("button", { name: /try again/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /open camera/i })).toBeDefined();
     expect(screen.queryByRole("button", { name: /start scanning/i })).toBeNull();
     view1.unmount();
 
     harness.state = "paused";
     const view2 = render(<StaffQrScanner returnHref="/staff/" />);
-    expect(screen.getByRole("button", { name: /scan again/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /resume camera/i })).toBeDefined();
     expect(screen.queryByRole("button", { name: /start scanning/i })).toBeNull();
     view2.unmount();
   });
   it("displays truthful camera privacy copy and never claims 'No data stored on device'", () => {
     render(<StaffQrScanner returnHref="/staff/" />);
     expect(screen.queryByText(/no data stored on device/i)).toBeNull();
-    expect(screen.getByText(/camera active only while scanning · camera images are not saved/i)).toBeDefined();
+    expect(screen.getByText(/camera active only while scanning · images are never stored/i)).toBeDefined();
   });
   it("verifies Scan nav performs full document navigation to /staff/scan via standard anchor", async () => {
     const { StaffBottomNav } = await import("@/components/features/staff-pwa/bottom-nav");

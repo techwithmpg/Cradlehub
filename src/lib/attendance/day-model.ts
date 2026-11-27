@@ -1,5 +1,5 @@
 import { branchDateTimeToIsoInTimezone } from "@/lib/attendance/shift-instance";
-import { computeAttendanceMetrics } from "@/lib/attendance/time";
+import { addDaysToYmd, computeAttendanceMetrics } from "@/lib/attendance/time";
 import { attendanceV2Status, readAttendanceCredit } from "@/lib/attendance/v2-policy";
 import {
   effectiveAttendanceExceptionType,
@@ -269,13 +269,43 @@ export function resolveAttendanceDayStaffStates(params: {
       businessDate: params.businessDate,
       currentWindow: currentShiftWindow,
     });
-    const activeServiceSession =
-      params.sessions.find(
-        (session) =>
-          session.staff_id === staff.id &&
-          session.booking_progress_status === "session_started" &&
-          !session.session_completed_at
-      ) ?? null;
+    const isOpen = record?.status === "checked_in" && !record.checked_out_at;
+    // Attendance state remains grounded in an open shift; historical or unclocked
+    // session_started rows must never fabricate In Service or Clocked In state.
+    const activeServiceSession = isOpen
+      ? (params.sessions.find((session) => {
+          if (
+            session.staff_id !== staff.id ||
+            session.booking_progress_status !== "session_started" ||
+            session.session_completed_at
+          ) {
+            return false;
+          }
+          const sessionStartMs = session.session_started_at
+            ? Date.parse(session.session_started_at)
+            : NaN;
+          const checkInMs = Date.parse(record.checked_in_at);
+          const startedDuringOpenShift =
+            Number.isFinite(sessionStartMs) &&
+            Number.isFinite(checkInMs) &&
+            sessionStartMs >= checkInMs;
+          const sameShiftDate =
+            session.booking_date === params.businessDate ||
+            session.booking_date === record.shift_date;
+          const overnightNextDayMatch =
+            startedDuringOpenShift &&
+            session.booking_date === addDaysToYmd(params.businessDate, 1);
+          if (!sameShiftDate && !overnightNextDayMatch) return false;
+          if (
+            Number.isFinite(sessionStartMs) &&
+            Number.isFinite(checkInMs) &&
+            sessionStartMs < checkInMs
+          ) {
+            return false;
+          }
+          return true;
+        }) ?? null)
+      : null;
     const openExceptions = params.exceptions.filter((exception) => {
       if (exception.staff_id !== staff.id || !isActionableAttendanceException(exception)) {
         return false;
@@ -291,7 +321,6 @@ export function resolveAttendanceDayStaffStates(params: {
       ...(schedule.conflictCode ? [schedule.conflictCode] : []),
       ...openExceptions.map(effectiveAttendanceExceptionType),
     ];
-    const isOpen = record?.status === "checked_in" && !record.checked_out_at;
     const scheduledStart =
       currentShiftWindow?.scheduledStartAt ??
       nextShiftWindow?.scheduledStartAt ??

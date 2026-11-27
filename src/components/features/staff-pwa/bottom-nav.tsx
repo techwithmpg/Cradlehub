@@ -86,16 +86,14 @@ export function StaffBottomNav({
 
             return (
               <div key={item.key} className="flex h-full items-center justify-center">
-                <Link
+                <a
                   href={item.href}
-                  prefetch={true}
-                  onPointerDown={() => handleTouchStartOrPointerDown(item.href, active)}
                   aria-label="Scan QR code"
                   aria-current={active ? "page" : undefined}
                   className="flex h-16 w-16 -translate-y-2 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C8A96B]"
                 >
                   {scanContent}
-                </Link>
+                </a>
               </div>
             );
           }

@@ -1,12 +1,30 @@
 const ALLOWED_ACTION_PREFIXES = [
   "/crm",
   "/owner",
-  "/manager",
   "/staff-portal",
   "/staff",
   "/driver",
   "/utility",
 ];
+
+function workspaceForPath(pathname) {
+  if (pathname === "/staff/driver" || pathname.startsWith("/staff/driver/") || pathname === "/driver" || pathname.startsWith("/driver/")) {
+    return "driver";
+  }
+  if (pathname === "/staff/utility" || pathname.startsWith("/staff/utility/") || pathname === "/utility" || pathname.startsWith("/utility/")) {
+    return "utility";
+  }
+  if (pathname === "/staff" || pathname.startsWith("/staff/") || pathname === "/staff-portal" || pathname.startsWith("/staff-portal/")) {
+    return "staff";
+  }
+  if (pathname === "/crm" || pathname.startsWith("/crm/")) {
+    return "crm";
+  }
+  if (pathname === "/owner" || pathname.startsWith("/owner/")) {
+    return "owner";
+  }
+  return "other";
+}
 
 function safeActionHref(value) {
   if (typeof value !== "string") return "/";
@@ -71,21 +89,53 @@ self.addEventListener("push", (event) => {
         (client) => client.visibilityState === "visible"
       );
 
-      // Broadcast wake/reconcile message to any open window
+      // Reconcile matching visible workspace windows; suppress duplicate OS
+      // cards only for desktop Bell workspaces (/crm, /owner) or URL-less CRM/Owner
+      // test clients, never silently dropping foreground Staff PWA inner routes.
+      const targetWorkspace = workspaceForPath(actionHref);
+      let hasVisibleBellReconcile = false;
       visibleWindows.forEach((client) => {
-        try {
-          const url = new URL(client.url);
-          if (url.origin === self.location.origin) {
-            if (
-              payload.type === "home_service_assigned" &&
-              url.pathname.startsWith("/staff/driver")
-            ) {
-              client.postMessage({
-                type: "CRADLEHUB_DRIVER_DISPATCH_WAKE",
-                actionHref,
-                notificationId,
-              });
-            }
+        let sameOrigin = !client.url;
+        let pathname = "";
+        if (client.url) {
+          try {
+            const url = new URL(client.url);
+            sameOrigin = url.origin === self.location.origin;
+            pathname = url.pathname;
+          } catch {
+            sameOrigin = false;
+          }
+        }
+        if (!sameOrigin) return;
+        const clientWorkspace = client.url ? workspaceForPath(pathname) : null;
+        if (
+          payload.type === "home_service_assigned" &&
+          pathname.startsWith("/staff/driver") &&
+          /^\/staff\/driver\/map\?bookingId=[0-9a-f-]{36}$/i.test(actionHref)
+        ) {
+          client.postMessage({
+            type: "CRADLEHUB_DRIVER_DISPATCH_WAKE",
+            actionHref,
+            notificationId,
+          });
+          return;
+        }
+        const compatibleTarget =
+          !clientWorkspace ||
+          targetWorkspace === "other" ||
+          clientWorkspace === targetWorkspace ||
+          ((actionHref.startsWith("/staff/scan") || actionHref.startsWith("/staff/attendance")) &&
+            ["staff", "driver", "utility"].includes(clientWorkspace));
+        if (!compatibleTarget) return;
+
+        if (clientWorkspace === "crm" || clientWorkspace === "owner") {
+          hasVisibleBellReconcile = true;
+        } else if (!client.url && (targetWorkspace === "crm" || targetWorkspace === "owner")) {
+          hasVisibleBellReconcile = true;
+        }
+
+        if (payload.type !== "home_service_assigned") {
+          if (pathname.startsWith("/staff")) {
             client.postMessage({
               type: "CRADLEHUB_PUSH_RECONCILE",
               notificationId,
@@ -93,29 +143,21 @@ self.addEventListener("push", (event) => {
               title,
               body,
             });
+          } else {
+            client.postMessage({
+              type: "CRADLEHUB_PUSH_RECONCILE",
+              notificationId,
+            });
           }
-        } catch {
-          // Ignore malformed client URLs
         }
       });
 
-      // Check if any visible window is a desktop CRM/Owner window with an active in-app Bell toast.
-      // For mobile PWA windows (/staff, /staff-portal, /driver) or when the app is in the background/closed,
-      // ALWAYS show the native OS notification banner + vibration so staff never miss an action!
-      const hasVisibleDesktopBell = visibleWindows.some((client) => {
-        try {
-          const url = new URL(client.url);
-          return (
-            url.pathname.startsWith("/crm") ||
-            url.pathname.startsWith("/owner") ||
-            url.pathname.startsWith("/manager")
-          );
-        } catch {
-          return false;
-        }
-      });
-
-      if (hasVisibleDesktopBell && payload.test !== true && priority !== "critical") {
+      if (
+        hasVisibleBellReconcile &&
+        payload.test !== true &&
+        payload.type !== "home_service_assigned" &&
+        priority !== "critical"
+      ) {
         return;
       }
 
@@ -145,19 +187,35 @@ self.addEventListener("notificationclick", (event) => {
         type: "window",
         includeUncontrolled: true,
       });
+      const targetPath = new URL(targetUrl).pathname;
+      const targetWorkspace = workspaceForPath(targetPath);
+      const isSharedAttendanceRoute =
+        targetPath === "/staff/scan" ||
+        targetPath.startsWith("/staff/scan/") ||
+        targetPath === "/staff/attendance" ||
+        targetPath.startsWith("/staff/attendance/");
       const existing = windows.find((client) => {
         try {
           const url = new URL(client.url);
-          return url.origin === self.location.origin;
+          if (url.origin !== self.location.origin) return false;
+          const clientWorkspace = workspaceForPath(url.pathname);
+          if (isSharedAttendanceRoute) {
+            return ["staff", "driver", "utility"].includes(clientWorkspace);
+          }
+          return clientWorkspace === targetWorkspace;
         } catch {
           return false;
         }
       });
 
       if (existing) {
-        if ("navigate" in existing) await existing.navigate(targetUrl);
-        await existing.focus();
-        return;
+        try {
+          if ("navigate" in existing) await existing.navigate(targetUrl);
+          await existing.focus();
+          return;
+        } catch {
+          // Fall back to opening a new window if focusing/navigating the existing tab fails.
+        }
       }
       await self.clients.openWindow(targetUrl);
     })()

@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { Bell, ChevronRight, ClipboardList, QrCode } from "lucide-react";
+import { ChevronRight, ClipboardList, QrCode } from "lucide-react";
+import { StaffNoticesBellLink } from "@/components/features/staff-portal/staff-notices-bell-link";
+import { staffNotificationWorkspace } from "@/lib/staff-pwa/notice-policy";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { getStaffDisplayName } from "@/lib/staff/display-name";
 import type { StaffPortalStaff } from "@/components/features/staff-portal/types";
@@ -32,6 +34,7 @@ export function CrmMobileHome({
   const firstName = name.split(" ")[0] || name;
   const counts =
     runtime && !runtime.bookingError ? crmBookingCounts(runtime.bookings, runtime.date) : null;
+  const noticeWorkspace = staffNotificationWorkspace(staff) ?? "staff";
   const todayBookings =
     runtime?.bookings.filter(
       (booking) => booking.date === runtime.date && booking.status !== "completed"
@@ -72,13 +75,15 @@ export function CrmMobileHome({
               <p className="truncate text-base font-semibold">{name}</p>
             </div>
           </div>
-          <Link
+          <StaffNoticesBellLink
+            staffId={staff.id}
+            branchId={staff.branch_id ?? undefined}
+            workspace={noticeWorkspace}
             href="/staff/notices"
-            aria-label="Notices"
+            iconSize={20}
+            badgeClassName="bg-[#9B1C20] text-white"
             className="grid min-h-12 min-w-12 place-items-center rounded-full bg-white/10 focus-visible:outline-2 focus-visible:outline-[#c8a96b]"
-          >
-            <Bell size={20} aria-hidden="true" />
-          </Link>
+          />
         </div>
         <p className="relative mt-6 text-xs text-[#dfca92]">{dateLabel}</p>
         <h1 className="relative mt-1 text-[26px] font-semibold leading-tight tracking-[-0.04em]">

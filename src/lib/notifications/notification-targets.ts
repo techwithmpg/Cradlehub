@@ -89,7 +89,7 @@ function getBookingTargetPath(
       if (notificationType === "home_service_assigned") {
         return `/staff/driver/map?bookingId=${encoded}`;
       }
-      return `/staff/driver/routes/${encoded}`;
+      return `/staff/driver/trips/${encoded}`;
     case "utility":
       return `/staff/utility/work?bookingId=${encoded}`;
   }

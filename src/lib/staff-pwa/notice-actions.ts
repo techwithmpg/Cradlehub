@@ -5,13 +5,13 @@ import { loadStaffNotices } from "./notices-runtime";
 
 export async function markStaffNoticeRead(id: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const { db, staff, current } = await loadStaffNotices();
+    const { db, current } = await loadStaffNotices();
     const notice = current.find(row => row.id === id);
-    if (!notice) return { ok: false, error: "Notice is no longer available." };
+    if (!notice || !notice.branch_id) return { ok: false, error: "Notice is no longer available." };
     if (notice.status === "read") return { ok: true };
     let query = db.from("workspace_notifications")
       .update({ status: "read", read_at: new Date().toISOString() })
-      .eq("id", notice.id).eq("branch_id", staff.branch_id).eq("status", "unread")
+      .eq("id", notice.id).eq("branch_id", notice.branch_id).eq("status", "unread")
       .eq("target_workspace", notice.target_workspace).is("resolved_at", null);
     query = notice.recipient_staff_id ? query.eq("recipient_staff_id", notice.recipient_staff_id) : query.is("recipient_staff_id", null);
     query = notice.target_role ? query.eq("target_role", notice.target_role) : query.is("target_role", null);

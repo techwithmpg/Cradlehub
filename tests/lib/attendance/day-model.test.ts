@@ -369,4 +369,109 @@ describe("authoritative attendance day model", () => {
     });
     expect(state).toMatchObject({ scheduleState: "not_scheduled", displayLabel: "Not Scheduled" });
   });
+
+  it("ignores historical or unclocked session_started bookings when there is no open shift", () => {
+    const historicalSession: AttendanceSession = {
+      id: "booking-hist-1",
+      staff_id: "staff-1",
+      customer_name: "Customer",
+      service_name: "Massage",
+      staff_name: "Maria Santos",
+      resource_name: "Room 1",
+      booking_date: "2026-06-10",
+      start_time: "10:00",
+      status: "in_progress",
+      booking_progress_status: "session_started",
+      session_started_at: "2026-06-10T02:00:00.000Z",
+      session_due_at: null,
+      session_completed_at: null,
+      duration_minutes: 60,
+    };
+
+    // No open attendance shift -> must not report In Service or Clocked In
+    expect(resolve({ records: [], sessions: [historicalSession] })).toMatchObject({
+      currentAttendanceState: "not_arrived",
+      operationalStatus: "expected_later",
+      availabilityState: "not_available",
+      activeBookingId: null,
+    });
+
+    // Closed shift -> must stay Clocked Out even with unfinished session_started row
+    expect(
+      resolve({
+        records: [
+          record({
+            status: "checked_out",
+            checked_out_at: "2026-07-14T10:00:00.000Z",
+            worked_minutes: 540,
+          }),
+        ],
+        sessions: [
+          {
+            ...historicalSession,
+            booking_date: "2026-07-14",
+            session_started_at: "2026-07-14T02:00:00.000Z",
+          },
+        ],
+      })
+    ).toMatchObject({
+      currentAttendanceState: "clocked_out",
+      operationalStatus: "clocked_out",
+      availabilityState: "not_available",
+      activeBookingId: null,
+    });
+
+    // Current open shift -> still ignores stale previous-date session_started row
+    expect(resolve({ records: [record()], sessions: [historicalSession] })).toMatchObject({
+      currentAttendanceState: "available",
+      operationalStatus: "clocked_in",
+      availabilityState: "available",
+      activeBookingId: null,
+    });
+
+    // Current second shift today -> ignores abandoned same-day session_started started before this shift checked in
+    expect(
+      resolve({
+        records: [record({ checked_in_at: "2026-07-14T05:00:00.000Z" })],
+        sessions: [
+          {
+            ...historicalSession,
+            booking_date: "2026-07-14",
+            session_started_at: "2026-07-14T02:00:00.000Z",
+          },
+        ],
+      })
+    ).toMatchObject({
+      currentAttendanceState: "available",
+      operationalStatus: "clocked_in",
+      availabilityState: "available",
+      activeBookingId: null,
+    });
+
+    // Overnight open shift -> preserves post-midnight booking started after shift clock-in
+    expect(
+      resolve({
+        records: [
+          record({
+            shift_date: "2026-07-14",
+            checked_in_at: "2026-07-14T14:00:00.000Z",
+            scheduled_end_at: "2026-07-14T22:00:00.000Z",
+          }),
+        ],
+        sessions: [
+          {
+            ...historicalSession,
+            id: "booking-overnight-1",
+            booking_date: "2026-07-15",
+            session_started_at: "2026-07-14T16:30:00.000Z",
+          },
+        ],
+      })
+    ).toMatchObject({
+      currentAttendanceState: "in_service",
+      operationalStatus: "on_service",
+      availabilityState: "in_service",
+      activeBookingId: "booking-overnight-1",
+    });
+  });
 });

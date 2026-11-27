@@ -20,12 +20,30 @@ export function isCurrentNotice(notice: WorkspaceNotification, now = Date.now())
   return expires === null || (Number.isFinite(expires) && expires > now);
 }
 
-export function noticeMatchesStaff(notice: WorkspaceNotification, staff: NoticeStaff, now = Date.now()) {
-  if (!isCurrentNotice(notice, now) || notice.branch_id !== staff.branch_id) return false;
+export type NoticeMatchOptions = {
+  allowedBranchIds?: ReadonlySet<string>;
+};
+
+export function noticeMatchesStaff(
+  notice: WorkspaceNotification,
+  staff: NoticeStaff,
+  now = Date.now(),
+  options?: NoticeMatchOptions
+) {
+  if (!isCurrentNotice(notice, now)) return false;
   const workspace = staffNotificationWorkspace(staff);
   if (!workspace || notice.target_workspace !== workspace) return false;
   if (notice.recipient_staff_id && notice.recipient_staff_id !== staff.id) return false;
-  if (workspace !== "crm" && notice.recipient_staff_id && notice.recipient_staff_id !== staff.id) return false;
+  if (workspace === "crm") {
+    if (notice.branch_id !== staff.branch_id) return false;
+  } else {
+    if (!notice.recipient_staff_id) return false;
+    const branchAllowed = Boolean(
+      notice.branch_id &&
+        (notice.branch_id === staff.branch_id || options?.allowedBranchIds?.has(notice.branch_id))
+    );
+    if (!branchAllowed) return false;
+  }
   return !notice.target_role || canonicalizeSystemRole(notice.target_role) === canonicalizeSystemRole(staff.system_role);
 }
 
@@ -42,7 +60,7 @@ export function staffNoticeHref(
     const id = encodeURIComponent(notice.entity_id);
     return notice.type === "home_service_assigned"
       ? `/staff/driver/map?bookingId=${id}`
-      : `/staff/driver/routes/${id}`;
+      : `/staff/driver/trips/${id}`;
   }
   if (workspace === "driver") return "/staff/driver";
   if (workspace === "utility") {
