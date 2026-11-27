@@ -42,24 +42,22 @@ export async function GET() {
   }
 }
 
-export async function POST(request?: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    if (request) {
-      const origin = request.headers.get("origin");
-      const secFetchSite = request.headers.get("sec-fetch-site");
-      if (
-        (origin && origin !== request.nextUrl.origin) ||
-        secFetchSite === "cross-site"
-      ) {
-        return NextResponse.json(
-          {
-            ok: false,
-            code: "invalid_request_origin",
-            error: "Cross-origin download authorization requests are not permitted.",
-          },
-          { status: 403, headers: PRIVATE_NO_STORE_HEADERS }
-        );
-      }
+    const origin = request.headers.get("origin");
+    const secFetchSite = request.headers.get("sec-fetch-site");
+    if (
+      (origin && origin !== request.nextUrl.origin) ||
+      secFetchSite === "cross-site"
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "invalid_request_origin",
+          error: "Cross-origin download authorization requests are not permitted.",
+        },
+        { status: 403, headers: PRIVATE_NO_STORE_HEADERS }
+      );
     }
 
     const issued = await issueDriverApkDownloadLink();
